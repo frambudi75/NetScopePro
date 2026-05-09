@@ -149,15 +149,12 @@ include 'includes/header.php';
             <i data-lucide="code-2" style="width: 18px; color: var(--primary);"></i> Credits
         </h3>
         <div style="display: flex; align-items: center; gap: 1.25rem; margin-bottom: 2rem;">
-            <img src="https://github.com/frambudi75.png" 
-                 style="width: 64px; height: 64px; border-radius: 16px; object-fit: cover; border: 2px solid var(--border); flex-shrink: 0;"
-                 alt="Habib Frambudi">
+            <div style="background: var(--primary); padding: 12px; border-radius: 12px;">
+                <i data-lucide="network" style="color: white; width: 32px; height: 32px;"></i>
+            </div>
             <div>
-                <div style="font-size: 1.125rem; font-weight: 700; color: white;"><?php echo APP_AUTHOR; ?></div>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">Lead Developer & UI Designer</div>
-                <div style="font-size: 0.8rem; margin-top: 4px;">
-                    <a href="mailto:<?php echo APP_AUTHOR_EMAIL; ?>" style="color: var(--primary); text-decoration: none;"><?php echo APP_AUTHOR_EMAIL; ?></a>
-                </div>
+                <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--primary); margin: 0;">NetScope <span style="color: white;">Pro</span></h2>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">Advanced Network Infrastructure Management</p>
             </div>
         </div>
         <div style="display: flex; flex-direction: column; gap: 0.5rem;">
