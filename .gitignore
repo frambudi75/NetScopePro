@@ -1,0 +1,25 @@
+# XAMPP / Local environment
+php.ini
+*.log
+tmp/
+vendor/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Database / Sensitive
+# includes/config.php  <-- We keep this as a template but user should be careful
+sql/*.sql
+!sql/database.sql
+
+# IPManager Debug/Scratch
+scratch/
+IP-Manage-main/
+IP-Manage-main.zip
+tmp_*.php
+debug_*.php

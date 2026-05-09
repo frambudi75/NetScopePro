@@ -1,0 +1,1 @@
+<?php require 'includes/config.php'; require 'includes/db.php'; $db = get_db_connection(); $s = $db->query('SELECT id, name, model, system_info FROM switches')->fetchAll(PDO::FETCH_ASSOC); print_r($s);
