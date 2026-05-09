@@ -149,7 +149,7 @@ include 'includes/header.php';
 </style>
 
 <div class="page-header">
-    <h1 style="font-size: 1.5rem;">System Configuration</h1>
+    <h1 style="font-size: 1.5rem;">NetScope Configuration</h1>
 </div>
 
 <?php if ($message): ?>

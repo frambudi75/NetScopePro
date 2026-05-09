@@ -112,7 +112,7 @@ include 'includes/header.php';
     <div style="display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; background: linear-gradient(135deg, var(--primary), #8b5cf6); border-radius: 24px; margin-bottom: 1.5rem; box-shadow: 0 8px 32px rgba(99,102,241,0.4);">
         <i data-lucide="network" style="width: 40px; height: 40px; color: white;"></i>
     </div>
-    <h1 style="font-size: 2.25rem; font-weight: 900; margin-bottom: 0.75rem; letter-spacing: -1px;">IPManager Pro</h1>
+    <h1 style="font-size: 2.25rem; font-weight: 900; margin-bottom: 0.75rem; letter-spacing: -1px;">NetScope Pro</h1>
     <p style="color: var(--text-muted); font-size: 1rem; margin-bottom: 2rem; max-width: 600px; margin-left: auto; margin-right: auto;">Premium Enterprise IP Address Management for Modern Networks.</p>
     
     <div style="display: inline-flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center;">
@@ -149,12 +149,24 @@ include 'includes/header.php';
             <i data-lucide="code-2" style="width: 18px; color: var(--primary);"></i> Credits
         </h3>
         <div style="display: flex; align-items: center; gap: 1.25rem; margin-bottom: 2rem;">
-            <div style="background: var(--primary); padding: 12px; border-radius: 12px;">
-                <i data-lucide="network" style="color: white; width: 32px; height: 32px;"></i>
+            <img src="https://github.com/frambudi75.png" 
+                 style="width: 64px; height: 64px; border-radius: 16px; object-fit: cover; border: 2px solid var(--border); flex-shrink: 0;"
+                 alt="Habib Frambudi">
+            <div>
+                <div style="font-size: 1.125rem; font-weight: 700; color: white;"><?php echo APP_AUTHOR; ?></div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Lead Developer & UI Designer</div>
+                <div style="font-size: 0.8rem; margin-top: 4px;">
+                    <a href="mailto:<?php echo APP_AUTHOR_EMAIL; ?>" style="color: var(--primary); text-decoration: none;"><?php echo APP_AUTHOR_EMAIL; ?></a>
+                </div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1.5rem;">
+            <div style="background: var(--primary); padding: 8px; border-radius: 8px;">
+                <i data-lucide="network" style="color: white; width: 24px; height: 24px;"></i>
             </div>
             <div>
-                <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--primary); margin: 0;">NetScope <span style="color: white;">Pro</span></h2>
-                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">Advanced Network Infrastructure Management</p>
+                <div style="font-weight: 700; color: white; font-size: 0.9rem;">NetScope Pro</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted);">Official Project</div>
             </div>
         </div>
         <div style="display: flex; flex-direction: column; gap: 0.5rem;">
