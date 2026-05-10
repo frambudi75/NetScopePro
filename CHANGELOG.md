@@ -1,6 +1,15 @@
-# IPManager Pro: Development & Update History
+# NetScope Pro: Development & Update History
 
 All major functional changes, enhancements, and critical fixes are documented here.
+
+## [2.23.0] - 2026-05-09
+### Added
+- **Major Rebranding (NetScope Pro)**: Transitioned the entire application identity to NetScope Pro, including new logos, consistent naming, and professional "About" credits.
+- **Enterprise OS Fingerprinting**: Integrated Nmap-based OS detection into the scanning engine for accurate identification of Windows, Linux, and IoT devices.
+- **Robust Ghost IP Prevention**: Re-engineered the detection logic to require physical MAC address validation for local subnets, eliminating false positives from broadcast pings.
+- **Optimized Cisco SNMP Polling**: Fixed critical bugs in Cisco switch monitoring, including missing VLAN mappings and LAG interface transparency.
+- **Non-blocking SSE Health Stream**: Optimized real-time switch monitoring to use session-aware write closing, preventing dashboard lag and request blocking.
+- **API Output Protection**: Implemented global output buffering and "Safe Fetch" JSON parsing to prevent PHP warnings from corrupting frontend data.
 
 ## [2.22.1] - 2026-05-02
 ### Added

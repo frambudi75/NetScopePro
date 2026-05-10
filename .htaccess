@@ -1,3 +1,5 @@
+SetEnv MIBDIRS "C:/xampp/php/extras/mibs"
+
 <IfModule mod_rewrite.c>
     # Enable Rewrite Engine
     RewriteEngine On

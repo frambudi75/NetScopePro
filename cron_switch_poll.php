@@ -45,6 +45,8 @@ ob_start();
         </div>
         <div class="terminal-body" id="console">
 <?php
+set_time_limit(0);
+putenv("MIBDIRS=C:/xampp/php/extras/mibs");
 
 if (!extension_loaded('snmp')) {
     die("PHP SNMP extension is not loaded. Please enable it in php.ini.");
@@ -204,12 +206,39 @@ foreach ($switches as $switch) {
     // 1. Get Bridge Port → ifIndex mapping
     // OID: .1.3.6.1.2.1.17.1.4.1.2 (dot1dBasePortIfIndex)
     $port_to_ifindex = @snmprealwalk($ip, $community, ".1.3.6.1.2.1.17.1.4.1.2");
-    if ($port_to_ifindex !== false) {
-        $ifindex_map = [];
+    $ifindex_map = [];
+    if ($port_to_ifindex && is_array($port_to_ifindex)) {
         foreach ($port_to_ifindex as $oid => $val) {
             $parts = explode('.', $oid);
             $port_num = end($parts);
             $ifindex_map[$port_num] = trim(str_replace('INTEGER: ', '', $val));
+        }
+    }
+
+    if (count($ifindex_map) >= 0) { // Keep block active even if initial walk is empty
+
+        // Cisco Fix: Bridge-to-ifIndex mapping is VLAN-specific.
+        // We need to poll this mapping for every VLAN to ensure all ports are mapped.
+        if (stripos($system_info, 'Cisco') !== false) {
+            echo "  Cisco detected: building multi-VLAN port map...\n";
+            $vlan_list_raw = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.9.9.46.1.3.1.1.2"); // vtpVlanState
+            $cisco_vlan_ids = !empty($vlan_list_raw) ? array_keys($vlan_list_raw) : [1];
+            
+            foreach ($cisco_vlan_ids as $v_id) {
+                $v_id = (int)$v_id;
+                if ($v_id >= 1002 && $v_id <= 1005) continue;
+                
+                $v_comm = $community . '@' . $v_id;
+                $v_map = @snmprealwalk($ip, $v_comm, ".1.3.6.1.2.1.17.1.4.1.2");
+                if ($v_map && is_array($v_map)) {
+                    foreach ($v_map as $v_oid => $v_val) {
+                        $v_parts = explode('.', $v_oid);
+                        $v_port_num = end($v_parts);
+                        $ifindex_map[$v_port_num] = trim(str_replace('INTEGER: ', '', $v_val));
+                    }
+                }
+            }
+            echo "    Consolidated port map: " . count($ifindex_map) . " entries.\n";
         }
         
         // 2. Get interface names using multiple OID sources for maximum compatibility
@@ -252,7 +281,8 @@ foreach ($switches as $switch) {
         $vlan_names = snmp_walk_indexed($ip, $community, ".1.3.6.1.2.1.17.7.1.4.3.1.1");
         if (empty($vlan_names)) {
             if (stripos($system_info, 'Cisco') !== false) {
-                // Cisco VTP VLAN names
+                // Cisco VTP VLAN names (.1.3.6.1.4.1.9.9.46.1.3.1.1.4)
+                // Note: The OID structure is .1.3.6.1.4.1.9.9.46.1.3.1.1.4.1.X (where X is VLAN ID)
                 $vlan_names = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.9.9.46.1.3.1.1.4.1");
             } elseif (stripos($system_info, 'Alcatel') !== false || stripos($system_info, 'OmniSwitch') !== false || stripos($model, 'Alcatel') !== false) {
                 // Alcatel alaVlanName (.1.3.6.1.4.1.6486.800.1.2.1.11.1.1.1.2)
@@ -348,8 +378,9 @@ foreach ($switches as $switch) {
                 // Check for Cisco per-VLAN tagged entries
                 $cisco_vlan_tag = null;
                 if (strpos($oid, '.__vlan__.') !== false) {
-                    [$oid, , $cisco_vlan_tag] = explode('.__vlan__.', $oid . '.__vlan__.');
-                    $cisco_vlan_tag = (int)$cisco_vlan_tag;
+                    $tag_parts = explode('.__vlan__.', $oid);
+                    $oid = $tag_parts[0];
+                    $cisco_vlan_tag = (int)$tag_parts[1];
                 }
                 
                 $parts = explode('.', $oid);

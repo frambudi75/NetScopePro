@@ -420,6 +420,25 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
         options: JSON.parse(JSON.stringify(chartDefaults))
     });
 
+    async function safeFetch(url) {
+        try {
+            const response = await fetch(url);
+            const text = await response.text();
+            
+            // Find the start of JSON content to ignore any leading garbage/warnings
+            const jsonStart = text.indexOf('{');
+            if (jsonStart === -1) {
+                console.error('Invalid API response (no JSON found):', text);
+                throw new Error('Invalid JSON response');
+            }
+            
+            return JSON.parse(text.substring(jsonStart));
+        } catch (err) {
+            console.error('Fetch error for ' + url + ':', err);
+            throw err;
+        }
+    }
+
     window.loadHistory = function(hours) {
         [1,6,24,48].forEach(h => {
             const btn = document.getElementById('btn-h' + h);
@@ -428,8 +447,7 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
             btn.style.color      = (h === hours) ? '#fff' : 'var(--text-muted)';
         });
 
-        fetch(`api/switch-history?id=${SWITCH_ID}&hours=${hours}`)
-            .then(r => r.json())
+        safeFetch(`api/switch-history?id=${SWITCH_ID}&hours=${hours}`)
             .then(d => {
                 cpuChart.data.labels   = d.labels;
                 cpuChart.data.datasets[0].data = d.cpu;
@@ -442,7 +460,7 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
                 document.getElementById('stat-ports').textContent   = d.port_count   || '0';
                 document.getElementById('stat-devices').textContent = d.device_count || '0';
 
-                if (d.cpu.length > 0) {
+                if (d.cpu && d.cpu.length > 0) {
                     const avg  = Math.round(d.cpu.reduce((a,b) => a+b, 0) / d.cpu.length);
                     const peak = Math.max(...d.cpu);
                     document.getElementById('stat-avg-cpu').textContent  = avg  + '%';
@@ -451,6 +469,9 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
                     document.getElementById('stat-avg-cpu').textContent  = 'N/A';
                     document.getElementById('stat-peak-cpu').textContent = 'N/A';
                 }
+            })
+            .catch(err => {
+                console.warn('History load failed', err);
             });
     };
 
@@ -468,8 +489,7 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
             r.style.background = r.textContent.includes(portName) ? 'rgba(99, 102, 241, 0.05)' : '';
         });
 
-        fetch(`api/port-history?id=${SWITCH_ID}&port=${encodeURIComponent(portName)}&hours=6`)
-            .then(r => r.json())
+        safeFetch(`api/port-history?id=${SWITCH_ID}&port=${encodeURIComponent(portName)}&hours=6`)
             .then(d => {
                 const ctx = document.getElementById('portTrafficChart').getContext('2d');
                 
@@ -521,6 +541,9 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
                 
                 // Scroll to chart
                 document.getElementById('port-traffic-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            })
+            .catch(err => {
+                console.warn('Port history load failed', err);
             });
     };
 

@@ -48,8 +48,16 @@ for ($i = $start_long; $i <= $end_long; $i++) {
 
     if ($signals['active']) {
         $new_mac = $signals['mac'] ?? null;
-        $conflict_detected = 0;
+        $vendor = $new_mac ? get_vendor_by_mac($new_mac) : 'Unknown';
         
+        $confidence_data = calculate_discovery_confidence([
+            'ping' => $signals['ping'] ?? false,
+            'arp'  => $signals['arp'] ?? false,
+            'port' => $signals['port'] ?? false,
+            'nmap' => $signals['nmap'] ?? false
+        ]);
+
+        $conflict_detected = 0;
         if ($existing && !empty($existing['mac_addr']) && !empty($new_mac)) {
             if (strtolower($existing['mac_addr']) !== strtolower($new_mac)) {
                 $conflict_detected = 1;
@@ -77,10 +85,10 @@ for ($i = $start_long; $i <= $end_long; $i++) {
             $subnet_id, 
             $ip, 
             $new_mac, 
-            $signals['vendor'] ?? 'Unknown', 
+            $vendor, 
             $signals['os'] ?? null,
-            $signals['confidence'] ?? 0,
-            implode(',', $signals['sources'] ?? []),
+            $confidence_data['score'],
+            $confidence_data['sources'],
             $conflict_detected
         ]);
         

@@ -1,19 +1,19 @@
-# 🚀 IPManager Pro: Enterprise IPAM & Active Network Monitoring
+# 🚀 NetScope Pro: Enterprise IPAM & Active Network Monitoring
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/frambudi75/IP-Manage/main/screenshots/dashboard.png" alt="IPManager Pro Dashboard" width="800">
+  <img src="https://raw.githubusercontent.com/frambudi75/NetScopePro/main/screenshots/dashboard.png" alt="NetScope Pro Dashboard" width="800">
   <p><i>Premium Enterprise IP Address Management & Active NMS for Modern Networks.</i></p>
 </div>
 
 ---
 
-IPManager Pro is a modern, high-speed **IP Address Management (IPAM)** and **Infrastructure Monitoring** platform. It provides real-time visibility into your network subnets, device health, and physical connectivity with a stunning dark-mode interface.
+NetScope Pro is a modern, high-speed **IP Address Management (IPAM)** and **Infrastructure Monitoring** platform. It provides real-time visibility into your network subnets, device health, and physical connectivity with a stunning dark-mode interface.
 
 ---
 
 ## 🏗️ System Architecture
 
-How IPManager Pro maintains its high-accuracy network map:
+How NetScope Pro maintains its high-accuracy network map:
 
 ```mermaid
 graph TD
@@ -42,11 +42,11 @@ graph TD
 - **Smart Thresholds**: Set failure counts before triggering an alert to avoid false positives on unstable links.
 - **State-Change Logging**: Automated audit trail for every status change, integrated with the central logging system.
 
-### 🔍 Advanced Discovery & IPAM
+### 🔍 Advanced Discovery & IPAM (v2.23.0 Enhanced)
 
+- **Enterprise OS Fingerprinting**: High-accuracy detection via **Nmap** (Windows, Linux, IoT).
+- **Anti-Ghost Engine**: Strict ARP/MAC validation to prevent false positives in subnet discovery.
 - **Parallel Subnet Scanning**: High-speed discovery with multiple background workers for large-scale networks.
-- **Stealth Discovery (Multi-signal)**: Accurate detection via Ping, Nmap, ARP, and **TCP Port Probing**.
-- **L3 ARP Logic**: Automatically discover hosts through ARP cache tables on managed switches/routers.
 - **Physical Port Mapping**: Trace MAC addresses directly to physical switch ports and VLANs.
 
 ### 📊 Real-time Visualization
@@ -84,7 +84,7 @@ For smooth real-time monitoring and high-speed parallel scanning:
 
 - **PHP**: 8.1 or 8.2+
 - **Database**: MariaDB 10.6+ / MySQL 8.0+
-- **Tools**: `nmap`, `traceroute`, `iputils-ping`
+- **Tools**: `nmap` (required for OS detection), `traceroute`, `iputils-ping`
 
 ---
 
@@ -100,7 +100,7 @@ For smooth real-time monitoring and high-speed parallel scanning:
 
 1. Refer to [Standalone Install Guide](STANDALONE_INSTALL.md).
 2. Import `sql/database.sql` to your database.
-3. Access: `http://localhost/ipmanage`
+3. Access: `http://localhost/NetScopePro`
 
 ---
 

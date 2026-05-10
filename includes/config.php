@@ -1,4 +1,5 @@
 <?php
+ob_start();
 /**
  * IPManager Pro Configuration
  */
@@ -19,13 +20,14 @@ require_once 'updater.php';
 
 // Regional Settings
 date_default_timezone_set('Asia/Jakarta');
+putenv("MIBDIRS=C:/xampp/php/extras/mibs");
 
 // Dynamic Configuration from Database
 define('DISCOVERY_AGGRESSIVE_MODE', Settings::enabled('discovery_aggressive'));
 define('ENABLE_NMAP_FALLBACK', Settings::enabled('nmap_enabled'));
 
 // Application Configuration
-if (!defined('APP_NAME')) define('APP_NAME', 'IPManager Pro');
+if (!defined('APP_NAME')) define('APP_NAME', 'NetScope Pro');
 if (!defined('APP_URL')) define('APP_URL', getenv('APP_URL') ?: 'http://localhost/ipmanage');
 if (!defined('ENCRYPTION_KEY')) define('ENCRYPTION_KEY', '27ffed91f93d4e8eaf12a66852b4a156');
 if (!defined('DEVELOPER_EMAIL')) define('DEVELOPER_EMAIL', 'frambudihabib@gmail.com');
@@ -36,6 +38,7 @@ ini_set('display_errors', 1);
 
 // Standard success/error responses
 function json_response($data, $status = 200) {
+    if (ob_get_length()) ob_clean(); // Clear any warnings/garbage before JSON
     header('Content-Type: application/json');
     http_response_code($status);
     echo json_encode($data);

@@ -3,7 +3,7 @@
         <div style="background: var(--primary); padding: 8px; border-radius: 8px;">
             <i data-lucide="network" style="color: white;"></i>
         </div>
-        <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--primary);">IPManager <span style="color: white;">Pro</span></h2>
+        <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--primary);">NetScope <span style="color: white;">Pro</span></h2>
     </div>
     
     <nav class="sidebar-nav">

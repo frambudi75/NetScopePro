@@ -3,12 +3,13 @@
  * IPManager Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.22.1');
-if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-05-02');
-if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/IP-Manage');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.23.0');
+if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-05-09');
+if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.23.0', 'date' => '2026-05-09', 'changes' => ['Major Rebrand to NetScope Pro', 'Cisco SNMP Engine Stability Fix', 'Ghost IP Prevention (Strict ARP/MAC)', 'Nmap Enterprise OS Fingerprinting', 'Non-blocking SSE Health Stream', 'Robust API Output Buffering']],
     ['ver' => '2.22.1', 'date' => '2026-05-02', 'changes' => ['Aggressive Autocomplete Prevention (Read-only trick)', 'Styled Terminal-UI for Switch Poller', 'Auto-Redirect after Polling Completion', 'On-Demand OS Detection in Manual Scans']],
     ['ver' => '2.22.0', 'date' => '2026-05-02', 'changes' => ['Styled Terminal-UI for Switch Poller', 'Auto-Redirect after Polling Completion', 'On-Demand OS Detection in Manual Scans', 'Privacy Hardening (Global Autocomplete: OFF)', 'Robust Multi-table ARP Discovery Fallback']],
     ['ver' => '2.21.0', 'date' => '2026-05-02', 'changes' => ['SNMP Multi-vendor Engine (30+ Vendors supported)', 'Dedicated pfSense/OPNsense/net-snmp Monitoring', 'Subnet Scan Optimization (ARP Pre-seeding)', 'Real-time Scan Progress & Elapsed Time tracking']],

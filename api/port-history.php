@@ -19,8 +19,7 @@ $port_name = $_GET['port'] ?? '';
 $hours     = (int)($_GET['hours'] ?? 6);
 
 if (!$switch_id || !$port_name) {
-    echo json_encode(['error' => 'Missing parameters']);
-    exit;
+    json_response(['error' => 'Missing parameters'], 400);
 }
 
 $query = "
@@ -46,7 +45,7 @@ foreach ($rows as $row) {
     $tx[] = round($row['tx_bps'] / 1000000, 2); // Mbps
 }
 
-echo json_encode([
+json_response([
     'labels' => $labels,
     'rx' => $rx,
     'tx' => $tx,

@@ -16,6 +16,7 @@ if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
     exit;
 }
+session_write_close(); // Release session lock to prevent blocking other requests
 
 $id = (int)($_GET['id'] ?? 0);
 if ($id <= 0) {

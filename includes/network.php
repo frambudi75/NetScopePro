@@ -42,8 +42,17 @@ function ping_ip($ip, $attempts = 1, $timeout_ms = 200) {
         }
 
         exec($cmd, $output, $result);
+        $output_str = implode("\n", $output);
+        
+        // On Windows, result 0 isn't enough, we must see "Reply from" to avoid "Unreachable" positives
         if ($result === 0) {
-            return true;
+            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                if (stripos($output_str, "Reply from {$ip}") !== false && stripos($output_str, "unreachable") === false) {
+                    return true;
+                }
+            } else {
+                return true;
+            }
         }
 
         if ($i < $attempts - 1) {
@@ -202,6 +211,18 @@ function preseed_arp_batch($start_long, $end_long, $timeout_ms = 200) {
 }
 
 /**
+ * Get absolute path to nmap binary
+ */
+function get_nmap_binary() {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        if (file_exists("C:\\Program Files (x86)\\Nmap\\nmap.exe")) {
+            return "\"C:\\Program Files (x86)\\Nmap\\nmap.exe\"";
+        }
+    }
+    return "nmap";
+}
+
+/**
  * Detect whether nmap exists on scanner host.
  */
 function has_nmap_binary() {
@@ -215,6 +236,13 @@ function has_nmap_binary() {
     $checked = true;
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
         exec("where nmap", $out, $code);
+        if ($code !== 0) {
+            // Check common install path if not in PATH
+            if (file_exists("C:\\Program Files (x86)\\Nmap\\nmap.exe")) {
+                $available = true;
+                return true;
+            }
+        }
     } else {
         exec("command -v nmap", $out, $code);
     }
@@ -232,9 +260,10 @@ function nmap_detect_host($ip) {
     }
 
     $target = escapeshellarg($ip);
+    $nmap = get_nmap_binary();
     // Use -O for OS detection if running as admin (may need sudo/admin privilege)
     // For now, keep it simple with -sV or -O try
-    $cmd = "nmap -sn -n --host-timeout 2s {$target}";
+    $cmd = "{$nmap} -sn -n --host-timeout 2s {$target}";
     exec($cmd, $output, $code);
     if ($code !== 0 || empty($output)) {
         return false;
@@ -256,8 +285,9 @@ function nmap_fingerprint_os($ip) {
     if (!$ip || !has_nmap_binary()) return 'Unknown';
 
     $target = escapeshellarg($ip);
+    $nmap = get_nmap_binary();
     // This requires high privilege on Windows/Linux but we try
-    $cmd = "nmap -O --osscan-guess --max-os-tries 1 {$target} 2>&1";
+    $cmd = "{$nmap} -O --osscan-guess --max-os-tries 1 {$target} 2>&1";
     exec($cmd, $output);
     
     $os_guess = 'Unknown';
@@ -434,13 +464,22 @@ function detect_host_signals($ip, &$arp_map) {
 
     // Final signal consolidation with Ghost IP Prevention.
     $signals['active'] = false;
+    $signals['mac'] = $arp_map[$ip] ?? null;
+
     if ($signals['nmap']) {
         $signals['active'] = true;
     } elseif ($signals['arp'] && ($signals['ping'] || $signals['port'])) {
         $signals['active'] = true;
-    } elseif (!$signals['arp'] && ($signals['ping'] || $signals['port']) && $is_remote) {
+    } elseif ($is_remote && ($signals['ping'] || $signals['port'])) {
         // Allow remote subnet scans to detect hosts via open service port or ping without local ARP.
         $signals['active'] = true;
+    }
+
+    // EXTRA SAFETY: If it's a broadcast address (.255) or network address (.0) in a /24,
+    // it's likely a ghost response.
+    $last_octet = (int)end(explode('.', $ip));
+    if ($last_octet === 0 || $last_octet === 255) {
+        $signals['active'] = false;
     }
 
     return $signals;
@@ -470,8 +509,9 @@ function intensive_detect_host($ip, &$arp_map) {
     // Stage 3: Nmap Fallback (if available)
     if (has_nmap_binary()) {
         $target = escapeshellarg($ip);
+        $nmap = get_nmap_binary();
         // Try specialized host-up check
-        $cmd = "nmap -sn -PS22,80,443,445 --host-timeout 5s {$target}";
+        $cmd = "{$nmap} -sn -PS22,80,443,445 --host-timeout 5s {$target}";
         exec($cmd, $output, $code);
         foreach ($output as $line) {
             if (stripos($line, 'Host is up') !== false) {
