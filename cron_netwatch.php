@@ -7,6 +7,24 @@ require_once 'includes/config.php';
 require_once 'includes/db.php';
 require_once 'includes/notifications.php';
 
+$is_cli = (php_sapi_name() === 'cli');
+
+// Security: Allow CLI, session-based admin auth, or secret key
+if (!$is_cli) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    $key = $_GET['key'] ?? '';
+    $secret = Settings::get('cron_key', 'your-secret-key-change-me');
+    
+    if (!isset($_SESSION['user_id']) || !is_admin()) {
+        if ($key !== $secret) {
+            header('HTTP/1.1 403 Forbidden');
+            die("Unauthorized. Run via CLI, log in as admin, or provide a valid key.");
+        }
+    }
+}
+
 // Set execution time limit to 5 minutes to allow for multiple pings
 set_time_limit(300);
 

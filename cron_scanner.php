@@ -14,11 +14,19 @@ require_once __DIR__ . '/includes/network.php';
 require_once __DIR__ . '/includes/snmp.php';
 require_once __DIR__ . '/includes/notifications.php';
 
-// Security: Only allow CLI or a specific key if via HTTP
+// Security: Allow CLI, session-based admin auth, or secret key
 if (php_sapi_name() !== 'cli') {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
     $key = $_GET['key'] ?? '';
-    if ($key !== 'your-secret-key-change-me') {
-        die("Unauthorized. Run via CLI or provide valid key.");
+    $secret = Settings::get('cron_key', 'your-secret-key-change-me');
+    
+    if (!isset($_SESSION['user_id']) || !is_admin()) {
+        if ($key !== $secret) {
+            header('HTTP/1.1 403 Forbidden');
+            die("Unauthorized. Run via CLI, log in as admin, or provide a valid key.");
+        }
     }
 }
 

@@ -23,3 +23,5 @@ IP-Manage-main/
 IP-Manage-main.zip
 tmp_*.php
 debug_*.php
+debug-*.php
+check_*.php
