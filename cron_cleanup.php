@@ -19,7 +19,7 @@ $is_cli = (php_sapi_name() === 'cli');
 $is_ajax = (!$is_cli && isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest');
 
 // Auth check for web requests (both regular and AJAX)
-if (!$is_cli) {
+if (!$is_cli && !defined('IS_CRON')) {
     session_start();
     if (!isset($_SESSION['user_id']) || !is_admin()) {
         if ($is_ajax) {
@@ -73,9 +73,12 @@ foreach ($timestamp_columns as $table => $column) {
         // Count before
         $count_before = (int)$db->query("SELECT COUNT(*) FROM `$table`")->fetchColumn();
         
+        // Calculate target date limit in PHP
+        $target_date = date('Y-m-d H:i:s', strtotime("-$days days"));
+        
         // Count how many will be deleted
-        $stmt = $db->prepare("SELECT COUNT(*) FROM `$table` WHERE `$column` < DATE_SUB(NOW(), INTERVAL ? DAY)");
-        $stmt->execute([$days]);
+        $stmt = $db->prepare("SELECT COUNT(*) FROM `$table` WHERE `$column` < ?");
+        $stmt->execute([$target_date]);
         $to_delete = (int)$stmt->fetchColumn();
 
         if ($to_delete > 0) {
@@ -84,8 +87,8 @@ foreach ($timestamp_columns as $table => $column) {
             $deleted_total = 0;
             
             do {
-                $del_stmt = $db->prepare("DELETE FROM `$table` WHERE `$column` < DATE_SUB(NOW(), INTERVAL ? DAY) LIMIT $batch_size");
-                $del_stmt->execute([$days]);
+                $del_stmt = $db->prepare("DELETE FROM `$table` WHERE `$column` < ? LIMIT $batch_size");
+                $del_stmt->execute([$target_date]);
                 $deleted_batch = $del_stmt->rowCount();
                 $deleted_total += $deleted_batch;
             } while ($deleted_batch >= $batch_size);

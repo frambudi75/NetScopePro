@@ -105,9 +105,6 @@ foreach ($targets as $t) {
     try {
         $stmt = $db->prepare("INSERT INTO netwatch_history (netwatch_id, latency, status) VALUES (?, ?, ?)");
         $stmt->execute([$id, $latency, $new_status]);
-
-        // Cleanup old history (> 1 week) 
-        $db->exec("DELETE FROM netwatch_history WHERE recorded_at < NOW() - INTERVAL 7 DAY");
     } catch (Exception $e) { /* silent */ }
 
     echo "Target $host: ". strtoupper($new_status) . " ({$latency}ms) (Fails: $new_fail_count)\n";
