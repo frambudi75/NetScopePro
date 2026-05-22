@@ -2,6 +2,18 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.24.1] - 2026-05-22
+### Fixed
+- **Database Maintenance**: Bypassed authentication restrictions for CLI contexts using the `IS_CRON` constant.
+- **SQL Date Parsing**: Refactored cleanup threshold checks to utilize PHP `date()` rather than MySQL `INTERVAL` parameter bindings to eliminate syntax errors on legacy database engines.
+- **Subnet Scanner Execution**: Replaced a premature `exit;` in the subnet scanner with a conditional block, ensuring subsequent maintenance and cron tasks are finalized.
+- **Netwatch Retention**: Removed statically coded cleanup statements from netwatch loops, transferring retention authority to user-defined settings.
+
+### Security
+- **Cron Script Hardening**: Added robust key-based and session-based authentication to `cron_netwatch.php`, `cron_scanner.php`, and `cron_switch_poll.php` to prevent unauthorized HTTP executions.
+- **CLI Log Sanitization**: Modified `cron_switch_poll.php` to detect CLI sapi mode and suppress HTML, CSS, and javascript blocks during cron executions, keeping logs clean.
+- **Git Ignore Hardening**: Added `debug-*.php` and `check_*.php` to `.gitignore` to prevent accidental commits of diagnostic files.
+
 ## [2.24.0] - 2026-05-10
 ### Added
 - **Database Maintenance System**: Complete auto-cleanup engine (`cron_cleanup.php`) that automatically purges expired data from time-series tables using configurable retention policies.
