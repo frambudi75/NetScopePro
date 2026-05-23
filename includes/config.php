@@ -1,7 +1,7 @@
 <?php
 ob_start();
 /**
- * IPManager Pro Configuration
+ * NetScope Pro Configuration
  */
 
 // Auto-Detection for Docker Environment
@@ -28,7 +28,7 @@ define('ENABLE_NMAP_FALLBACK', Settings::enabled('nmap_enabled'));
 
 // Application Configuration
 if (!defined('APP_NAME')) define('APP_NAME', 'NetScope Pro');
-if (!defined('APP_URL')) define('APP_URL', getenv('APP_URL') ?: 'http://localhost/ipmanage');
+if (!defined('APP_URL')) define('APP_URL', getenv('APP_URL') ?: 'http://localhost/netscope');
 if (!defined('ENCRYPTION_KEY')) define('ENCRYPTION_KEY', '27ffed91f93d4e8eaf12a66852b4a156');
 if (!defined('DEVELOPER_EMAIL')) define('DEVELOPER_EMAIL', 'frambudihabib@gmail.com');
 

@@ -1,6 +1,6 @@
 <?php
 /**
- * IPManager Docker-Specific Configuration
+ * NetScope Docker-Specific Configuration
  * This file is automatically loaded when running inside a Docker container.
  */
 

@@ -15,7 +15,7 @@ if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
         -keyout "$KEY_FILE" \
         -out "$CERT_FILE" \
-        -subj "/C=ID/ST=Jakarta/L=Jakarta/O=IPManager Pro/CN=ipmanager.local" \
+        -subj "/C=ID/ST=Jakarta/L=Jakarta/O=NetScope Pro/CN=netscope.local" \
         2>/dev/null
     echo " ✅ SSL certificate generated successfully!"
     echo "    Valid for 10 years."

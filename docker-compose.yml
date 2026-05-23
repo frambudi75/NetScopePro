@@ -1,7 +1,7 @@
 services:
   app:
     build: .
-    container_name: ipmanager_app
+    container_name: netscope_app
     ports:
       - "2025:80"
     environment:
@@ -19,11 +19,11 @@ services:
     volumes:
       - .:/var/www/html
     networks:
-      - ipmanage_net
+      - netscope_net
 
   db:
     image: mariadb:10.11
-    container_name: ipmanager_db
+    container_name: netscope_db
     ports:
       - "3308:3306"
     environment:
@@ -41,13 +41,13 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      - ipmanage_net
+      - netscope_net
 
   redis:
     image: redis:7-alpine
-    container_name: ipmanager_redis
+    container_name: netscope_redis
     networks:
-      - ipmanage_net
+      - netscope_net
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
@@ -55,7 +55,7 @@ services:
       retries: 3
 
 networks:
-  ipmanage_net:
+  netscope_net:
     driver: bridge
 
 volumes:

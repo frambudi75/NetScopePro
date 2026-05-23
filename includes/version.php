@@ -1,6 +1,6 @@
 <?php
 /**
- * IPManager Pro Version Information
+ * NetScope Pro Version Information
  */
 
 if (!defined('APP_VERSION')) define('APP_VERSION', '2.24.1');

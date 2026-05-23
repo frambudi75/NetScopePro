@@ -1,6 +1,6 @@
 <?php
 /**
- * IPManager Pro Updater Helper
+ * NetScope Pro Updater Helper
  * Handles GitHub API version checks and caching.
  */
 
@@ -55,7 +55,7 @@ class Updater {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, self::$api_url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'IPManagerPro-Updater');
+        curl_setopt($ch, CURLOPT_USERAGENT, 'NetScopePro-Updater');
         curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // For environments with issues with SSL certs
 
