@@ -377,4 +377,76 @@ class VendorDetector {
         if ($ucd_total > 0) return round((($ucd_total - $ucd_avail) / $ucd_total) * 100);
         return 0;
     }
+
+    // =====================================================================
+    // SFP / DOM POLLING
+    // =====================================================================
+
+    /**
+     * Poll SFP/DOM data based on detected vendor model.
+     * Returns an array of interface indices mapped to their SFP data:
+     * [ ifIndex => ['vendor'=>'...', 'part'=>'...', 'serial'=>'...', 'rx_power'=>'...', 'tx_power'=>'...'] ]
+     */
+    public static function pollSfpDOM($ip, $community, $model) {
+        $sfp_data = [];
+        
+        // MikroTik (RouterOS v7 included)
+        // mtxrOpticalTable: .1.3.6.1.4.1.14988.1.1.19.1.1
+        if (stripos($model, 'MikroTik') !== false || stripos($model, 'RouterOS') !== false) {
+            $vendors = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.3");
+            $parts   = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.4");
+            $serials = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.5");
+            $rx      = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.10"); // in millidBm or direct dBm string
+            $tx      = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.9");
+
+            if ($vendors && is_array($vendors)) {
+                foreach ($vendors as $oid => $val) {
+                    $idx = end(explode('.', $oid));
+                    $sfp_data[$idx] = [
+                        'vendor' => trim(str_replace(['STRING: ', '"'], '', $val)),
+                        'part'   => isset($parts[$oid]) ? trim(str_replace(['STRING: ', '"'], '', $parts[$oid])) : null,
+                        'serial' => isset($serials[$oid]) ? trim(str_replace(['STRING: ', '"'], '', $serials[$oid])) : null,
+                    ];
+                    
+                    if (isset($rx[$oid])) {
+                        $raw_rx = trim(str_replace(['INTEGER: ', 'STRING: ', '"'], '', $rx[$oid]));
+                        $sfp_data[$idx]['rx_power'] = is_numeric($raw_rx) ? ($raw_rx / 1000) . ' dBm' : $raw_rx;
+                    }
+                    if (isset($tx[$oid])) {
+                        $raw_tx = trim(str_replace(['INTEGER: ', 'STRING: ', '"'], '', $tx[$oid]));
+                        $sfp_data[$idx]['tx_power'] = is_numeric($raw_tx) ? ($raw_tx / 1000) . ' dBm' : $raw_tx;
+                    }
+                }
+            }
+            return $sfp_data;
+        }
+
+        // Juniper (jnxDomCurrentTable)
+        // .1.3.6.1.4.1.2636.3.60.1.1.1
+        if (stripos($model, 'Juniper') !== false) {
+            $rx_power = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.2636.3.60.1.1.1.1.5");
+            $tx_power = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.2636.3.60.1.1.1.1.7");
+            // If DOM table exists, map it
+            if ($rx_power && is_array($rx_power)) {
+                foreach ($rx_power as $oid => $val) {
+                    $idx = end(explode('.', $oid));
+                    $sfp_data[$idx] = [
+                        'vendor' => 'Juniper', // Vendor string is usually in ENTITY-MIB, simplified here
+                        'part' => null,
+                        'serial' => null,
+                        'rx_power' => trim(str_replace(['INTEGER: ', '"'], '', $val)) . ' 0.01dBm', // Juniper uses 0.01 dBm steps
+                        'tx_power' => isset($tx_power[$oid]) ? trim(str_replace(['INTEGER: ', '"'], '', $tx_power[$oid])) . ' 0.01dBm' : null
+                    ];
+                }
+            }
+            return $sfp_data;
+        }
+
+        // Generic ENTITY-MIB (Cisco, HP, Alcatel, etc)
+        // Try grabbing standard DOM table if available (CISCO-ENTITY-SENSOR-MIB or generic)
+        // For simplicity in generic fallback, we'll return empty as full ENTITY-MIB correlation to ifIndex is complex.
+        
+        return $sfp_data;
+    }
 }
+

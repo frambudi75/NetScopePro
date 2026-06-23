@@ -55,9 +55,9 @@ $subnet_list = $db->query("
 
 <!-- Stats Recap -->
 <div class="grid-stats" style="margin-bottom: 2rem;">
-    <div class="card" style="border-left: 4px solid var(--primary);">
-        <p style="color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Allocation Rate</p>
-        <h3 style="font-size: 2rem; font-weight: 700; margin-top: 0.5rem;">
+    <div class="stat-card">
+        <span class="stat-label">Allocation Rate</span>
+        <span class="stat-value">
             <?php 
                 $total_capacity = 0;
                 foreach($subnet_list as $s) {
@@ -68,18 +68,18 @@ $subnet_list = $db->query("
                 $alloc_pct = round(($active_ips / max(1, $total_capacity)) * 100, 1);
                 echo $alloc_pct; 
             ?>%
-        </h3>
-        <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem;">of total discoverable capacity</p>
+        </span>
+        <span class="stat-meta">of total discoverable capacity</span>
     </div>
-    <div class="card" style="border-left: 4px solid var(--success);">
-        <p style="color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Active Hosts</p>
-        <h3 style="font-size: 2rem; font-weight: 700; margin-top: 0.5rem;"><?php echo $active_ips; ?></h3>
-        <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem;">Live devices in last scan</p>
+    <div class="stat-card">
+        <span class="stat-label">Active Hosts</span>
+        <span class="stat-value"><?php echo $active_ips; ?></span>
+        <span class="stat-meta">Live devices in last scan</span>
     </div>
-    <div class="card" style="border-left: 4px solid var(--warning);">
-        <p style="color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Network Depth</p>
-        <h3 style="font-size: 2rem; font-weight: 700; margin-top: 0.5rem;"><?php echo $total_subnets; ?></h3>
-        <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem;">Managed subnets & segments</p>
+    <div class="stat-card">
+        <span class="stat-label">Network Depth</span>
+        <span class="stat-value"><?php echo $total_subnets; ?></span>
+        <span class="stat-meta">Managed subnets & segments</span>
     </div>
 </div>
 
@@ -166,30 +166,30 @@ document.addEventListener('DOMContentLoaded', () => {
         plugins: {
             legend: {
                 display: false,
-                labels: { color: '#94a3b8', font: { size: 12, family: 'Outfit', weight: '500' }, usePointStyle: true, padding: 15 }
+                labels: { color: '#8b949e', font: { size: 11, family: 'Inter', weight: '500' }, usePointStyle: true, padding: 15 }
             },
             tooltip: {
-                backgroundColor: '#1e293b',
+                backgroundColor: '#161b22',
                 titleColor: '#fff',
-                bodyColor: '#94a3b8',
-                borderColor: '#334155',
+                bodyColor: '#8b949e',
+                borderColor: '#30363d',
                 borderWidth: 1,
-                padding: 12,
+                padding: 10,
                 boxPadding: 6,
                 usePointStyle: true,
-                cornerRadius: 8,
-                titleFont: { size: 13, weight: '700' },
-                bodyFont: { size: 12 }
+                cornerRadius: 4,
+                titleFont: { size: 12, weight: '700', family: 'Inter' },
+                bodyFont: { size: 11, family: 'Inter' }
             }
         },
         scales: {
             x: { 
                 grid: { display: false }, 
-                ticks: { color: '#64748b', font: { size: 10, weight: '600' }, padding: 10 } 
+                ticks: { color: '#8b949e', font: { size: 10, family: 'JetBrains Mono' }, padding: 10 } 
             },
             y: { 
                 grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false }, 
-                ticks: { color: '#64748b', font: { size: 10 }, padding: 10, beginAtZero: true } 
+                ticks: { color: '#8b949e', font: { size: 10, family: 'JetBrains Mono' }, padding: 10, beginAtZero: true } 
             }
         }
     };
@@ -197,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const getGradient = (ctx, color) => {
         const gradient = ctx.createLinearGradient(0, 0, 0, 400);
         gradient.addColorStop(0, color);
-        gradient.addColorStop(1, 'rgba(16, 185, 129, 0)');
+        gradient.addColorStop(1, 'rgba(63, 185, 80, 0)');
         return gradient;
     };
 
@@ -211,9 +211,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     label: 'Active Hosts',
                     data: [<?php echo implode(',', array_map(function($h) { return $h['total_active']; }, $history)); ?>],
-                    borderColor: '#10b981',
-                    borderWidth: 3,
-                    backgroundColor: getGradient(historyCtx, 'rgba(16, 185, 129, 0.2)'),
+                    borderColor: '#3fb950',
+                    borderWidth: 2,
+                    backgroundColor: getGradient(historyCtx, 'rgba(63, 185, 80, 0.15)'),
                     fill: true,
                     tension: 0.4,
                     pointRadius: 0,
@@ -231,10 +231,10 @@ document.addEventListener('DOMContentLoaded', () => {
             labels: ['Active', 'Reserved', 'Offline', 'DHCP'],
             datasets: [{
                 data: [<?php echo "$active_ips, $reserved_ips, $offline_ips, $dhcp_ips"; ?>],
-                backgroundColor: ['#10b981', '#f59e0b', '#334155', '#3b82f6'],
-                borderWidth: 4,
-                borderColor: 'rgba(30, 41, 59, 1)',
-                borderRadius: 10,
+                backgroundColor: ['#3fb950', '#d29922', '#30363d', '#58a6ff'],
+                borderWidth: 2,
+                borderColor: '#161b22',
+                borderRadius: 4,
                 spacing: 2
             }]
         },

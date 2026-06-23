@@ -35,7 +35,6 @@ set_time_limit(300);
 list($start_long, $end_long) = cidr_to_range($subnet['subnet'] . '/' . $subnet['mask']);
 
 // Support chunked scanning via 'block' parameter from UI
-// Increased to 64 since optimized detection is much faster
 $block_size = 64;
 $current_block = isset($_GET['block']) ? (int)$_GET['block'] : 0;
 
@@ -47,15 +46,29 @@ $results = [
     'scanned' => 0,
     'found' => 0,
     'ips' => [],
-    'offline_ips' => []
+    'offline_ips' => [],
+    'discovery_method' => 'legacy' // or 'masscan'
 ];
 
 try {
-    // ====== PHASE 1: Batch ARP Pre-seeding ======
-    // Fire concurrent pings to fill ARP cache BEFORE scanning.
-    // This is the biggest single performance improvement.
-    $arp_map = preseed_arp_batch($range_start, $range_end, 200);
+    // ====== DECIDE DISCOVERY METHOD ======
+    $masscan_hosts = [];
+    $use_masscan = defined('ENABLE_MASSCAN') && ENABLE_MASSCAN && has_masscan_binary();
 
+    if ($use_masscan) {
+        // MASSCAN PATH: Ultra-fast stateless SYN scan first
+        $masscan_hosts = masscan_discover_hosts($range_start, $range_end, MASSCAN_RATE);
+        $results['discovery_method'] = 'masscan';
+        $results['masscan_discovered'] = count($masscan_hosts);
+
+        // Still seed ARP cache for MAC enrichment (lightweight)
+        $arp_map = refresh_arp_map();
+    } else {
+        // LEGACY PATH: Batch ARP Pre-seeding (slower)
+        $arp_map = preseed_arp_batch($range_start, $range_end, 200);
+    }
+
+    // ====== PHASE 2: Process each IP ======
     for ($i = $range_start; $i <= $range_end; $i++) {
         if (!is_usable_host_long($i, $start_long, $end_long, (int)$subnet['mask'])) {
             continue;
@@ -63,10 +76,39 @@ try {
 
         $ip = long2ip($i);
         $results['scanned']++;
-        
-        // ====== PHASE 2: Fast host detection (optimized for web UI) ======
-        $signals = fast_detect_host_signals($ip, $arp_map);
-        $is_active = $signals['active'];
+
+        if ($use_masscan) {
+            // MASSCAN MODE: Only enrich hosts found by masscan
+            if (!isset($masscan_hosts[$ip])) {
+                // Not found by masscan — increment fail_count (same threshold as cron)
+                $stmt = $db->prepare("UPDATE ip_addresses SET fail_count = fail_count + 1 WHERE subnet_id = ? AND ip_addr = ? AND state = 'active'");
+                $stmt->execute([$subnet_id, $ip]);
+
+                $stmt = $db->prepare("SELECT fail_count FROM ip_addresses WHERE subnet_id = ? AND ip_addr = ? AND state = 'active'");
+                $stmt->execute([$subnet_id, $ip]);
+                $fail_row = $stmt->fetch();
+
+                if ($fail_row && (int)$fail_row['fail_count'] >= (int)Settings::get('offline_fail_threshold', 3)) {
+                    $db->prepare("UPDATE ip_addresses SET state = 'offline', fail_count = ? WHERE subnet_id = ? AND ip_addr = ?")
+                       ->execute([$fail_row['fail_count'], $subnet_id, $ip]);
+                    $results['offline_ips'][] = $ip;
+                }
+                continue;
+            }
+
+            // Host found by masscan — enrich it
+            $is_active = true;
+            $signals = [
+                'ping' => false,
+                'arp' => false,
+                'port' => true,
+                'masscan' => true
+            ];
+        } else {
+            // LEGACY MODE: Fast host detection
+            $signals = fast_detect_host_signals($ip, $arp_map);
+            $is_active = $signals['active'];
+        }
 
         if ($is_active) {
             $results['found']++;
@@ -78,12 +120,26 @@ try {
             $has_snmp = false;
 
             // ====== PHASE 3: Lazy enrichment (only for active hosts) ======
-            
+
             // Hostname resolution (single attempt, fast timeout)
             $hostname = resolve_hostname($ip);
-            
-            // SNMP discovery - only attempt if host responded to ping
-            if ($signals['ping'] || $signals['arp']) {
+
+            // Quick ping to confirm reachability + populate ARP
+            if ($use_masscan && !$mac) {
+                if (ping_ip($ip, 1, 200)) {
+                    $signals['ping'] = true;
+                    $fresh_arp = refresh_arp_map();
+                    if (!empty($fresh_arp)) {
+                        $arp_map = array_merge($arp_map, $fresh_arp);
+                        $mac = $arp_map[$ip] ?? null;
+                        if ($mac) $vendor = get_vendor_by_mac($mac);
+                        $signals['arp'] = true;
+                    }
+                }
+            }
+
+            // SNMP discovery - attempt if host responded or masscan found it
+            if ($signals['ping'] || $signals['arp'] || $use_masscan) {
                 $snmp_info = SNMPHelper::getInfo($ip, $subnet['snmp_community'] ?? 'public', $subnet['snmp_version'] ?? '2c');
                 if ($snmp_info) {
                     $has_snmp = true;
@@ -95,15 +151,16 @@ try {
                 }
             }
 
-            // OS Fingerprinting (Respect global settings)
+            // OS Fingerprinting (Respect global settings — nmap only for confirmed active)
             if (Settings::get('nmap_enabled') == '1') {
                 $os = nmap_fingerprint_os($ip);
             }
 
             $confidence = calculate_discovery_confidence([
-                'ping' => $signals['ping'],
-                'arp' => $signals['arp'],
-                'port' => $signals['port'],
+                'ping' => $signals['ping'] ?? false,
+                'arp' => $signals['arp'] ?? false,
+                'port' => $signals['port'] ?? false,
+                'masscan' => $signals['masscan'] ?? false,
                 'dns' => ($hostname !== ''),
                 'snmp' => $has_snmp
             ]);
@@ -134,16 +191,31 @@ try {
                     confidence_score = VALUES(confidence_score),
                     data_sources = VALUES(data_sources),
                     state = 'active', 
-                    last_seen = CURRENT_TIMESTAMP
+                    last_seen = CURRENT_TIMESTAMP,
+                    fail_count = 0
             ");
             $stmt->execute([$subnet_id, $ip, $hostname, $mac, $vendor, $os, $conflict_detected, $description, $confidence['score'], $confidence['sources']]);
             
             $results['ips'][] = ['ip' => $ip, 'state' => 'active', 'hostname' => $hostname, 'mac' => $mac];
         } else {
-            // Mark as offline if it was previously active
-            $stmt = $db->prepare("UPDATE ip_addresses SET state = 'offline' WHERE subnet_id = ? AND ip_addr = ? AND state = 'active'");
+            // LEGACY MODE offline handling: use fail_count threshold (not immediate offline)
+            $stmt = $db->prepare("SELECT fail_count FROM ip_addresses WHERE subnet_id = ? AND ip_addr = ? AND state = 'active'");
             $stmt->execute([$subnet_id, $ip]);
-            if ($stmt->rowCount() > 0) $results['offline_ips'][] = $ip;
+            $active_row = $stmt->fetch();
+
+            if ($active_row) {
+                $new_fail = (int)$active_row['fail_count'] + 1;
+                $threshold = (int)Settings::get('offline_fail_threshold', 3);
+
+                if ($new_fail >= $threshold) {
+                    $db->prepare("UPDATE ip_addresses SET state = 'offline', fail_count = ? WHERE subnet_id = ? AND ip_addr = ?")
+                       ->execute([$new_fail, $subnet_id, $ip]);
+                    $results['offline_ips'][] = $ip;
+                } else {
+                    $db->prepare("UPDATE ip_addresses SET fail_count = ? WHERE subnet_id = ? AND ip_addr = ?")
+                       ->execute([$new_fail, $subnet_id, $ip]);
+                }
+            }
         }
     }
 

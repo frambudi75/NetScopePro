@@ -110,8 +110,8 @@ foreach($subnets as $sub) {
 }
 
 // 7. Styling
-$mermaid_logic .= "\n    classDef switch fill:#3b82f6,stroke:#2563eb,stroke-width:2px,color:#fff;\n";
-$mermaid_logic .= "    classDef vlan fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff;\n";
+$mermaid_logic .= "\n    classDef switch fill:#58a6ff,stroke:#2563eb,stroke-width:2px,color:#fff;
+    classDef router fill:#8b5cf6,stroke:#7c3aed,stroke-width:2px,color:#fff;\n";
 $mermaid_logic .= "    classDef subnet fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff;\n";
 ?>
 
@@ -129,8 +129,8 @@ $mermaid_logic .= "    classDef subnet fill:#f59e0b,stroke:#d97706,stroke-width:
     
     <!-- Legend -->
     <div class="legend-container" style="position: absolute; top: 1rem; right: 1rem; display: flex; gap: 1rem; font-size: 0.7rem; background: rgba(0,0,0,0.3); padding: 8px 15px; border-radius: 20px; border: 1px solid var(--border); z-index: 10; flex-wrap: wrap; justify-content: center;">
-        <div style="display: flex; align-items: center; gap: 6px;"><div style="width:10px; height:10px; background:#3b82f6; border-radius:2px;"></div> Switch</div>
-        <div style="display: flex; align-items: center; gap: 6px;"><div style="width:10px; height:10px; background:#10b981; border-radius:2px;"></div> VLAN</div>
+        <div style="display: flex; align-items: center; gap: 6px;"><div style="width:10px; height:10px; background:#58a6ff; border-radius:2px;"></div> Switch</div>
+        <div style="display: flex; align-items: center; gap: 6px;"><div style="width:10px; height:10px; background:#8b5cf6; border-radius:2px;"></div> Core/Router</div>
         <div style="display: flex; align-items: center; gap: 6px;"><div style="width:10px; height:10px; background:#f59e0b; border-radius:2px;"></div> Subnet</div>
     </div>
 

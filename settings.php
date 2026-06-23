@@ -42,6 +42,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
         'custom_netwatch_template' => $_POST['custom_netwatch_template'] ?? '',
         'nmap_enabled' => isset($_POST['nmap_enabled']) ? '1' : '0',
         'discovery_aggressive' => isset($_POST['discovery_aggressive']) ? '1' : '0',
+        'masscan_enabled' => isset($_POST['masscan_enabled']) ? '1' : '0',
+        'masscan_rate' => max(100, (int)($_POST['masscan_rate'] ?? 1000)),
         'retention_port_history' => max(0, (int)($_POST['retention_port_history'] ?? 30)),
         'retention_health_history' => max(0, (int)($_POST['retention_health_history'] ?? 30)),
         'retention_netwatch_history' => max(0, (int)($_POST['retention_netwatch_history'] ?? 30)),
@@ -190,6 +192,21 @@ include 'includes/header.php';
                 <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; color: var(--text);">
                     <input type="checkbox" name="discovery_aggressive" value="1" <?php echo ($settings['discovery_aggressive'] ?? '1') == '1' ? 'checked' : ''; ?>> Aggressive Mode (More Ports)
                 </label>
+            </div>
+            <div class="input-group" style="margin-top: 1.5rem; padding: 1rem; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.15); border-radius: 8px;">
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; color: var(--text); font-weight: 600;">
+                    <input type="checkbox" name="masscan_enabled" value="1" <?php echo ($settings['masscan_enabled'] ?? '0') == '1' ? 'checked' : ''; ?>> Enable Masscan Fast Discovery
+                </label>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; line-height: 1.5;">
+                    ⚡ Menggunakan <strong>masscan</strong> untuk host discovery super cepat (SYN scan stateless).<br>
+                    Scan /24 dalam <2 detik vs 10-30 detik dengan metode ARP/ping biasa.<br>
+                    <strong style="color: var(--warning);">⚠ Persyaratan:</strong> masscan binary terinstall + Npcap driver + Admin/Root privilege.
+                </p>
+            </div>
+            <div class="input-group" id="masscanRateGroup" style="margin-top: 0.5rem; <?php echo ($settings['masscan_enabled'] ?? '0') == '1' ? '' : 'display:none;'; ?>">
+                <label>Masscan Rate (packets/sec)</label>
+                <input type="number" name="masscan_rate" class="input-control" value="<?php echo htmlspecialchars($settings['masscan_rate'] ?? '1000'); ?>" min="100" max="100000" step="100">
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">Rate pengiriman paket. 1000 = aman untuk jaringan lokal. 10000+ untuk backbone/segment besar. Terlalu tinggi bisa membanjiri switch.</p>
             </div>
             <div class="input-group" style="margin-top: 2rem;">
                 <label>Offline Fail Threshold</label>
@@ -476,9 +493,9 @@ include 'includes/header.php';
         </div>
 
         <!-- Retention Settings -->
-        <div class="card" style="max-width: 900px; border-top: 4px solid #3b82f6; margin-top: 1.5rem;">
+        <div class="card" style="max-width: 900px; border-top: 4px solid var(--primary); margin-top: 1.5rem;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 1rem;">
-                <div style="background: rgba(59, 130, 246, 0.1); padding: 8px; border-radius: 50%; color: #3b82f6;">
+                <div style="background: rgba(88, 166, 255, 0.1); padding: 8px; border-radius: 50%; color: var(--primary);">
                     <i data-lucide="timer" style="width: 20px;"></i>
                 </div>
                 <h3>Data Retention Policy</h3>
@@ -544,6 +561,15 @@ include 'includes/header.php';
 </form>
 
 <script>
+    // Toggle masscan rate field visibility
+    const masscanCheckbox = document.querySelector('input[name="masscan_enabled"]');
+    const masscanRateGroup = document.getElementById('masscanRateGroup');
+    if (masscanCheckbox && masscanRateGroup) {
+        masscanCheckbox.addEventListener('change', function() {
+            masscanRateGroup.style.display = this.checked ? '' : 'none';
+        });
+    }
+
     function showTab(event, tabId) {
         document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));

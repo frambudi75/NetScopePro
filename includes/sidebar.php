@@ -1,114 +1,87 @@
 <aside class="sidebar">
-    <div class="sidebar-logo mb-4" style="display: flex; align-items: center; gap: 10px;">
-        <div style="background: var(--primary); padding: 8px; border-radius: 8px;">
-            <i data-lucide="network" style="color: white;"></i>
-        </div>
-        <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--primary);">NetScope <span style="color: white;">Pro</span></h2>
+    <div class="sidebar-logo" style="display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="network" style="color: var(--primary); width: 20px;"></i>
+        <h2 style="font-size: 1.05rem; font-weight: 700; color: var(--text); letter-spacing: -0.01em;">NetScope <span style="color: var(--text-muted); font-weight: 400;">Pro</span></h2>
     </div>
-    
+
     <nav class="sidebar-nav">
-        <p style="text-transform: uppercase; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem; letter-spacing: 1px;">Menu</p>
-        <ul style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <p class="section-label" style="margin-bottom: 0.75rem;">Menu</p>
+        <ul style="display: flex; flex-direction: column; gap: 2px;">
+            <?php
+            $nav_items = [
+                ['index', 'layout-dashboard', 'Dashboard'],
+                ['tools', 'wrench', 'Network Toolbox'],
+                ['netwatch', 'eye', 'Netwatch'],
+                ['switches', 'server', 'Managed Switches'],
+                ['server-assets', 'database', 'Server Assets'],
+                ['subnets', 'layers', 'Subnets'],
+                ['vlans', 'vibrate', 'VLANs'],
+                ['devices', 'monitor', 'Devices'],
+                ['topology', 'map', 'Network Map'],
+                ['topology-manager', 'settings-2', 'Manage Links'],
+            ];
+            $current = basename($_SERVER['PHP_SELF']);
+            foreach ($nav_items as $item):
+                if ($item[0] === 'server-assets' && !is_admin()) continue;
+                $is_active = ($current == $item[0] . '.php');
+            ?>
             <li>
-                <a href="index" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'index.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="layout-dashboard"></i> Dashboard
+                <a href="<?php echo $item[0]; ?>" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo $is_active ? 'var(--surface-light)' : 'transparent'; ?>; border-left: 2px solid <?php echo $is_active ? 'var(--primary)' : 'transparent'; ?>; color: <?php echo $is_active ? 'var(--text)' : 'var(--text-muted)'; ?>; font-weight: <?php echo $is_active ? '500' : '400'; ?>;">
+                    <i data-lucide="<?php echo $item[1]; ?>" style="width: 15px;"></i> <?php echo $item[2]; ?>
                 </a>
             </li>
-            <li>
-                <a href="tools" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'tools.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="wrench"></i> Network Toolbox
-                </a>
-            </li>
-            <li>
-                <a href="netwatch" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'netwatch.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="eye"></i> Netwatch
-                </a>
-            </li>
-            <li>
-                <a href="switches" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'switches.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="server"></i> Managed Switches
-                </a>
-            </li>
-            <?php if (is_admin()): ?>
-            <li>
-                <a href="server-assets" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'server-assets.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="database"></i> Server Assets
-                </a>
-            </li>
-            <?php endif; ?>
-            <li>
-                <a href="subnets" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'subnets.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="layers"></i> Subnets
-                </a>
-            </li>
-            <li>
-                <a href="vlans" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'vlans.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="vibrate"></i> VLANs
-                </a>
-            </li>
-            <li>
-                <a href="devices" class="btn" style="width: 100%; justify-content: flex-start;">
-                    <i data-lucide="monitor"></i> Devices
-                </a>
-            </li>
-            <li>
-                <a href="topology" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'topology.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="map"></i> Network Map
-                </a>
-            </li>
-            <li>
-                <a href="topology-manager" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'topology-manager.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="settings-2"></i> Manage Links
-                </a>
-            </li>
+            <?php endforeach; ?>
         </ul>
 
         <?php if (is_admin()): ?>
-        <p style="text-transform: uppercase; font-size: 0.75rem; color: var(--text-muted); margin: 2rem 0 1rem; letter-spacing: 1px;">Admin</p>
-        <ul style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <p class="section-label" style="margin: 1.5rem 0 0.75rem;">Admin</p>
+        <ul style="display: flex; flex-direction: column; gap: 2px;">
+            <?php
+            $admin_items = [
+                ['users', 'users', 'User Management'],
+                ['logs', 'scroll', 'Audit Logs'],
+                ['settings', 'settings', 'System Settings'],
+            ];
+            foreach ($admin_items as $item):
+                $is_active = ($current == $item[0] . '.php');
+            ?>
             <li>
-                <a href="users" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="users"></i> User Management
-                </a>
-            </li>
-            <li>
-                <a href="logs" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'logs.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="scroll"></i> Audit Logs
-                </a>
-            </li>
-            <li>
-                <a href="settings" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="settings"></i> 
-                    System Settings
-                    <?php if (Updater::isUpdateAvailable()): ?>
-                        <span style="margin-left: auto; width: 8px; height: 8px; background: var(--primary); border-radius: 50%; box-shadow: 0 0 8px var(--primary);"></span>
+                <a href="<?php echo $item[0]; ?>" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo $is_active ? 'var(--surface-light)' : 'transparent'; ?>; border-left: 2px solid <?php echo $is_active ? 'var(--primary)' : 'transparent'; ?>; color: <?php echo $is_active ? 'var(--text)' : 'var(--text-muted)'; ?>; font-weight: <?php echo $is_active ? '500' : '400'; ?>;">
+                    <i data-lucide="<?php echo $item[1]; ?>" style="width: 15px;"></i> <?php echo $item[2]; ?>
+                    <?php if ($item[0] === 'settings' && Updater::isUpdateAvailable()): ?>
+                        <span style="margin-left: auto; width: 6px; height: 6px; background: var(--primary); border-radius: 50%;"></span>
                     <?php endif; ?>
                 </a>
             </li>
+            <?php endforeach; ?>
             <li>
-                <a href="#" class="btn" onclick="openBugReportModal(event)" style="width: 100%; justify-content: flex-start; color: var(--warning);">
-                    <i data-lucide="bug"></i> 
-                    Report Issue
+                <a href="#" class="btn" onclick="openBugReportModal(event)" style="width: 100%; justify-content: flex-start; color: var(--text-muted); border-left: 2px solid transparent;">
+                    <i data-lucide="bug" style="width: 15px;"></i> Report Issue
                 </a>
             </li>
         <?php endif; ?>
-        <ul style="display: flex; flex-direction: column; gap: 0.5rem; <?php echo !is_admin() ? 'margin-top: 2rem;' : ''; ?>">
+
+        <ul style="display: flex; flex-direction: column; gap: 2px;">
+            <?php
+            $account_items = [
+                ['change-password', 'user-cog', 'Account Settings'],
+                ['about', 'info', 'About'],
+            ];
+            foreach ($account_items as $item):
+                $is_active = ($current == $item[0] . '.php');
+            ?>
             <li>
-                <a href="change-password" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'change-password.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="user-cog"></i> Account Settings
-                </a>
-            </li>
-            <li>
-                <a href="about" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo basename($_SERVER['PHP_SELF']) == 'about.php' ? 'var(--surface-light)' : 'transparent'; ?>">
-                    <i data-lucide="info"></i> About
-                    <?php if (Updater::isUpdateAvailable()): ?>
-                        <span style="margin-left: auto; background: var(--primary); color: white; font-size: 0.6rem; padding: 2px 6px; border-radius: 10px; font-weight: 700;">NEW</span>
+                <a href="<?php echo $item[0]; ?>" class="btn" style="width: 100%; justify-content: flex-start; background: <?php echo $is_active ? 'var(--surface-light)' : 'transparent'; ?>; border-left: 2px solid <?php echo $is_active ? 'var(--primary)' : 'transparent'; ?>; color: <?php echo $is_active ? 'var(--text)' : 'var(--text-muted)'; ?>; font-weight: <?php echo $is_active ? '500' : '400'; ?>;">
+                    <i data-lucide="<?php echo $item[1]; ?>" style="width: 15px;"></i> <?php echo $item[2]; ?>
+                    <?php if ($item[0] === 'about' && Updater::isUpdateAvailable()): ?>
+                        <span style="margin-left: auto; background: var(--primary); color: var(--background); font-size: 0.6rem; padding: 1px 6px; border-radius: var(--radius-sm); font-weight: 700;">NEW</span>
                     <?php endif; ?>
                 </a>
             </li>
+            <?php endforeach; ?>
             <li>
-                <a href="logout" class="btn" style="width: 100%; justify-content: flex-start; color: var(--danger);">
-                    <i data-lucide="log-out"></i> Logout
+                <a href="logout" class="btn" style="width: 100%; justify-content: flex-start; color: var(--danger); border-left: 2px solid transparent;">
+                    <i data-lucide="log-out" style="width: 15px;"></i> Logout
                 </a>
             </li>
         </ul>

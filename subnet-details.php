@@ -28,6 +28,22 @@ $all_switches = $db->query("SELECT id, name, ip_addr FROM switches ORDER BY name
 
 $page_title = 'Subnet Details: ' . $subnet['subnet'] . '/' . $subnet['mask'];
 
+/**
+ * Relative time helper: "3 min ago", "2 hours ago", etc.
+ */
+function time_ago($datetime) {
+    if (!$datetime) return 'Never';
+    $now = new DateTime();
+    $ago = new DateTime($datetime);
+    $diff = $now->getTimestamp() - $ago->getTimestamp();
+    if ($diff < 0) return 'Just now';
+    if ($diff < 60) return 'Just now';
+    if ($diff < 3600) return floor($diff / 60) . ' min ago';
+    if ($diff < 86400) return floor($diff / 3600) . ' hours ago';
+    if ($diff < 604800) return floor($diff / 86400) . ' days ago';
+    return date('d M Y', strtotime($datetime));
+}
+
 // Handle IP allocation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_ip']) && is_admin()) {
     $ip_addr = $_POST['ip_addr'];
@@ -190,27 +206,27 @@ include 'includes/header.php';
     </div>
 </div>
 
-<div class="card no-print" style="margin-bottom: 2rem; border-left: 4px solid var(--primary);">
+<div class="card no-print" style="margin-bottom: 2rem;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 10px;">
         <h3 style="font-size: 1.125rem; display: flex; align-items: center; gap: 8px; margin: 0;">
             <i data-lucide="activity" style="width: 18px;"></i> Network Analysis
         </h3>
-        <button id="analyzeBtn" class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: rgba(59, 130, 246, 0.1); color: var(--primary);" onclick="analyzeNetwork(<?php echo $subnet_id; ?>)">
+        <button id="analyzeBtn" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="analyzeNetwork(<?php echo $subnet_id; ?>)">
             <i data-lucide="play" style="width: 12px;"></i> Quick Analysis
         </button>
     </div>
     <div id="analysisSummary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
-        <div class="analysis-box" style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 8px;">
-            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem;">Detected Gateway</div>
-            <div id="gatewayResult" style="font-weight: 600; font-size: 0.9rem;">-</div>
+        <div class="analysis-box" style="background: var(--surface-light); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem; font-weight: 600;">Detected Gateway</div>
+            <div id="gatewayResult" style="font-weight: 600; font-size: 0.9rem; font-family: 'JetBrains Mono', monospace;">-</div>
         </div>
-        <div class="analysis-box" style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 8px;">
-            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem;">DNS Resolvers (Local)</div>
-            <div id="dnsResult" style="font-weight: 600; font-size: 0.9rem;">-</div>
+        <div class="analysis-box" style="background: var(--surface-light); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem; font-weight: 600;">DNS Resolvers (Local)</div>
+            <div id="dnsResult" style="font-weight: 600; font-size: 0.9rem; font-family: 'JetBrains Mono', monospace;">-</div>
         </div>
-        <div class="analysis-box" style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 8px;">
-            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem;">Routing Info</div>
-            <div id="routingResult" style="font-weight: 600; font-size: 0.9rem;">-</div>
+        <div class="analysis-box" style="background: var(--surface-light); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem; font-weight: 600;">Routing Info</div>
+            <div id="routingResult" style="font-weight: 600; font-size: 0.9rem; font-family: 'JetBrains Mono', monospace;">-</div>
         </div>
     </div>
 </div>
@@ -254,37 +270,61 @@ include 'includes/header.php';
             </div>
         <?php endif; ?>
     </div>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 8px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 8px;" id="ipGrid">
         <?php foreach ($current_ips as $ip): ?>
             <?php 
                 $info = $assigned_ips[$ip] ?? null; 
                 $ip_parts = explode('.', $ip);
                 $last_octet = end($ip_parts);
+                $cell_state = $info ? $info['state'] : 'free';
                 
                 $bg = 'var(--surface-light)';
                 $color = 'var(--text-muted)';
                 $border = 'rgba(255,255,255,0.05)';
+                $tooltip = $ip;
                 
                 if ($info) {
+                    $tooltip = $ip . " | " . strtoupper($cell_state);
+                    if ($info['hostname']) $tooltip .= " | " . $info['hostname'];
+                    if ($info['mac_addr']) $tooltip .= " | " . $info['mac_addr'];
+                    if ($info['last_seen']) $tooltip .= " | Last: " . time_ago($info['last_seen']);
+                    
                     if ($info['state'] == 'active') { 
                         $bg = ($info['conflict_detected'] ?? 0) == 1 ? 'var(--danger)' : 'var(--success)';
                         $color = 'white'; 
                     }
                     else if ($info['state'] == 'reserved') { $bg = 'var(--warning)'; $color = 'white'; }
                     else if ($info['state'] == 'dhcp') { $bg = 'var(--primary)'; $color = 'white'; }
+                    else if ($info['state'] == 'offline') { $bg = 'rgba(239, 68, 68, 0.25)'; $color = 'var(--danger)'; }
                     $border = ($info['conflict_detected'] ?? 0) == 1 ? 'var(--danger)' : 'transparent';
+                }
+                
+                // Badge "NEW" if last_seen within 30 minutes
+                $is_new = false;
+                if ($info && $info['last_seen']) {
+                    $seen_ts = strtotime($info['last_seen']);
+                    $is_new = (time() - $seen_ts) < 1800; // 30 min
                 }
             ?>
             <div 
+                class="grid-cell"
+                data-state="<?php echo $cell_state; ?>"
+                data-ip="<?php echo $ip; ?>"
                 <?php if (is_admin()): ?>
                 onclick="openEditModal('<?php echo $ip; ?>', '<?php echo $info['hostname'] ?? ''; ?>', '<?php echo $info['description'] ?? ''; ?>', '<?php echo $info['state'] ?? 'active'; ?>', '<?php echo $info['asset_tag'] ?? ''; ?>', '<?php echo $info['owner'] ?? ''; ?>')"
-                style="aspect-ratio: 1; background: <?php echo $bg; ?>; border: 1px solid <?php echo $border; ?>; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: <?php echo $color; ?>; opacity: <?php echo $info ? '1' : '0.4'; ?>;"
+                style="aspect-ratio: 1; background: <?php echo $bg; ?>; border: 1px solid <?php echo $border; ?>; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: <?php echo $color; ?>; opacity: <?php echo $info ? '1' : '0.4'; ?>; position: relative;"
                 <?php else: ?>
-                style="aspect-ratio: 1; background: <?php echo $bg; ?>; border: 1px solid <?php echo $border; ?>; border-radius: 6px; cursor: default; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: <?php echo $color; ?>; opacity: <?php echo $info ? '1' : '0.4'; ?>;"
+                style="aspect-ratio: 1; background: <?php echo $bg; ?>; border: 1px solid <?php echo $border; ?>; border-radius: 6px; cursor: default; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: <?php echo $color; ?>; opacity: <?php echo $info ? '1' : '0.4'; ?>; position: relative;"
                 <?php endif; ?>
-                title="<?php echo $ip; ?>"
+                title="<?php echo htmlspecialchars($tooltip); ?>"
             >
                 <?php echo $last_octet; ?>
+                <?php if ($is_new): ?>
+                <span style="position: absolute; top: -2px; right: -2px; background: var(--primary); color: white; font-size: 0.4rem; padding: 0 3px; border-radius: 3px; font-weight: 700; line-height: 1.4;">NEW</span>
+                <?php endif; ?>
+                <?php if (($info['conflict_detected'] ?? 0) == 1): ?>
+                <span style="position: absolute; top: -2px; left: -2px; background: var(--danger); color: white; font-size: 0.45rem; width: 10px; height: 10px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">!</span>
+                <?php endif; ?>
             </div>
         <?php endforeach; ?>
     </div>
@@ -292,10 +332,22 @@ include 'includes/header.php';
 
 
 <div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
         <h3 style="font-size: 1.125rem; display: flex; align-items: center; gap: 8px; margin: 0;">
             <i data-lucide="list" class="no-print" style="width: 18px;"></i> Detailed Allocation
+            <span style="font-size: 0.7rem; padding: 2px 8px; border-radius: 6px; background: var(--badge-bg); color: var(--text-muted); font-weight: 600;" id="tableCount"><?php echo count(array_filter($assigned_ips)); ?> entries</span>
         </h3>
+        <div class="no-print" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <select id="stateFilter" onchange="applyFilters()" style="background: var(--surface-light); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; color: var(--text); outline: none; cursor: pointer;">
+                <option value="all">All States</option>
+                <option value="active">Active</option>
+                <option value="reserved">Reserved</option>
+                <option value="offline">Offline</option>
+                <option value="dhcp">DHCP</option>
+                <option value="free">Free</option>
+            </select>
+            <input type="text" id="tableSearch" placeholder="Search IP, MAC, hostname..." oninput="applyFilters()" style="background: var(--surface-light); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; color: var(--text); outline: none; width: 220px;">
+        </div>
     </div>
     
     <div class="table-responsive">
@@ -310,10 +362,11 @@ include 'includes/header.php';
                     <th style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem;">Switch Port</th>
                     <th style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem;">MAC / Vendor</th>
                     <th style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem;">OS / Device</th>
+                    <th style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem;">Last Seen</th>
                     <th class="no-print" style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem; text-align: right;">Action</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="ipTableBody">
                 <?php 
                 $port_map = $db->query("SELECT m.mac_addr, m.port_name, s.name as switch_name FROM switch_port_map m JOIN switches s ON m.switch_id = s.id")->fetchAll(PDO::FETCH_GROUP|PDO::FETCH_ASSOC);
                 
@@ -330,16 +383,34 @@ include 'includes/header.php';
                         }
                     }
                     $confidence_color = $confidence >= 80 ? 'var(--success)' : ($confidence >= 60 ? 'var(--primary)' : ($confidence >= 40 ? 'var(--warning)' : 'var(--text-muted)'));
+                    $row_state = $info ? $info['state'] : 'free';
+                    
+                    // State badge colors
+                    $state_bg = 'rgba(100, 116, 139, 0.1)';
+                    $state_color = 'var(--text-muted)';
+                    if ($info) {
+                        switch ($info['state']) {
+                            case 'active':  $state_bg = 'rgba(16, 185, 129, 0.1)'; $state_color = 'var(--success)'; break;
+                            case 'reserved': $state_bg = 'rgba(245, 158, 11, 0.1)'; $state_color = 'var(--warning)'; break;
+                            case 'dhcp':     $state_bg = 'rgba(59, 130, 246, 0.1)'; $state_color = 'var(--primary)'; break;
+                            case 'offline':  $state_bg = 'rgba(239, 68, 68, 0.1)'; $state_color = 'var(--danger)'; break;
+                        }
+                    }
                 ?>
-                    <tr style="border-bottom: 1px solid var(--border);">
+                    <tr class="ip-row" data-state="<?php echo $row_state; ?>" data-search="<?php echo strtolower($ip . ' ' . ($info['hostname'] ?? '') . ' ' . ($info['mac_addr'] ?? '') . ' ' . ($info['vendor'] ?? '') . ' ' . ($info['asset_tag'] ?? '') . ' ' . ($info['owner'] ?? '')); ?>" style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 1rem; font-family: monospace; font-size: 0.9375rem; font-weight: 500; color: <?php echo $info ? 'var(--text)' : 'var(--text-muted)'; ?>;">
                             <?php echo $ip; ?>
                         </td>
                         <td style="padding: 1rem;">
                             <?php if ($info): ?>
-                                <span style="font-size: 0.7rem; padding: 4px 10px; border-radius: 6px; background: <?php echo $info['state'] == 'active' ? 'rgba(16, 185, 129, 0.1)' : ($info['state'] == 'reserved' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(100, 116, 139, 0.1)'); ?>; color: <?php echo $info['state'] == 'active' ? 'var(--success)' : ($info['state'] == 'reserved' ? 'var(--warning)' : 'var(--text-muted)'); ?>; text-transform: uppercase; font-weight: 700;">
-                                    <?php echo $info['state']; ?>
-                                </span>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <span style="font-size: 0.7rem; padding: 4px 10px; border-radius: 6px; background: <?php echo $state_bg; ?>; color: <?php echo $state_color; ?>; text-transform: uppercase; font-weight: 700;">
+                                        <?php echo $info['state']; ?>
+                                    </span>
+                                    <?php if (($info['conflict_detected'] ?? 0) == 1): ?>
+                                    <span title="MAC Conflict Detected" style="color: var(--danger); display: flex;"><i data-lucide="alert-triangle" style="width: 14px;"></i></span>
+                                    <?php endif; ?>
+                                </div>
                             <?php else: ?>
                                 <span style="font-size: 0.7rem; color: var(--text-muted); opacity: 0.4;">FREE</span>
                             <?php endif; ?>
@@ -358,7 +429,12 @@ include 'includes/header.php';
                         <td style="padding: 1rem; font-size: 0.875rem;">
                             <?php if ($info): ?>
                                 <div style="display: flex; flex-direction: column; gap: 4px;">
-                                    <span style="font-weight: 700; color: <?php echo $confidence_color; ?>;"><?php echo $confidence; ?>%</span>
+                                    <div style="display: flex; align-items: center; gap: 4px;">
+                                        <span style="font-weight: 700; color: <?php echo $confidence_color; ?>;"><?php echo $confidence; ?>%</span>
+                                        <?php if ($confidence < 40 && $confidence > 0): ?>
+                                        <span title="Low confidence" style="color: var(--warning); display: flex;"><i data-lucide="alert-triangle" style="width: 12px;"></i></span>
+                                        <?php endif; ?>
+                                    </div>
                                     <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                                         <?php foreach ($source_labels as $label): ?>
                                             <span style="font-size: 0.6rem; padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(148, 163, 184, 0.3); color: var(--text-muted);"><?php echo htmlspecialchars($label); ?></span>
@@ -390,6 +466,9 @@ include 'includes/header.php';
                             <?php else: ?>
                                 <span style="opacity: 0.3">-</span>
                             <?php endif; ?>
+                        </td>
+                        <td style="padding: 1rem; font-size: 0.75rem; color: var(--text-muted); white-space: nowrap;">
+                            <?php echo $info ? time_ago($info['last_seen']) : '-'; ?>
                         </td>
                         <td class="no-print" style="padding: 1rem; text-align: right;">
                             <?php if (is_admin()): ?>
@@ -480,6 +559,46 @@ include 'includes/header.php';
 </div>
 
 <script>
+// ====== FILTER & SEARCH ======
+function applyFilters() {
+    const stateFilter = document.getElementById('stateFilter').value;
+    const searchQuery = document.getElementById('tableSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#ipTableBody .ip-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const rowState = row.dataset.state;
+        const searchText = row.dataset.search;
+        const stateMatch = (stateFilter === 'all' || rowState === stateFilter);
+        const searchMatch = !searchQuery || searchText.includes(searchQuery);
+
+        if (stateMatch && searchMatch) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    // Also filter grid cells
+    const cells = document.querySelectorAll('#ipGrid .grid-cell');
+    cells.forEach(cell => {
+        const cellState = cell.dataset.state;
+        const cellIp = cell.dataset.ip || '';
+        const stateMatch = (stateFilter === 'all' || cellState === stateFilter);
+        const searchMatch = !searchQuery || cellIp.includes(searchQuery);
+
+        if (stateMatch && searchMatch) {
+            cell.style.display = '';
+        } else {
+            cell.style.display = 'none';
+        }
+    });
+
+    document.getElementById('tableCount').textContent = visibleCount + ' entries';
+}
+
+// ====== SCAN ======
 async function scanSubnet(id) {
     const btn = document.getElementById('scanBtn');
     const status = document.getElementById('scanStatus');
@@ -488,9 +607,10 @@ async function scanSubnet(id) {
     status.style.display = 'flex';
     
     const uiBlock = <?php echo $current_block; ?>;
-    const chunksPerBlock = 4; // 256 / 64 = 4 chunks (optimized: larger chunks, fewer HTTP calls)
+    const chunksPerBlock = 4;
     let totalFound = 0;
     let totalScanned = 0;
+    let discoveryMethod = 'legacy';
     const scanStart = Date.now();
 
     try {
@@ -506,13 +626,20 @@ async function scanSubnet(id) {
             if (data.success) {
                 totalFound += data.data.found;
                 totalScanned += data.data.scanned;
+                if (data.data.discovery_method === 'masscan') {
+                    discoveryMethod = 'masscan';
+                    if (data.data.masscan_discovered) {
+                        statusText.innerText = `⚡ Masscan discovered ${data.data.masscan_discovered} hosts in block ${i+1}...`;
+                    }
+                }
             } else {
                 console.warn("Chunk failed:", data);
             }
         }
         
         const totalTime = ((Date.now() - scanStart) / 1000).toFixed(1);
-        statusText.innerText = `✅ Scan Complete! Found ${totalFound} active hosts (${totalScanned} IPs scanned in ${totalTime}s)`;
+        const methodLabel = discoveryMethod === 'masscan' ? '⚡ Masscan' : '🔍 Legacy';
+        statusText.innerText = `✅ Scan Complete! ${methodLabel} — Found ${totalFound} active hosts (${totalScanned} IPs scanned in ${totalTime}s)`;
         setTimeout(() => location.reload(), 2000);
     } catch (err) {
         console.error(err);

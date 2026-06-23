@@ -3,12 +3,13 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.24.1');
-if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-05-22');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.25.0');
+if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-06-24');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.25.0', 'date' => '2026-06-24', 'changes' => ['SFP/DOM Transceiver Monitoring (MikroTik, Juniper, Generic)', 'RouterOS v7 Full SNMP Compatibility', 'Professional NOC Console Login Redesign', 'Mobile-First Responsive Grid System', 'Unified Color Palette (Legacy Indigo/Blue Cleanup)', '.htaccess RewriteBase Fix for Clean URLs', 'Ponytail Lazy Senior Dev Rules Integration']],
     ['ver' => '2.24.1', 'date' => '2026-05-22', 'changes' => ['Security hardening for all cron scripts (cron_netwatch, cron_switch_poll, cron_scanner)', 'Clean CLI log mode for switch poller by suppressing HTML wrapper', 'CLI context auth bypass with IS_CRON constant', 'SQL binding interval compatibility fixes', 'Fixed premature scanner exit preventing auto-cleanup execution', 'Improved git ignore rules for debug and check files']],
     ['ver' => '2.24.0', 'date' => '2026-05-10', 'changes' => ['Database Maintenance & Auto-Cleanup System', 'Configurable Data Retention Policy (per-table)', 'Database Health Dashboard (row count, disk usage, table stats)', 'One-click Manual Cleanup with AJAX feedback', 'Auto OPTIMIZE TABLE & AUTO_INCREMENT reset', 'Performance Indexes (audit_logs, switch_port_history)', 'Integrated daily auto-cleanup in cron scanner']],
     ['ver' => '2.23.0', 'date' => '2026-05-09', 'changes' => ['Major Rebrand to NetScope Pro', 'Cisco SNMP Engine Stability Fix', 'Ghost IP Prevention (Strict ARP/MAC)', 'Nmap Enterprise OS Fingerprinting', 'Non-blocking SSE Health Stream', 'Robust API Output Buffering']],

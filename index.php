@@ -146,34 +146,22 @@ try {
         <i data-lucide="server" style="color: var(--primary);"></i> Server Asset Health
     </h2>
     <div class="grid-stats">
-        <div class="card stat-card-flex" style="display: flex; align-items: center; gap: 1.5rem; border-left: 4px solid var(--primary); background: linear-gradient(to right, rgba(99,102,241,0.05), transparent);">
-            <div class="stat-icon-wrapper" style="background: rgba(99, 102, 241, 0.1); padding: 1rem; border-radius: 12px; color: var(--primary);">
-                <i data-lucide="database" style="width: 32px; height: 32px;"></i>
-            </div>
-            <div>
-                <p style="color: var(--text-muted); font-size: 0.875rem;">Total Assets</p>
-                <h3 style="font-size: 1.875rem; font-weight: 700;"><?php echo $asset_count; ?></h3>
-            </div>
+        <div class="stat-card">
+            <span class="stat-label">Total Assets</span>
+            <span class="stat-value"><?php echo $asset_count; ?></span>
+            <span class="stat-meta">In inventory</span>
         </div>
 
-        <div class="card stat-card-flex" style="display: flex; align-items: center; gap: 1.5rem; border-left: 4px solid #10b981;">
-            <div class="stat-icon-wrapper" style="background: rgba(16, 185, 129, 0.1); padding: 1rem; border-radius: 12px; color: #10b981;">
-                <i data-lucide="check-circle" style="width: 32px; height: 32px;"></i>
-            </div>
-            <div>
-                <p style="color: var(--text-muted); font-size: 0.875rem;">Servers Online</p>
-                <h3 style="font-size: 1.875rem; font-weight: 700;"><?php echo $asset_online; ?></h3>
-            </div>
+        <div class="stat-card">
+            <span class="stat-label">Servers Online</span>
+            <span class="stat-value" style="color: var(--success);"><?php echo $asset_online; ?></span>
+            <span class="stat-meta">Active systems</span>
         </div>
 
-        <div class="card stat-card-flex" style="display: flex; align-items: center; gap: 1.5rem; border-left: 4px solid #f87171;">
-            <div class="stat-icon-wrapper" style="background: rgba(248, 113, 113, 0.1); padding: 1rem; border-radius: 12px; color: #f87171;">
-                <i data-lucide="alert-triangle" style="width: 32px; height: 32px;"></i>
-            </div>
-            <div>
-                <p style="color: var(--text-muted); font-size: 0.875rem;">Servers Offline</p>
-                <h3 style="font-size: 1.875rem; font-weight: 700;"><?php echo $asset_offline; ?></h3>
-            </div>
+        <div class="stat-card">
+            <span class="stat-label">Servers Offline</span>
+            <span class="stat-value" style="color: var(--danger);"><?php echo $asset_offline; ?></span>
+            <span class="stat-meta">Unreachable assets</span>
         </div>
     </div>
 </div>
@@ -185,34 +173,22 @@ try {
         <i data-lucide="eye" style="color: #f59e0b;"></i> Netwatch Status
     </h2>
     <div class="grid-stats">
-        <div class="card stat-card-flex" style="display: flex; align-items: center; gap: 1.5rem; border-left: 4px solid var(--primary);">
-            <div class="stat-icon-wrapper" style="background: rgba(59, 130, 246, 0.1); padding: 1rem; border-radius: 12px; color: var(--primary);">
-                <i data-lucide="activity" style="width: 32px; height: 32px;"></i>
-            </div>
-            <div>
-                <p style="color: var(--text-muted); font-size: 0.875rem;">Total Monitored</p>
-                <h3 style="font-size: 1.875rem; font-weight: 700;"><?php echo $netwatch_count; ?></h3>
-            </div>
+        <div class="stat-card">
+            <span class="stat-label">Total Monitored</span>
+            <span class="stat-value"><?php echo $netwatch_count; ?></span>
+            <span class="stat-meta">Active targets</span>
         </div>
 
-        <div class="card stat-card-flex" style="display: flex; align-items: center; gap: 1.5rem; border-left: 4px solid #10b981;">
-            <div class="stat-icon-wrapper" style="background: rgba(16, 185, 129, 0.1); padding: 1rem; border-radius: 12px; color: #10b981;">
-                <i data-lucide="check-circle" style="width: 32px; height: 32px;"></i>
-            </div>
-            <div>
-                <p style="color: var(--text-muted); font-size: 0.875rem;">Hosts UP</p>
-                <h3 style="font-size: 1.875rem; font-weight: 700;"><?php echo $netwatch_up; ?></h3>
-            </div>
+        <div class="stat-card">
+            <span class="stat-label">Hosts UP</span>
+            <span class="stat-value" style="color: var(--success);"><?php echo $netwatch_up; ?></span>
+            <span class="stat-meta">Responding normally</span>
         </div>
 
-        <div class="card stat-card-flex" style="display: flex; align-items: center; gap: 1.5rem; border-left: 4px solid #ef4444;">
-            <div class="stat-icon-wrapper" style="background: rgba(239, 68, 68, 0.1); padding: 1rem; border-radius: 12px; color: #ef4444;">
-                <i data-lucide="alert-triangle" style="width: 32px; height: 32px;"></i>
-            </div>
-            <div>
-                <p style="color: var(--text-muted); font-size: 0.875rem;">Hosts DOWN</p>
-                <h3 style="font-size: 1.875rem; font-weight: 700;"><?php echo $netwatch_down; ?></h3>
-            </div>
+        <div class="stat-card">
+            <span class="stat-label">Hosts DOWN</span>
+            <span class="stat-value" style="color: var(--danger);"><?php echo $netwatch_down; ?></span>
+            <span class="stat-meta">Failing checks</span>
         </div>
     </div>
 </div>
@@ -264,34 +240,22 @@ try {
 
 <div class="grid-stats animate-up" style="margin-bottom: 2rem; animation-delay: 0.15s;">
     <!-- Stat Cards -->
-    <div class="card badge-glow-primary" style="display: flex; align-items: center; gap: 1.5rem; border-left: 4px solid var(--primary);">
-        <div style="background: rgba(59, 130, 246, 0.1); padding: 1rem; border-radius: 12px; color: var(--primary);">
-            <i data-lucide="layers" style="width: 32px; height: 32px;"></i>
-        </div>
-        <div>
-            <p style="color: var(--text-muted); font-size: 0.875rem;">Total Subnets</p>
-            <h3 style="font-size: 1.875rem; font-weight: 700;"><?php echo $subnet_count; ?></h3>
-        </div>
+    <div class="stat-card">
+        <span class="stat-label">Total Subnets</span>
+        <span class="stat-value"><?php echo $subnet_count; ?></span>
+        <span class="stat-meta">IP subnet ranges</span>
     </div>
 
-    <div class="card badge-glow-success" style="display: flex; align-items: center; gap: 1.5rem; border-left: 4px solid var(--success);">
-        <div style="background: rgba(16, 185, 129, 0.1); padding: 1rem; border-radius: 12px; color: var(--success);">
-            <i data-lucide="network" style="width: 32px; height: 32px;"></i>
-        </div>
-        <div>
-            <p style="color: var(--text-muted); font-size: 0.875rem;">Allocated IPs</p>
-            <h3 style="font-size: 1.875rem; font-weight: 700;"><?php echo $ip_count; ?></h3>
-        </div>
+    <div class="stat-card">
+        <span class="stat-label">Allocated IPs</span>
+        <span class="stat-value"><?php echo $ip_count; ?></span>
+        <span class="stat-meta">Assigned addresses</span>
     </div>
 
-    <div class="card" style="display: flex; align-items: center; gap: 1.5rem; border-left: 4px solid var(--warning);">
-        <div style="background: rgba(245, 158, 11, 0.1); padding: 1rem; border-radius: 12px; color: var(--warning);">
-            <i data-lucide="vibrate" style="width: 32px; height: 32px;"></i>
-        </div>
-        <div>
-            <p style="color: var(--text-muted); font-size: 0.875rem;">Total VLANs</p>
-            <h3 style="font-size: 1.875rem; font-weight: 700;"><?php echo $vlan_count; ?></h3>
-        </div>
+    <div class="stat-card">
+        <span class="stat-label">Total VLANs</span>
+        <span class="stat-value"><?php echo $vlan_count; ?></span>
+        <span class="stat-meta">Virtual networks</span>
     </div>
 </div>
 
@@ -394,30 +358,30 @@ document.addEventListener('DOMContentLoaded', function() {
         plugins: {
             legend: {
                 display: false,
-                labels: { color: '#94a3b8', font: { size: 12, family: 'Outfit', weight: '500' }, usePointStyle: true, padding: 15 }
+                labels: { color: '#8b949e', font: { size: 11, family: 'Inter', weight: '500' }, usePointStyle: true, padding: 15 }
             },
             tooltip: {
-                backgroundColor: '#1e293b',
+                backgroundColor: '#161b22',
                 titleColor: '#fff',
-                bodyColor: '#94a3b8',
-                borderColor: '#334155',
+                bodyColor: '#8b949e',
+                borderColor: '#30363d',
                 borderWidth: 1,
-                padding: 12,
+                padding: 10,
                 boxPadding: 6,
                 usePointStyle: true,
-                cornerRadius: 8,
-                titleFont: { size: 13, weight: '700' },
-                bodyFont: { size: 12 }
+                cornerRadius: 4,
+                titleFont: { size: 12, weight: '700', family: 'Inter' },
+                bodyFont: { size: 11, family: 'Inter' }
             }
         },
         scales: {
             x: { 
                 grid: { display: false }, 
-                ticks: { color: '#64748b', font: { size: 10, weight: '600' }, padding: 10 } 
+                ticks: { color: '#8b949e', font: { size: 10, family: 'JetBrains Mono' }, padding: 10 } 
             },
             y: { 
                 grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false }, 
-                ticks: { color: '#64748b', font: { size: 10 }, padding: 10, beginAtZero: true } 
+                ticks: { color: '#8b949e', font: { size: 10, family: 'JetBrains Mono' }, padding: 10, beginAtZero: true } 
             }
         }
     };
@@ -425,7 +389,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const getGradient = (ctx, color) => {
         const gradient = ctx.createLinearGradient(0, 0, 0, 300);
         gradient.addColorStop(0, color);
-        gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+        gradient.addColorStop(1, 'rgba(88, 166, 255, 0)');
         return gradient;
     };
 
@@ -438,13 +402,13 @@ document.addEventListener('DOMContentLoaded', function() {
             datasets: [{
                 label: 'Active Hosts',
                 data: [<?php echo implode(',', array_map(function($t) { return $t['total_active']; }, $usage_trends)); ?>],
-                borderColor: '#3b82f6',
-                borderWidth: 3,
-                pointBackgroundColor: '#3b82f6',
+                borderColor: '#58a6ff',
+                borderWidth: 2,
+                pointBackgroundColor: '#58a6ff',
                 pointBorderColor: 'rgba(255,255,255,0.1)',
                 pointHoverRadius: 6,
                 pointRadius: 0,
-                backgroundColor: getGradient(trendCtx, 'rgba(59, 130, 246, 0.2)'),
+                backgroundColor: getGradient(trendCtx, 'rgba(88, 166, 255, 0.15)'),
                 fill: true,
                 tension: 0.4
             }]
@@ -453,8 +417,8 @@ document.addEventListener('DOMContentLoaded', function() {
             ...premiumOptions,
             plugins: { ...premiumOptions.plugins, legend: { display: false } },
             scales: {
-                x: { display: true, grid: { display: false }, ticks: { color: '#64748b' }, border: { display: false } },
-                y: { display: true, grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false }, border: { display: false }, ticks: { color: '#64748b' } }
+                x: { display: true, grid: { display: false }, ticks: { color: '#8b949e', font: { family: 'JetBrains Mono', size: 10 } }, border: { display: false } },
+                y: { display: true, grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false }, border: { display: false }, ticks: { color: '#8b949e', font: { family: 'JetBrains Mono', size: 10 } } }
             }
         }
     });
@@ -466,9 +430,9 @@ document.addEventListener('DOMContentLoaded', function() {
             labels: ['Active', 'Offline', 'Reserved', 'DHCP'],
             datasets: [{
                 data: [<?php echo $health_stats['active']??0;?>, <?php echo $health_stats['offline']??0;?>, <?php echo $health_stats['reserved']??0;?>, <?php echo $health_stats['dhcp']??0;?>],
-                backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#3b82f6'],
-                borderRadius: 6,
-                barThickness: 20
+                backgroundColor: ['#3fb950', '#f85149', '#d29922', '#58a6ff'],
+                borderRadius: 4,
+                barThickness: 16
             }]
         },
         options: { 
@@ -488,9 +452,9 @@ document.addEventListener('DOMContentLoaded', function() {
             datasets: [{
                 label: 'Usage %',
                 data: [<?php echo implode(',', array_map(function($s) { return round($s['usage_percent'], 1); }, $dense_subnets)); ?>],
-                backgroundColor: '#f59e0b',
+                backgroundColor: '#58a6ff',
                 borderRadius: 4,
-                barThickness: 12
+                barThickness: 10
             }]
         },
         options: { 
@@ -499,7 +463,7 @@ document.addEventListener('DOMContentLoaded', function() {
             scales: {
                 x: { 
                     grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false }, 
-                    ticks: { color: '#64748b' }, 
+                    ticks: { color: '#8b949e', font: { family: 'JetBrains Mono', size: 10 } }, 
                     border: { display: false },
                     beginAtZero: true,
                     max: 100
@@ -507,7 +471,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 y: { 
                     grid: { display: false }, 
                     border: { display: false },
-                    ticks: { color: '#64748b', font: { weight: '600' } }
+                    ticks: { color: '#8b949e', font: { family: 'JetBrains Mono', size: 10 } }
                 }
             }
         }
@@ -521,11 +485,11 @@ document.addEventListener('DOMContentLoaded', function() {
             labels: ['Allocated', 'Free'],
             datasets: [{
                 data: [<?php echo $total_allocated; ?>, <?php echo $total_all - $total_allocated; ?>],
-                backgroundColor: ['#3b82f6', 'rgba(59, 130, 246, 0.05)'],
+                backgroundColor: ['#58a6ff', 'rgba(88, 166, 255, 0.05)'],
                 borderWidth: 0,
                 circumference: 180,
                 rotation: 270,
-                borderRadius: 10
+                borderRadius: 4
             }]
         },
         options: {
@@ -548,7 +512,7 @@ document.addEventListener('DOMContentLoaded', function() {
             labels: ['Active Ports', 'Available Ports'],
             datasets: [{
                 data: [<?php echo $active_switch_ports; ?>, <?php echo max(0, $total_switch_ports - $active_switch_ports); ?>],
-                backgroundColor: ['#10b981', 'rgba(16, 185, 129, 0.1)'],
+                backgroundColor: ['#3fb950', 'rgba(63, 185, 80, 0.05)'],
                 borderWidth: 0,
                 circumference: 360,
                 borderRadius: 4
@@ -564,11 +528,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
-
-    // Asset Category (Center Progress style)
-    // No changes needed if already removed or replaced, but just in case:
-    // This script block should only handle charts actually present in the DOM.
-    // Toggle logic for details
 
     // Toggle logic for details
     const toggleBtn = document.getElementById('toggle-details');

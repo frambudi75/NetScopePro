@@ -204,32 +204,20 @@ function runScanner() {
         if($t['status'] == 'down') $count_down++;
     }
     ?>
-    <div class="card" style="display: flex; align-items: center; gap: 1rem; border-left: 4px solid var(--primary);">
-        <div style="background: rgba(59, 130, 246, 0.1); padding: 12px; border-radius: 12px; color: var(--primary);">
-            <i data-lucide="activity"></i>
-        </div>
-        <div>
-            <p style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Total Monitored</p>
-            <h3 style="font-size: 1.5rem;"><?php echo $count_total; ?></h3>
-        </div>
+    <div class="stat-card">
+        <span class="stat-label">Total Monitored</span>
+        <span class="stat-value"><?php echo $count_total; ?></span>
+        <span class="stat-meta">Configured hosts</span>
     </div>
-    <div class="card" style="display: flex; align-items: center; gap: 1rem; border-left: 4px solid #10b981;">
-        <div style="background: rgba(16, 185, 129, 0.1); padding: 12px; border-radius: 12px; color: #10b981;">
-            <i data-lucide="check-circle"></i>
-        </div>
-        <div>
-            <p style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Hosts Online</p>
-            <h3 style="font-size: 1.5rem;"><?php echo $count_up; ?></h3>
-        </div>
+    <div class="stat-card">
+        <span class="stat-label">Hosts Online</span>
+        <span class="stat-value" style="color: var(--success);"><?php echo $count_up; ?></span>
+        <span class="stat-meta">Active and responding</span>
     </div>
-    <div class="card" style="display: flex; align-items: center; gap: 1rem; border-left: 4px solid #ef4444;">
-        <div style="background: rgba(239, 68, 68, 0.1); padding: 12px; border-radius: 12px; color: #ef4444;">
-            <i data-lucide="alert-triangle"></i>
-        </div>
-        <div>
-            <p style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Hosts Offline</p>
-            <h3 style="font-size: 1.5rem;"><?php echo $count_down; ?></h3>
-        </div>
+    <div class="stat-card">
+        <span class="stat-label">Hosts Offline</span>
+        <span class="stat-value" style="color: var(--danger);"><?php echo $count_down; ?></span>
+        <span class="stat-meta">Failing checks</span>
     </div>
 </div>
 
@@ -448,13 +436,13 @@ function refreshHistory() {
                     datasets: [{
                         label: 'Latency (ms)',
                         data: data.data,
-                        borderColor: '#6366f1',
-                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderColor: '#58a6ff',
+                        backgroundColor: 'rgba(88, 166, 255, 0.1)',
                         borderWidth: 2,
                         fill: true,
                         tension: 0.4,
                         pointRadius: data.data.length > 50 ? 0 : 3,
-                        pointBackgroundColor: data.status.map(s => s === 'down' ? '#ef4444' : '#6366f1')
+                        pointBackgroundColor: data.status.map(s => s === 'down' ? '#f85149' : '#58a6ff')
                     }]
                 },
                 options: {
@@ -466,13 +454,14 @@ function refreshHistory() {
                     scales: {
                         y: {
                             beginAtZero: true,
-                            grid: { color: 'rgba(255,255,255,0.05)' },
-                            ticks: { color: 'rgba(255,255,255,0.5)', callback: v => v + 'ms' }
+                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            ticks: { color: '#8b949e', font: { family: 'JetBrains Mono', size: 10 }, callback: v => v + 'ms' }
                         },
                         x: {
                             grid: { display: false },
                             ticks: { 
-                                color: 'rgba(255,255,255,0.5)',
+                                color: '#8b949e',
+                                font: { family: 'JetBrains Mono', size: 10 },
                                 maxRotation: 0,
                                 autoSkip: true,
                                 maxTicksLimit: 10

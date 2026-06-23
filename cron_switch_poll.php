@@ -517,7 +517,10 @@ foreach ($switches as $switch) {
 
     // --- Phase 2: Standalone Interface Inventory ---
     // Even if FDB is empty, discover all physical interfaces for visibility
-    echo "  Phase 2: Interface inventory...\n";
+    echo "  Phase 2: Interface inventory & SFP Polling...\n";
+    
+    $sfp_data_map = VendorDetector::pollSfpDOM($ip, $community, $model);
+
     
     $if_names_all = snmp_walk_indexed($ip, $community, ".1.3.6.1.2.1.31.1.1.1.1");
     if (empty($if_names_all)) {
@@ -568,11 +571,23 @@ foreach ($switches as $switch) {
             $speed = isset($if_speed_all[$ifidx]) ? format_speed($if_speed_all[$ifidx]) : null;
             $type = get_iftype_name($if_type_all[$ifidx]);
 
-            // Insert placeholder entry for the port itself (without MAC)
-            // Use a specific dummy MAC or just let the MAC be NULL/Empty? 
-            // Better to use an empty MAC entry so it appears in the list even if no devices found
-            $db->prepare("INSERT IGNORE INTO switch_port_map (mac_addr, switch_id, port_name, port_status, port_type, port_speed) VALUES (?, ?, ?, ?, ?, ?)")
-               ->execute(['', $switch['id'], $name, $status, $type, $speed]);
+            $sfp = $sfp_data_map[$ifidx] ?? ['vendor'=>null, 'part'=>null, 'serial'=>null, 'rx_power'=>null, 'tx_power'=>null];
+
+            $stmt_check = $db->prepare("SELECT id FROM switch_port_map WHERE switch_id = ? AND port_name = ? LIMIT 1");
+            $stmt_check->execute([$switch['id'], $name]);
+            $existing_port_id = $stmt_check->fetchColumn();
+
+            if ($existing_port_id) {
+                // Update existing port (from FDB or previous run) with SFP and status data
+                $db->prepare("UPDATE switch_port_map SET port_status=?, port_type=?, port_speed=?, sfp_vendor=?, sfp_part=?, sfp_serial=?, sfp_rx_power=?, sfp_tx_power=? WHERE id=?")
+                   ->execute([$status, $type, $speed, $sfp['vendor'], $sfp['part'], $sfp['serial'], $sfp['rx_power'], $sfp['tx_power'], $existing_port_id]);
+            } else {
+                // Insert placeholder entry for the port itself (without a real MAC)
+                // Use a dummy MAC to avoid unique constraint violations on empty strings
+                $dummy_mac = 'PORT:' . substr($name, 0, 12);
+                $db->prepare("INSERT IGNORE INTO switch_port_map (mac_addr, switch_id, port_name, port_status, port_type, port_speed, sfp_vendor, sfp_part, sfp_serial, sfp_rx_power, sfp_tx_power) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                   ->execute([$dummy_mac, $switch['id'], $name, $status, $type, $speed, $sfp['vendor'], $sfp['part'], $sfp['serial'], $sfp['rx_power'], $sfp['tx_power']]);
+            }
 
             // --- Traffic BPS Calculation ---
             if (isset($in_octets[$ifidx]) && isset($out_octets[$ifidx])) {

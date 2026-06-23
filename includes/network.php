@@ -251,6 +251,133 @@ function has_nmap_binary() {
 }
 
 /**
+ * Get absolute path to masscan binary
+ */
+function get_masscan_binary() {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        // Common install paths on Windows
+        $paths = [
+            "C:\\Program Files (x86)\\masscan\\masscan.exe",
+            "C:\\Program Files\\masscan\\masscan.exe",
+            "C:\\masscan\\masscan.exe"
+        ];
+        foreach ($paths as $p) {
+            if (file_exists($p)) {
+                return "\"{$p}\"";
+            }
+        }
+    }
+    return "masscan";
+}
+
+/**
+ * Detect whether masscan exists on scanner host.
+ */
+function has_masscan_binary() {
+    static $checked = false;
+    static $available = false;
+
+    if ($checked) {
+        return $available;
+    }
+
+    $checked = true;
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        exec("where masscan 2>NUL", $out, $code);
+        if ($code !== 0) {
+            $paths = [
+                "C:\\Program Files (x86)\\masscan\\masscan.exe",
+                "C:\\Program Files\\masscan\\masscan.exe",
+                "C:\\masscan\\masscan.exe"
+            ];
+            foreach ($paths as $p) {
+                if (file_exists($p)) {
+                    $available = true;
+                    return true;
+                }
+            }
+        }
+    } else {
+        exec("command -v masscan", $out, $code);
+    }
+    $available = ($code === 0);
+    return $available;
+}
+
+/**
+ * Masscan fast host discovery.
+ * Scans a range of IPs for open ports using masscan's stateless SYN scan.
+ * Returns array of ['ip' => string, 'port' => int] for discovered hosts.
+ * 
+ * @param int $start_long Start IP as long
+ * @param int $end_long End IP as long
+ * @param int $rate Packets per second (default 1000)
+ * @param array $ports Ports to scan (default common ports)
+ * @return array
+ */
+function masscan_discover_hosts($start_long, $end_long, $rate = 1000, $ports = null) {
+    if (!defined('ENABLE_MASSCAN') || !ENABLE_MASSCAN || !has_masscan_binary()) {
+        return [];
+    }
+
+    $ip_start = long2ip($start_long);
+    $ip_end = long2ip($end_long);
+
+    if ($ports === null) {
+        $ports = [22, 80, 443, 445, 3389, 8080, 8443];
+    }
+    $port_list = implode(',', $ports);
+
+    $masscan = get_masscan_binary();
+    $target = escapeshellarg($ip_start . '-' . $ip_end);
+
+    // Build masscan command:
+    // -pPORTS  : target ports
+    // --rate   : packets per second (throttle to avoid flooding)
+    // --wait   : wait time for responses after scan finishes
+    // -oX -    : output XML to stdout (we'll parse it)
+    // --no-ping : skip ICMP ping, pure port scan
+    // --excl-ports : exclude common false-positive ports
+    $wait = max(3, (int)(($end_long - $start_long + 1) * 0.01)); // Scale wait with range
+    $wait = min($wait, 10); // Cap at 10 seconds
+
+    $cmd = "{$masscan} -p{$port_list} --rate {$rate} --wait {$wait} --no-ping -oX - {$target} 2>NUL";
+
+    exec($cmd, $output, $code);
+
+    if ($code !== 0 || empty($output)) {
+        return [];
+    }
+
+    // Parse masscan XML output
+    // Format: <host><address addr="x.x.x.x"/><ports><port portid="80" .../></ports></host>
+    $discovered = [];
+    $xml_str = implode("\n", $output);
+
+    // Use regex parsing (lightweight, no SimpleXML dependency issues)
+    preg_match_all('/<address\s+addr="([^"]+)"[^\/]*\/>/i', $xml_str, $addr_matches, PREG_SET_ORDER);
+
+    foreach ($addr_matches as $addr_match) {
+        // Find ports for this host by looking at what follows in the XML
+        $ip = $addr_match[1];
+        $pos = strpos($xml_str, $addr_match[0]);
+        $chunk = substr($xml_str, $pos, 500); // Look ahead 500 chars for ports
+
+        preg_match_all('/<port\s+portid="(\d+)"/i', $chunk, $port_matches);
+        $open_ports = $port_matches[1];
+
+        if (!empty($open_ports)) {
+            $discovered[$ip] = [
+                'ip' => normalize_ipv4($ip),
+                'ports' => array_map('intval', $open_ports)
+            ];
+        }
+    }
+
+    return $discovered;
+}
+
+/**
  * Optional nmap host-up fallback (disabled by default).
  */
 function nmap_detect_host($ip) {
@@ -599,6 +726,7 @@ function calculate_discovery_confidence($flags) {
     $weights = [
         'snmp' => 35,
         'arp' => 30,
+        'masscan' => 28,
         'nmap' => 25,
         'ping' => 20,
         'port' => 10,
@@ -662,23 +790,54 @@ function get_vendor_by_mac($mac) {
     
     // Expanded local mapping of common vendors
     $vendors = [
+        // VMware
         '000C29' => 'VMware', '000569' => 'VMware', '005056' => 'VMware',
+        // Google
         '00249B' => 'Google', 'BCF5AC' => 'Google', '20DFB9' => 'Google',
+        // Apple
         '0017F2' => 'Apple', 'D8D1CB' => 'Apple', 'F8E903' => 'Apple',
+        // Raspberry Pi
         'B827EB' => 'Raspberry Pi', 'DCDECA' => 'Raspberry Pi',
+        // Microsoft
         '00155D' => 'Microsoft (Hyper-V)',
+        // Cisco
         '000A19' => 'Cisco', '000142' => 'Cisco', '000143' => 'Cisco',
         '000C41' => 'Cisco', '000E83' => 'Cisco', '00408C' => 'Cisco',
         'E0ACF1' => 'Cisco', 'CC46D6' => 'Cisco', '64A0E7' => 'Cisco',
+        // HP
         '000E7F' => 'HP', '00110A' => 'HP', '001708' => 'HP',
+        // Dell
         '001C23' => 'Dell', '00219B' => 'Dell', '000AC7' => 'Dell', 'B083FE' => 'Dell', '24B657' => 'Dell',
-        '000D0B' => 'Tp-Link', '30B5C2' => 'Tp-Link', '34DAB7' => 'Tp-Link', '98DA33' => 'Tp-Link',
+        // TP-Link
+        '000D0B' => 'TP-Link', '30B5C2' => 'TP-Link', '34DAB7' => 'TP-Link', '98DA33' => 'TP-Link',
+        // Ubiquiti
         '00156D' => 'Ubiquiti', '24A43C' => 'Ubiquiti', 'F09FC2' => 'Ubiquiti', 'B4FBE4' => 'Ubiquiti',
-        '001132' => 'Synology', '001132' => 'Synology',
-        '000C29' => 'VMware', '000569' => 'VMware', '005056' => 'VMware',
+        // Synology
+        '001132' => 'Synology',
+        // Realtek
         '002686' => 'Realtek', 'E470B8' => 'Realtek',
+        // D-Link
         '0009B0' => 'D-Link', '18622C' => 'D-Link',
-        '001D0F' => 'MikroTik', '4C5E0C' => 'MikroTik', '6C3B6B' => 'MikroTik', 'D4CA6D' => 'MikroTik'
+        // MikroTik
+        '001D0F' => 'MikroTik', '4C5E0C' => 'MikroTik', '6C3B6B' => 'MikroTik', 'D4CA6D' => 'MikroTik',
+        // Samsung
+        'A04411' => 'Samsung', '786A4F' => 'Samsung', 'EC1F72' => 'Samsung',
+        // Huawei
+        '00E0FC' => 'Huawei', '48EA35' => 'Huawei', '5C7F4D' => 'Huawei',
+        // Intel
+        'A0C9A0' => 'Intel', '3C970E' => 'Intel', 'F8B156' => 'Intel',
+        // Netgear
+        '6038E0' => 'Netgear', 'A42B8C' => 'Netgear', '9C3AAF' => 'Netgear',
+        // Axis (IP Camera)
+        '00408C' => 'Axis', 'ACCC8E' => 'Axis',
+        // Hikvision (IP Camera)
+        'C03F72' => 'Hikvision', 'E0508B' => 'Hikvision',
+        // Dahua (IP Camera)
+        '3C926E' => 'Dahua', '4C112F' => 'Dahua',
+        // Fortinet
+        '00909E' => 'Fortinet', '84410E' => 'Fortinet',
+        // Juniper
+        '0012DA' => 'Juniper', '2C6BF1' => 'Juniper',
     ];
 
     if (isset($vendors[strtoupper($prefix)])) {

@@ -2,6 +2,22 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.25.0] - 2026-06-24
+### Added
+- **SFP/DOM Transceiver Monitoring**: Automatic detection and logging of SFP module data (Vendor, Part, Serial, Rx/Tx Power) during switch polling via SNMP.
+- **MikroTik RouterOS v7 Support**: Full compatibility with RouterOS v7 SNMP polling including `mtxrOpticalTable` for optical transceiver DOM data.
+- **Juniper DOM Support**: Integration of `jnxDomCurrentTable` OIDs for reading Juniper transceiver Rx/Tx power levels.
+- **Mobile-First Responsive Grids**: New `.grid-stats` and `.grid-2` CSS classes with proper `@media` breakpoints for tablet and mobile stacking.
+- **Ponytail Dev Rules**: Integrated lazy senior dev coding philosophy for AI-assisted development efficiency.
+
+### Changed
+- **Login Page Redesign**: Complete rewrite of `login.php` with professional dark NOC Console theme — removed all AI-generated gradients, blobs, and excessive animations.
+- **Unified Color Palette**: Replaced all legacy `#3b82f6` (Tailwind Blue) and `#6366f1` (Indigo) references with standardized `var(--primary)` / `#58a6ff` across `settings.php`, `topology.php`, `switch-details.php`.
+
+### Fixed
+- **Clean URL Redirect Bug**: Added `RewriteBase /ipmanage/` to `.htaccess` to prevent Apache from using full filesystem path (`C:/xampp/...`) in 301 redirects.
+- **Login POST Data Loss**: Changed form action from `login.php` to `login` to prevent 301 redirect stripping POST data.
+
 ## [2.24.1] - 2026-05-22
 ### Fixed
 - **Database Maintenance**: Bypassed authentication restrictions for CLI contexts using the `IS_CRON` constant.

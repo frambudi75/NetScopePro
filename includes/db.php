@@ -122,6 +122,8 @@ function run_auto_migrations($db) {
             ('mail_from', ''),
             ('nmap_enabled', '0'),
             ('discovery_aggressive', '1'),
+            ('masscan_enabled', '0'),
+            ('masscan_rate', '1000'),
             ('subnet_limit_threshold', '80'),
             ('offline_fail_threshold', '3'),
             ('last_server_backup', '0');

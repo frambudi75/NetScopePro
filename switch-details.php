@@ -198,7 +198,7 @@ include 'includes/header.php';
                                             <div style="font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px;">
                                                 <?php echo htmlspecialchars($port['port_name']); ?>
                                                 <?php if ($is_uplink): ?>
-                                                    <span style="font-size: 0.65rem; background: rgba(99, 102, 241, 0.15); color: var(--primary); padding: 1px 6px; border-radius: 4px; font-weight: 800; letter-spacing: 0.5px;">UPLINK</span>
+                                                    <span style="font-size: 0.65rem; background: var(--brand-soft); color: var(--primary); padding: 1px 6px; border-radius: 4px; font-weight: 800; letter-spacing: 0.5px;">UPLINK</span>
                                                 <?php endif; ?>
                                             </div>
                                             <div style="font-size: 0.7rem; color: var(--text-muted); display: flex; gap: 6px; margin-top: 2px;">
@@ -227,10 +227,10 @@ include 'includes/header.php';
                                 </td>
                                 <td style="padding: 1rem;">
                                     <?php if ($port['vlan_id']): ?>
-                                        <div style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: rgba(99, 102, 241, 0.1); border-radius: 4px;">
+                                        <div style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: var(--brand-soft); border-radius: 4px;">
                                             <span style="color: var(--primary); font-size: 0.75rem; font-weight: 800;">ID: <?php echo $port['vlan_id']; ?></span>
                                             <?php if (!empty($port['vlan_name'])): ?>
-                                                <span style="color: var(--text-muted); font-size: 0.65rem; border-left: 1px solid rgba(99, 102, 241, 0.3); padding-left: 4px; margin-left: 2px;"><?php echo htmlspecialchars($port['vlan_name']); ?></span>
+                                                <span style="color: var(--text-muted); font-size: 0.65rem; border-left: 1px solid rgba(88, 166, 255, 0.3); padding-left: 4px; margin-left: 2px;"><?php echo htmlspecialchars($port['vlan_name']); ?></span>
                                             <?php endif; ?>
                                         </div>
                                     <?php else: ?>
@@ -311,7 +311,7 @@ include 'includes/header.php';
                 Traffic History: <span id="selected-port-name" style="color: var(--primary);">—</span>
             </h3>
             <div style="font-size: 0.75rem; color: var(--text-muted);">
-                <span style="display: inline-block; width: 10px; height: 10px; background: #3b82f6; border-radius: 2px; margin-right: 4px;"></span> Inbound (Download)
+                <span style="display: inline-block; width: 10px; height: 10px; background: var(--primary); border-radius: 2px; margin-right: 4px;"></span> Inbound (Download)
                 <span style="display: inline-block; width: 10px; height: 10px; background: #ec4899; border-radius: 2px; margin-left: 12px; margin-right: 4px;"></span> Outbound (Upload)
             </div>
         </div>
@@ -410,7 +410,7 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
 
     const cpuChart = new Chart(cpuCtx, {
         type: 'line',
-        data: { labels: [], datasets: [{ label: 'CPU %', data: [], borderColor: '#6366f1', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: (ctx) => makeGradient(ctx, 99, 102, 241), tension: 0.4 }] },
+        data: { labels: [], datasets: [{ label: 'CPU %', data: [], borderColor: '#58a6ff', borderWidth: 2, pointRadius: 0, fill: true, backgroundColor: (ctx) => makeGradient(ctx, 88, 166, 255), tension: 0.4 }] },
         options: JSON.parse(JSON.stringify(chartDefaults))
     });
 
@@ -486,7 +486,7 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
         
         // Highlight row
         document.querySelectorAll('.port-row').forEach(r => {
-            r.style.background = r.textContent.includes(portName) ? 'rgba(99, 102, 241, 0.05)' : '';
+            r.style.background = r.textContent.includes(portName) ? 'rgba(88, 166, 255, 0.08)' : '';
         });
 
         safeFetch(`api/port-history?id=${SWITCH_ID}&port=${encodeURIComponent(portName)}&hours=6`)
@@ -505,7 +505,7 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
                             {
                                 label: 'In (Mbps)',
                                 data: d.rx,
-                                borderColor: '#3b82f6',
+                                borderColor: '#58a6ff',
                                 backgroundColor: 'rgba(59, 130, 246, 0.1)',
                                 fill: true,
                                 tension: 0.4,

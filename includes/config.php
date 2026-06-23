@@ -25,6 +25,8 @@ putenv("MIBDIRS=C:/xampp/php/extras/mibs");
 // Dynamic Configuration from Database
 define('DISCOVERY_AGGRESSIVE_MODE', Settings::enabled('discovery_aggressive'));
 define('ENABLE_NMAP_FALLBACK', Settings::enabled('nmap_enabled'));
+define('ENABLE_MASSCAN', Settings::enabled('masscan_enabled'));
+define('MASSCAN_RATE', max(100, (int)Settings::get('masscan_rate', 1000)));
 
 // Application Configuration
 if (!defined('APP_NAME')) define('APP_NAME', 'NetScope Pro');

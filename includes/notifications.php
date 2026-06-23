@@ -53,7 +53,7 @@ class NotificationHelper {
      */
     private static function getPremiumEmailTemplate($title, $lead, $details = [], $type = 'info', $link = '') {
         $colors = [
-            'info' => '#6366f1',    // Indigo
+            'info' => '#58a6ff',    // NOC Blue
             'success' => '#10b981', // Emerald
             'danger' => '#ef4444',  // Red
             'warning' => '#f59e0b'  // Amber
