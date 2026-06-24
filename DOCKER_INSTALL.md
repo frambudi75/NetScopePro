@@ -136,3 +136,29 @@ Docker Daemon belum berjalan.
 ```bash
 sudo systemctl start docker
 ```
+
+### Error: `404 Not Found` saat buka `/login` atau halaman lain
+
+Penyebab umum: file `.htaccess` dari XAMPP memakai `RewriteBase /ipmanage/`, sedangkan di Docker aplikasi berjalan di root `/`.
+
+**Solusi (sudah otomatis di versi terbaru):**
+
+```bash
+cd ~/ipmanage
+git pull
+sudo docker compose restart app
+```
+
+Atau manual:
+
+```bash
+sudo docker exec netscope_app cp /var/www/html/.htaccess.docker /var/www/html/.htaccess
+sudo docker compose restart app
+```
+
+**URL yang benar di Docker:**
+
+- `http://<IP-SERVER>:2025/login`
+- atau langsung `http://<IP-SERVER>:2025/login.php`
+
+**Jangan** pakai path `/ipmanage/login` kecuali app memang di-subfolder.

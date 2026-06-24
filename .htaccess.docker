@@ -1,0 +1,17 @@
+# Apache rewrite rules for Docker (document root = /var/www/html)
+SetEnv MIBDIRS "/usr/share/snmp/mibs"
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Strip .php from visible URLs (skip API scripts)
+    RewriteCond %{REQUEST_URI} !^/api/
+    RewriteCond %{THE_REQUEST} "\s/([^/.]+)\.php[\s?]" [NC]
+    RewriteRule ^(.+)\.php$ /$1 [R=301,L]
+
+    # /login -> login.php
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME}\.php -f
+    RewriteRule ^(.*)$ $1.php [L]
+</IfModule>

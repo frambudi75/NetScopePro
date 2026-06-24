@@ -9,6 +9,7 @@ services:
       - DB_NAME=ipmanage
       - DB_USER=ipmanager
       - DB_PASS=ipmanager_pass
+      - APP_URL=${APP_URL:-http://localhost:2025}
       - DISCOVERY_AGGRESSIVE_MODE=1
       - ENABLE_NMAP_FALLBACK=1
       - OFFLINE_FAIL_THRESHOLD=3
