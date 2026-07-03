@@ -1,0 +1,38 @@
+# IPManager Pro - System Requirements List
+
+# --- PHP Environment ---
+# Required PHP Version: 8.1 or 8.2+
+# Extensions:
+php-mysqli
+php-pdo
+php-pdo_mysql
+php-snmp
+php-curl
+php-gd
+php-mbstring
+php-gettext
+php-xml
+php-redis (for optimized caching)
+
+# --- Database ---
+# Recommended versions:
+MariaDB 10.6+
+MySQL 8.0+
+
+# --- External Network Tools ---
+# These MUST be available in the system PATH:
+nmap          # Required for Parallel Discovery Engine
+iputils-ping  # Required for Netwatch Monitoring
+traceroute    # Required for Network Diagnostics
+snmp          # net-snmp binaries for MIB parsing
+
+# --- Caching & Performance ---
+# Optional but highly recommended:
+Redis 7.0+    # No-Lag SSE streaming & session storage
+
+# --- Browser Compatibility ---
+# Optimized for:
+Google Chrome (Latest)
+Microsoft Edge (Latest)
+Mozilla Firefox (Latest)
+Safari (Latest)
