@@ -1,0 +1,63 @@
+services:
+  app:
+    build: .
+    container_name: netscope_app
+    ports:
+      - "2025:80"
+    environment:
+      - DB_HOST=db
+      - DB_NAME=ipmanage
+      - DB_USER=ipmanager
+      - DB_PASS=ipmanager_pass
+      - APP_URL=${APP_URL:-http://localhost:2025}
+      - DISCOVERY_AGGRESSIVE_MODE=1
+      - ENABLE_NMAP_FALLBACK=1
+      - OFFLINE_FAIL_THRESHOLD=3
+      - DOCKER_ENV=1
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/var/www/html
+    networks:
+      - netscope_net
+
+  db:
+    image: mariadb:10.11
+    container_name: netscope_db
+    ports:
+      - "3309:3306"
+    environment:
+      - MARIADB_ROOT_PASSWORD=root_password_secure
+      - MARIADB_DATABASE=ipmanage
+      - MARIADB_USER=ipmanager
+      - MARIADB_PASSWORD=ipmanager_pass
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./sql/database.sql:/docker-entrypoint-initdb.d/database.sql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password_secure" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - netscope_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: netscope_redis
+    networks:
+      - netscope_net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+networks:
+  netscope_net:
+    driver: bridge
+
+volumes:
+  db_data:

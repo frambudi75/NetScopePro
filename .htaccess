@@ -1,0 +1,19 @@
+SetEnv MIBDIRS "C:/xampp/php/extras/mibs"
+
+<IfModule mod_rewrite.c>
+    # Enable Rewrite Engine
+    RewriteEngine On
+    RewriteBase /NetScopePro/
+
+    # 1. Externally redirect /file.php to /file (strip .php extension)
+    # Exclude api directory to prevent issues with direct script calls
+    RewriteCond %{REQUEST_URI} !^/NetScopePro/api/
+    RewriteCond %{THE_REQUEST} "\s/NetScopePro/([^/.]+)\.php[\s?]" [NC]
+    RewriteRule ^(.+)\.php$ /NetScopePro/$1 [R=301,L]
+
+    # 2. Internally rewrite /file to /file.php
+    # This allows the app to load file.php when /file is requested.
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME}\.php -f
+    RewriteRule ^(.*)$ $1.php [L]
+</IfModule>
