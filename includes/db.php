@@ -269,4 +269,18 @@ function run_auto_migrations($db) {
         ('retention_auto_cleanup', '1'),
         ('last_db_cleanup', '0')
     ");
+
+    // 19. SFP / DOM Monitoring Columns for Switch Port Map
+    try {
+        $spm_cols = $db->query("SHOW COLUMNS FROM switch_port_map")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('sfp_vendor', $spm_cols)) {
+            $db->exec("ALTER TABLE switch_port_map 
+                ADD COLUMN sfp_vendor VARCHAR(100) DEFAULT NULL,
+                ADD COLUMN sfp_part VARCHAR(100) DEFAULT NULL,
+                ADD COLUMN sfp_serial VARCHAR(100) DEFAULT NULL,
+                ADD COLUMN sfp_rx_power VARCHAR(50) DEFAULT NULL,
+                ADD COLUMN sfp_tx_power VARCHAR(50) DEFAULT NULL
+            ");
+        }
+    } catch (Exception $e) {}
 }
