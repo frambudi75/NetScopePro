@@ -186,57 +186,62 @@ function normalize_port_name($raw_name, $bridge_port, $ifindex, $vendor) {
 }
 
 foreach ($switches as $switch) {
-    echo "Polling Switch: {$switch['name']} ({$switch['ip_addr']})...\n";
-    $ip = $switch['ip_addr'];
-    $community = $switch['community'];
-    
-    // --- Phase 0: System Info & Health ---
-    $sys_descr = @snmp2_get($ip, $community, ".1.3.6.1.2.1.1.1.0");
-    $sys_uptime = @snmp2_get($ip, $community, ".1.3.6.1.2.1.1.3.0");
-    
-    $model = "Generic";
-    $cpu = 0;
-    $mem = 0;
-    $system_info = trim((string)$sys_descr);
-    $uptime_raw = trim((string)$sys_uptime);
-    $uptime_str = format_uptime_ticks($uptime_raw);
+    try {
+        echo "Polling Switch: {$switch['name']} ({$switch['ip_addr']})...\n";
+        $ip = $switch['ip_addr'];
+        $community = $switch['community'];
+        
+        // Clear existing port VLAN associations for this switch before polling
+        $db->prepare("DELETE FROM switch_port_vlans WHERE switch_id = ?")->execute([$switch['id']]);
 
-    // Smart Vendor Detection for CPU/RAM (30+ vendors supported)
-    $vendor_result = VendorDetector::detect($ip, $community, $system_info);
-    $model = $vendor_result['model'];
-    $cpu = $vendor_result['cpu'];
-    $mem = $vendor_result['mem'];
-    echo "  Detected: $model (CPU: {$cpu}%, MEM: {$mem}%)\n";
+        // --- Phase 0: System Info & Health ---
 
-    // Safety Bounds
-    $cpu = min(100, max(0, (int)$cpu));
-    $mem = min(100, max(0, (int)$mem));
-    
-    // Save System Stats
-    $db->prepare("UPDATE switches SET model = ?, uptime = ?, cpu_usage = ?, memory_usage = ?, system_info = ? WHERE id = ?")
-       ->execute([$model, $uptime_str, $cpu, $mem, $system_info, $switch['id']]);
+        $sys_descr = @snmp2_get($ip, $community, ".1.3.6.1.2.1.1.1.0");
+        $sys_uptime = @snmp2_get($ip, $community, ".1.3.6.1.2.1.1.3.0");
+        
+        $model = "Generic";
+        $cpu = 0;
+        $mem = 0;
+        $system_info = trim((string)$sys_descr);
+        $uptime_raw = trim((string)$sys_uptime);
+        $uptime_str = format_uptime_ticks($uptime_raw);
 
-    // Save to History (for graphs) - cleanup handled by retention policy
-    $db->prepare("INSERT INTO switch_health_history (switch_id, cpu_usage, memory_usage) VALUES (?, ?, ?)")
-       ->execute([$switch['id'], $cpu, $mem]);
-    $health_retention = max(1, (int)Settings::get('retention_health_history', 30));
-    $db->prepare("DELETE FROM switch_health_history WHERE switch_id = ? AND recorded_at < DATE_SUB(NOW(), INTERVAL ? DAY)")
-       ->execute([$switch['id'], $health_retention]);
+        // Smart Vendor Detection for CPU/RAM (30+ vendors supported)
+        $vendor_result = VendorDetector::detect($ip, $community, $system_info);
+        $model = $vendor_result['model'];
+        $cpu = $vendor_result['cpu'];
+        $mem = $vendor_result['mem'];
+        echo "  Detected: $model (CPU: {$cpu}%, MEM: {$mem}%)\n";
 
-    // --- Phase 1: Interface Discovery & Port Mapping ---
-    echo "  Phase 1: Discovering interfaces...\n";
-    
-    // 1. Get Bridge Port → ifIndex mapping
-    // OID: .1.3.6.1.2.1.17.1.4.1.2 (dot1dBasePortIfIndex)
-    $port_to_ifindex = @snmprealwalk($ip, $community, ".1.3.6.1.2.1.17.1.4.1.2");
-    $ifindex_map = [];
-    if ($port_to_ifindex && is_array($port_to_ifindex)) {
-        foreach ($port_to_ifindex as $oid => $val) {
-            $parts = explode('.', $oid);
-            $port_num = end($parts);
-            $ifindex_map[$port_num] = trim(str_replace('INTEGER: ', '', $val));
+        // Safety Bounds
+        $cpu = min(100, max(0, (int)$cpu));
+        $mem = min(100, max(0, (int)$mem));
+        
+        // Save System Stats
+        $db->prepare("UPDATE switches SET model = ?, uptime = ?, cpu_usage = ?, memory_usage = ?, system_info = ? WHERE id = ?")
+           ->execute([$model, $uptime_str, $cpu, $mem, $system_info, $switch['id']]);
+
+        // Save to History (for graphs) - cleanup handled by retention policy
+        $db->prepare("INSERT INTO switch_health_history (switch_id, cpu_usage, memory_usage) VALUES (?, ?, ?)")
+           ->execute([$switch['id'], $cpu, $mem]);
+        $health_retention = max(1, (int)Settings::get('retention_health_history', 30));
+        $db->prepare("DELETE FROM switch_health_history WHERE switch_id = ? AND recorded_at < DATE_SUB(NOW(), INTERVAL ? DAY)")
+           ->execute([$switch['id'], $health_retention]);
+
+        // --- Phase 1: Interface Discovery & Port Mapping ---
+        echo "  Phase 1: Discovering interfaces...\n";
+        
+        // 1. Get Bridge Port → ifIndex mapping
+        // OID: .1.3.6.1.2.1.17.1.4.1.2 (dot1dBasePortIfIndex)
+        $port_to_ifindex = @snmprealwalk($ip, $community, ".1.3.6.1.2.1.17.1.4.1.2");
+        $ifindex_map = [];
+        if ($port_to_ifindex && is_array($port_to_ifindex)) {
+            foreach ($port_to_ifindex as $oid => $val) {
+                $parts = explode('.', $oid);
+                $port_num = end($parts);
+                $ifindex_map[$port_num] = trim(str_replace('INTEGER: ', '', $val));
+            }
         }
-    }
 
     if (count($ifindex_map) >= 0) { // Keep block active even if initial walk is empty
 
@@ -297,6 +302,41 @@ foreach ($switches as $switch) {
         if (empty($pvid_map) && (stripos($system_info, 'Alcatel') !== false || stripos($model, 'Alcatel') !== false)) {
             $pvid_map = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.11.1.1.1.2");
         }
+
+        // 4.2 Get Tagged VLANs per port
+        // Standard OID: dot1qVlanStaticTaggedPorts (.1.3.6.1.2.1.17.7.1.4.3.1.2)
+        // This OID returns a bitmask for each VLAN, indexed by VLAN ID.
+        // We need to invert this to get a list of VLANs per port.
+        echo "  Fetching Tagged VLANs per port...\n";
+        $tagged_ports_vlan = @snmprealwalk($ip, $community, ".1.3.6.1.2.1.17.7.1.4.3.1.2");
+        $tagged_vlans_per_ifindex = [];
+        if ($tagged_ports_vlan) {
+            foreach ($tagged_ports_vlan as $oid_full => $value_mask) {
+                // OID structure: OID.vlan_id.if_index (bitmask value)
+                $oid_parts = explode('.', $oid_full);
+                $vlan_id = (int)$oid_parts[count($oid_parts) - 2]; // Second to last part is VLAN ID
+                $if_index_mask = (int)$oid_parts[count($oid_parts) - 1]; // Last part is ifIndex from bitmask
+                // Clean SNMP prefixes and non-hex chars to avoid hexdec deprecation warning
+                $cleaned_mask = preg_replace('/^(?:STRING|Hex-STRING|OctetString|Opaque):\s*/i', '', $value_mask);
+                $cleaned_mask = trim($cleaned_mask, '"\' ');
+                $cleaned_mask = preg_replace('/[^0-9a-fA-F]/', '', $cleaned_mask);
+                $bitmask = !empty($cleaned_mask) ? hexdec($cleaned_mask) : 0;
+
+                // Iterate through potential ifIndex (from 1 to 32, covering up to 32 ports in a mask)
+                // This is a common representation for dot1qVlanStaticTaggedPorts
+                // For AOS devices, ifIndex mapping might be more direct.
+                for ($i = 0; $i < 32; $i++) {
+                    if (($bitmask >> $i) & 1) { // Check if the i-th bit is set
+                        $port_ifindex = $i + 1; // ifIndex typically starts from 1
+                        if (!isset($tagged_vlans_per_ifindex[$port_ifindex])) {
+                            $tagged_vlans_per_ifindex[$port_ifindex] = [];
+                        }
+                        $tagged_vlans_per_ifindex[$port_ifindex][] = $vlan_id;
+                    }
+                }
+            }
+        }
+        echo "    Found " . count($tagged_vlans_per_ifindex) . " interfaces with tagged VLANs.\n";
         
         // 4.5 Get VLAN Names
         // Standard OID: dot1qVlanStaticName (.1.3.6.1.2.1.17.7.1.4.3.1.1)
@@ -506,6 +546,16 @@ foreach ($switches as $switch) {
                     $stmt = $db->prepare("INSERT INTO switch_port_map (mac_addr, switch_id, port_name, vlan_id, vlan_name, port_status, port_type, port_speed, port_alias) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE port_name = VALUES(port_name), vlan_id = VALUES(vlan_id), vlan_name = VALUES(vlan_name), port_status = VALUES(port_status), port_type = VALUES(port_type), port_speed = VALUES(port_speed), port_alias = VALUES(port_alias), updated_at = CURRENT_TIMESTAMP");
                     $stmt->execute([$mac_addr, $switch['id'], $port_name, $vlan_id, $vlan_name, $port_status, $port_type, $port_speed, $port_alias]);
                     $discovered_count++;
+
+                    // Save all tagged VLANs for this port
+                    if ($ifindex && isset($tagged_vlans_per_ifindex[$ifindex])) {
+                        foreach ($tagged_vlans_per_ifindex[$ifindex] as $tagged_vlan_id) {
+                            $vlan_name_for_tagged = $vlan_names[$tagged_vlan_id] ?? null;
+                            $db->prepare("INSERT IGNORE INTO switch_port_vlans (switch_id, port_name, vlan_id, vlan_name, is_tagged) VALUES (?, ?, ?, ?, 1)")
+                               ->execute([$switch['id'], $port_name, $tagged_vlan_id, $vlan_name_for_tagged]);
+                        }
+                    }
+
                 }
             }
             
@@ -703,6 +753,7 @@ foreach ($switches as $switch) {
                     ");
                     $stmt->execute([$target_subnet_id, $target_ip, $target_mac]);
                     $arp_count++;
+                    }
                 }
             }
         }
@@ -711,6 +762,8 @@ foreach ($switches as $switch) {
             break; // Found data, stop trying other tables
         }
     }
+    } catch (Exception $e) {
+        echo "  ❌ Error polling Switch {$switch['name']}: " . $e->getMessage() . "\n";
     }
 }
 if (!$is_cli) {

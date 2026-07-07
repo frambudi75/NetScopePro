@@ -139,7 +139,11 @@ foreach ($targets as $t) {
     $update_fields[] = "fail_count = $new_fail_count";
 
     $sql = "UPDATE netwatch SET " . implode(', ', $update_fields) . " WHERE id = $id";
-    $db->exec($sql);
+    try {
+        $db->exec($sql);
+    } catch (Exception $e) {
+        echo "Error updating target $host: " . $e->getMessage() . "\n";
+    }
 
     // Recording History
     try {
