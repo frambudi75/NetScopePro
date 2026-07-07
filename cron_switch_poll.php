@@ -117,8 +117,9 @@ function snmp_walk_indexed($ip, $community, $oid) {
     foreach ($result as $full_oid => $val) {
         $parts = explode('.', $full_oid);
         $index = end($parts);
-        // Clean any SNMP type prefixes
-        $val = trim(str_replace(['STRING: ', 'INTEGER: ', 'Gauge32: ', 'Counter32: ', '"'], '', $val));
+        // Clean SNMP type prefixes (covers standard + extended types)
+        $val = preg_replace('/^(?:STRING|INTEGER|Gauge32|Gauge64|Counter32|Counter64|Timeticks|Opaque|OID|IpAddress|Hex-STRING):\s*/i', '', $val);
+        $val = trim($val, '" ');
         $map[$index] = $val;
     }
     return $map;
@@ -419,7 +420,8 @@ foreach ($switches as $switch) {
 
                 $mac_hex = [];
                 foreach ($mac_dec as $dec) {
-                    $mac_hex[] = str_pad(dechex((int)$dec), 2, '0', STR_PAD_LEFT);
+                    $d = (int)preg_replace('/[^0-9]/', '', $dec);
+                    $mac_hex[] = str_pad(dechex($d), 2, '0', STR_PAD_LEFT);
                 }
                 $mac_addr = strtoupper(implode(':', $mac_hex));
                 
