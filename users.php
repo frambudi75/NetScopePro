@@ -67,13 +67,13 @@ include 'includes/header.php';
 
 <?php if (isset($message)): ?>
     <div class="card" style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); color: var(--success); margin-bottom: 1.5rem;">
-        <?php echo $message; ?>
+        <?php echo htmlspecialchars($message); ?>
     </div>
 <?php endif; ?>
 
 <?php if (isset($error)): ?>
     <div class="card" style="padding: 1rem; background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); color: var(--danger); margin-bottom: 1.5rem;">
-        <?php echo $error; ?>
+        <?php echo htmlspecialchars($error); ?>
     </div>
 <?php endif; ?>
 

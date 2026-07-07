@@ -50,6 +50,22 @@ $stmt = $db->prepare($query);
 $stmt->execute([$id]);
 $ports = $stmt->fetchAll();
 
+// Fetch all tagged VLANs for this switch, grouped by port_name
+$tagged_vlans_query = "
+    SELECT
+        port_name,
+        GROUP_CONCAT(CONCAT(vlan_id, ':', IFNULL(vlan_name, '')) ORDER BY vlan_id ASC SEPARATOR ',') AS tagged_vlans_str
+    FROM switch_port_vlans
+    WHERE switch_id = ?
+    GROUP BY port_name
+";
+$stmt_tagged_vlans = $db->prepare($tagged_vlans_query);
+$stmt_tagged_vlans->execute([$id]);
+$tagged_vlans_per_port = [];
+foreach ($stmt_tagged_vlans->fetchAll() as $row) {
+    $tagged_vlans_per_port[$row['port_name']] = $row['tagged_vlans_str'];
+}
+
 // Pre-calculate MAC count per port to identify uplinks
 $port_mac_counts = [];
 foreach ($ports as $p) {
@@ -226,15 +242,42 @@ include 'includes/header.php';
                                     <?php endif; ?>
                                 </td>
                                 <td style="padding: 1rem;">
-                                    <?php if ($port['vlan_id']): ?>
+                                    <?php
+                                        $port_has_tagged_vlans = isset($tagged_vlans_per_port[$port['port_name']]) && !empty($tagged_vlans_per_port[$port['port_name']]);
+                                        $is_access_port = ($port['vlan_id'] && !$port_has_tagged_vlans);
+                                        $is_trunk_port = ($port_has_tagged_vlans);
+                                    ?>
+                                    <?php if ($port['vlan_id']): // Display PVID/Untagged VLAN ?>
                                         <div style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: var(--brand-soft); border-radius: 4px;">
                                             <span style="color: var(--primary); font-size: 0.75rem; font-weight: 800;">ID: <?php echo $port['vlan_id']; ?></span>
                                             <?php if (!empty($port['vlan_name'])): ?>
                                                 <span style="color: var(--text-muted); font-size: 0.65rem; border-left: 1px solid rgba(88, 166, 255, 0.3); padding-left: 4px; margin-left: 2px;"><?php echo htmlspecialchars($port['vlan_name']); ?></span>
                                             <?php endif; ?>
+                                            <span style="font-size: 0.65rem; color: var(--primary); font-weight: 600;">(Untagged)</span>
                                         </div>
-                                    <?php else: ?>
+                                    <?php elseif (!$port_has_tagged_vlans): // If no PVID and no tagged VLANs ?>
                                         <span style="color: var(--text-muted); font-size: 0.75rem;">-</span>
+                                    <?php endif; ?>
+
+                                    <?php if ($port_has_tagged_vlans): // Display Tagged VLANs ?>
+                                        <?php if ($port['vlan_id']): // Add separator if both untagged and tagged exist ?>
+                                            <div style="height: 5px;"></div>
+                                        <?php endif; ?>
+                                        <div style="font-size: 0.7rem; color: var(--text-muted);">
+                                            <i data-lucide="tag" style="width: 12px; vertical-align: middle; margin-right: 3px;"></i>
+                                            <span style="font-weight: 600; color: var(--text);">Tagged: </span>
+                                            <span title="Tagged VLANs">
+                                            <?php
+                                                $tagged_vlan_items = explode(',', $tagged_vlans_per_port[$port['port_name']]);
+                                                $display_tags = [];
+                                                foreach ($tagged_vlan_items as $item) {
+                                                    list($vlan_id, $vlan_name) = explode(':', $item, 2);
+                                                    $display_tags[] = !empty($vlan_name) ? htmlspecialchars($vlan_name) : $vlan_id;
+                                                }
+                                                echo implode(', ', $display_tags);
+                                            ?>
+                                            </span>
+                                        </div>
                                     <?php endif; ?>
                                 </td>
                                 <td style="padding: 1rem; font-family: monospace; font-size: 0.85rem; white-space: nowrap;">

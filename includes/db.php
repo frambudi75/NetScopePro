@@ -224,7 +224,7 @@ function run_auto_migrations($db) {
         id INT AUTO_INCREMENT PRIMARY KEY,
         netwatch_id INT NOT NULL,
         latency FLOAT DEFAULT 0,
-        status ENUM('up', 'down', 'unknown') DEFAULT 'unknown',
+        status ENUM('up', 'down', 'intermittent', 'unknown') DEFAULT 'unknown',
         recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_netwatch_time (netwatch_id, recorded_at),
         FOREIGN KEY (netwatch_id) REFERENCES netwatch(id) ON DELETE CASCADE
@@ -269,6 +269,12 @@ function run_auto_migrations($db) {
         ('retention_auto_cleanup', '1'),
         ('last_db_cleanup', '0')
     ");
+
+    // Fix ENUM for netwatch and netwatch_history to include 'intermittent'
+    try {
+        $db->exec("ALTER TABLE netwatch MODIFY COLUMN status ENUM('up', 'down', 'intermittent', 'unknown') NOT NULL DEFAULT 'unknown'");
+        $db->exec("ALTER TABLE netwatch_history MODIFY COLUMN status ENUM('up', 'down', 'intermittent', 'unknown') DEFAULT 'unknown'");
+    } catch (Exception $e) {}
 
     // 19. SFP / DOM Monitoring Columns for Switch Port Map
     try {

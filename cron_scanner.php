@@ -64,8 +64,8 @@ if (!empty($subnets)) {
 
         list($start_long, $end_long) = cidr_to_range($subnet['subnet'] . '/' . $subnet['mask']);
 
-        // Performance limit for cron: scan at most 256 IPs per subnet run to avoid congestion
-        $scan_end = min($end_long, $start_long + 255);
+        // Performance limit for cron: scan at most 1024 IPs per subnet run to avoid congestion
+        $scan_end = min($end_long, $start_long + 1023);
 
         if ($use_masscan) {
             // ====== MASSCAN MODE ======
@@ -165,8 +165,9 @@ try {
     $last_cleanup = (int)Settings::get('last_db_cleanup', 0);
     $cleanup_interval = 86400; // 24 hours
 
-    if ($auto_cleanup === '1' && (time() - $last_cleanup) >= $cleanup_interval) {
-        echo "Running daily database cleanup...\n";
+    if ($auto_cleanup === '1') {
+        define('IS_CALLED_BY_SCANNER', true); // Signal that cleanup is called by scanner
+        echo "Running database cleanup (triggered by scanner)...\n";
         include __DIR__ . '/cron_cleanup.php';
     }
 } catch (Exception $e) {

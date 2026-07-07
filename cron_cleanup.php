@@ -60,6 +60,35 @@ $log = function($msg) use ($is_cli) {
 
 $log("[" . date('Y-m-d H:i:s') . "] Starting Database Maintenance...");
 
+// --- Custom Cleanup Rules ---
+
+// Rule: Delete offline IP addresses older than a configured period
+$offline_ip_retention_hours = (int)Settings::get('retention_offline_ips_hours', 24); // Default to 24 hours
+if ($offline_ip_retention_hours > 0) {
+    $log("  🗑️ Deleting offline IP addresses older than {$offline_ip_retention_hours} hours...");
+    try {
+        $target_timestamp = date('Y-m-d H:i:s', strtotime("-{$offline_ip_retention_hours} hours"));
+
+        $stmt = $db->prepare("SELECT COUNT(*) FROM `ip_addresses` WHERE `state` = 'offline' AND `last_seen` < ?");
+        $stmt->execute([$target_timestamp]);
+        $to_delete = (int)$stmt->fetchColumn();
+
+        if ($to_delete > 0) {
+            $del_stmt = $db->prepare("DELETE FROM `ip_addresses` WHERE `state` = 'offline' AND `last_seen` < ?");
+            $del_stmt->execute([$target_timestamp]);
+            $deleted_count = $del_stmt->rowCount();
+            $log("    ✅ Deleted $deleted_count offline IP addresses.");
+            $total_deleted += $deleted_count;
+        } else {
+            $log("    ✨ No offline IP addresses to delete.");
+        }
+    } catch (Exception $e) {
+        $log("    ❌ Error deleting offline IP addresses: " . $e->getMessage());
+    }
+} else {
+    $log("  ⏭️ Deletion of offline IP addresses is disabled.");
+}
+
 foreach ($timestamp_columns as $table => $column) {
     $days = $retention[$table];
     
@@ -143,8 +172,10 @@ foreach ($timestamp_columns as $table => $column) {
 
 // Save last cleanup timestamp
 try {
-    $stmt = $db->prepare("INSERT INTO settings (`key`, `value`) VALUES ('last_db_cleanup', ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)");
-    $stmt->execute([time()]);
+    if (!defined('IS_CALLED_BY_SCANNER')) { // Only update if not called by scanner
+        $stmt = $db->prepare("INSERT INTO settings (`key`, `value`) VALUES ('last_db_cleanup', ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)");
+        $stmt->execute([time()]);
+    }
 } catch (Exception $e) {}
 
 $log("\n✅ Maintenance complete. Total rows deleted: $total_deleted");
