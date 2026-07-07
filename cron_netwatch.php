@@ -55,10 +55,19 @@ foreach ($targets as $t) {
     }
 
     if ($result === 0) {
-        // Double check output for "Reply from" or "64 bytes from" to be sure
         $output_str = implode("\n", $output);
-        if (strpos($output_str, 'Reply from') !== false || strpos($output_str, 'bytes from') !== false) {
-            $is_up = true;
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            // Windows reply check: must have "Reply from", not "unreachable", and must contain bytes/TTL data
+            if (stripos($output_str, "Reply from") !== false 
+                && stripos($output_str, "unreachable") === false 
+                && (stripos($output_str, "bytes=") !== false || stripos($output_str, "TTL=") !== false)) {
+                $is_up = true;
+            }
+        } else {
+            // Linux check
+            if (strpos($output_str, 'bytes from') !== false) {
+                $is_up = true;
+            }
         }
     }
 
