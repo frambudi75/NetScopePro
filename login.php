@@ -247,7 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="input-group">
                         <i data-lucide="user" class="input-icon" style="width: 16px; height: 16px;"></i>
-                        <input type="text" id="username" name="username" class="form-control" placeholder="admin" required autofocus autocomplete="off">
+                        <input type="text" id="username" name="username" class="form-control" placeholder="username" required autofocus autocomplete="off">
                     </div>
                 </div>
 

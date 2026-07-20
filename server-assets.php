@@ -183,6 +183,9 @@ include 'includes/header.php';
                 <button class="btn-icon" onclick="refreshStatus(<?php echo $asset['id']; ?>)" id="refresh-btn-<?php echo $asset['id']; ?>" title="Refresh Status">
                     <i data-lucide="refresh-cw" style="width: 14px;"></i>
                 </button>
+                <button class="btn-icon" onclick="openMetricsModal(<?php echo $asset['id']; ?>, '<?php echo htmlspecialchars(addslashes($asset['hostname'])); ?>')" title="View Live Metrics">
+                    <i data-lucide="activity" style="width: 14px;"></i>
+                </button>
                 <button class="btn-icon" onclick='openEditModal(<?php echo json_encode(array_merge($asset, ["disp_user"=>$disp_user, "disp_notes"=>$disp_notes, "disp_installed"=>$disp_installed, "disp_missing"=>$disp_missing])); ?>)' title="Edit Asset">
                     <i data-lucide="edit-3" style="width: 14px;"></i>
                 </button>
@@ -288,6 +291,60 @@ include 'includes/header.php';
     </div>
 </div>
 
+<div id="metricsModal" class="modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center; padding: 1rem;">
+    <div class="card" style="width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto;">
+        <button onclick="closeMetricsModal()" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; color: var(--text-muted); cursor: pointer;">
+            <i data-lucide="x"></i>
+        </button>
+        <h2 id="metricsModalTitle" style="margin-bottom: 1.5rem;">Live Server Metrics</h2>
+        
+        <div id="metricsLoading" style="text-align: center; padding: 3rem; display: none;">
+            <i data-lucide="loader" class="spin-animation" style="width: 48px; height: 48px; color: var(--primary); display: inline-block;"></i>
+            <p style="margin-top: 1rem; color: var(--text-muted);">Connecting to server and gathering metrics via SSH...</p>
+        </div>
+        
+        <div id="metricsError" style="display: none; background: rgba(239, 68, 68, 0.1); color: var(--danger); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+        </div>
+
+        <div id="metricsContent" style="display: none;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="card" style="background: rgba(255,255,255,0.02); text-align: center; padding: 1rem;">
+                    <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.5rem; font-weight: 700;">CPU USAGE</div>
+                    <div id="metric-cpu-text" style="font-size: 1.75rem; font-weight: 800; color: #58a6ff;">0%</div>
+                </div>
+                <div class="card" style="background: rgba(255,255,255,0.02); text-align: center; padding: 1rem;">
+                    <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.5rem; font-weight: 700;">RAM USAGE</div>
+                    <div id="metric-ram-text" style="font-size: 1.75rem; font-weight: 800; color: #3fb950;">0%</div>
+                </div>
+                <div class="card" style="background: rgba(255,255,255,0.02); text-align: center; padding: 1rem;">
+                    <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.5rem; font-weight: 700;">ROOT DISK</div>
+                    <div id="metric-disk-text" style="font-size: 1.75rem; font-weight: 800; color: #d29922;">0%</div>
+                </div>
+                <div class="card" style="background: rgba(255,255,255,0.02); text-align: center; padding: 1rem;">
+                    <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.5rem; font-weight: 700;">TEMPERATURE</div>
+                    <div id="metric-temp-text" style="font-size: 1.75rem; font-weight: 800; color: #f85149;">0°C</div>
+                </div>
+                <div class="card" style="background: rgba(255,255,255,0.02); text-align: center; padding: 1rem;">
+                    <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.5rem; font-weight: 700;">POWER USAGE</div>
+                    <div id="metric-power-text" style="font-size: 1.75rem; font-weight: 800; color: #ffb62c;">0 W</div>
+                </div>
+                <div class="card" style="background: rgba(255,255,255,0.02); text-align: center; padding: 1rem;">
+                    <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.5rem; font-weight: 700;">UPTIME</div>
+                    <div id="metric-uptime-text" style="font-size: 1.1rem; font-weight: 800; color: #bc8cff;">-</div>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                <div style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px;"><canvas id="cpuChart"></canvas></div>
+                <div style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px;"><canvas id="ramChart"></canvas></div>
+            </div>
+            <div style="background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px;">
+                <canvas id="netChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Batch Action Bar -->
 <div id="batch-action-bar" style="display: none; position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--primary); border-radius: 50px; padding: 0.75rem 2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 3000; align-items: center; gap: 1.5rem; animation: slideUp 0.3s ease-out;">
     <div style="display: flex; align-items: center; gap: 10px;">
@@ -300,7 +357,127 @@ include 'includes/header.php';
     <button class="btn" style="background: none; border: none; color: var(--text-muted); font-size: 0.8rem;" onclick="clearSelection()">Cancel</button>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+let metricsInterval = null;
+let cpuChart = null;
+let ramChart = null;
+let netChart = null;
+let prevRxBytes = null;
+let prevTxBytes = null;
+
+function initCharts() {
+    if (cpuChart) cpuChart.destroy();
+    if (ramChart) ramChart.destroy();
+    if (netChart) netChart.destroy();
+    prevRxBytes = null;
+    prevTxBytes = null;
+    
+    Chart.defaults.color = '#8b949e';
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    
+    const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+    cpuChart = new Chart(cpuCtx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'CPU Usage (%)', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88, 166, 255, 0.1)', borderWidth: 2, fill: true, tension: 0.4 }] },
+        options: { responsive: true, scales: { y: { min: 0, max: 100 } }, animation: false, plugins: { legend: { display: false }, title: { display: true, text: 'CPU History' } } }
+    });
+
+    const ramCtx = document.getElementById('ramChart').getContext('2d');
+    ramChart = new Chart(ramCtx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'RAM Usage (%)', data: [], borderColor: '#3fb950', backgroundColor: 'rgba(63, 185, 80, 0.1)', borderWidth: 2, fill: true, tension: 0.4 }] },
+        options: { responsive: true, scales: { y: { min: 0, max: 100 } }, animation: false, plugins: { legend: { display: false }, title: { display: true, text: 'RAM History' } } }
+    });
+
+    const netCtx = document.getElementById('netChart').getContext('2d');
+    netChart = new Chart(netCtx, {
+        type: 'line',
+        data: { labels: [], datasets: [
+            { label: 'Download (Mbps)', data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88, 166, 255, 0.1)', borderWidth: 2, fill: true, tension: 0.4 },
+            { label: 'Upload (Mbps)', data: [], borderColor: '#f97583', backgroundColor: 'rgba(249, 117, 131, 0.1)', borderWidth: 2, fill: true, tension: 0.4 }
+        ] },
+        options: { responsive: true, scales: { y: { min: 0, title: { display: true, text: 'Mbps' } } }, animation: false, plugins: { legend: { display: true, position: 'top' }, title: { display: true, text: 'Network Traffic' } } }
+    });
+}
+
+function openMetricsModal(id, hostname) {
+    document.getElementById('metricsModalTitle').innerText = 'Live Metrics: ' + hostname;
+    document.getElementById('metricsModal').style.display = 'flex';
+    document.getElementById('metricsContent').style.display = 'none';
+    document.getElementById('metricsError').style.display = 'none';
+    document.getElementById('metricsLoading').style.display = 'block';
+    
+    initCharts();
+    fetchMetrics(id);
+    metricsInterval = setInterval(() => fetchMetrics(id), 5000);
+}
+
+function closeMetricsModal() {
+    document.getElementById('metricsModal').style.display = 'none';
+    if (metricsInterval) clearInterval(metricsInterval);
+}
+
+async function fetchMetrics(id) {
+    try {
+        const res = await fetch('api/server-metrics.php?id=' + id);
+        const data = await res.json();
+        
+        if (data.error) {
+            if (metricsInterval) clearInterval(metricsInterval);
+            document.getElementById('metricsLoading').style.display = 'none';
+            document.getElementById('metricsError').innerText = data.error;
+            document.getElementById('metricsError').style.display = 'block';
+            return;
+        }
+        
+        document.getElementById('metricsLoading').style.display = 'none';
+        document.getElementById('metricsContent').style.display = 'block';
+        
+        document.getElementById('metric-cpu-text').innerText = data.cpu + '%';
+        document.getElementById('metric-ram-text').innerText = data.ram + '%';
+        document.getElementById('metric-disk-text').innerText = data.disk + '%';
+        document.getElementById('metric-temp-text').innerText = data.temp + '°C';
+        document.getElementById('metric-power-text').innerText = (data.power > 0 ? data.power + ' W' : 'N/A');
+        document.getElementById('metric-uptime-text').innerText = data.uptime || 'N/A';
+        
+        const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+        
+        cpuChart.data.labels.push(now);
+        cpuChart.data.datasets[0].data.push(data.cpu);
+        if (cpuChart.data.labels.length > 10) { cpuChart.data.labels.shift(); cpuChart.data.datasets[0].data.shift(); }
+        cpuChart.update();
+        
+        ramChart.data.labels.push(now);
+        ramChart.data.datasets[0].data.push(data.ram);
+        if (ramChart.data.labels.length > 10) { ramChart.data.labels.shift(); ramChart.data.datasets[0].data.shift(); }
+        ramChart.update();
+
+        // Network traffic: calculate Mbps from bytes delta over 5 seconds
+        if (prevRxBytes !== null && prevTxBytes !== null) {
+            const rxDelta = data.rx_bytes - prevRxBytes;
+            const txDelta = data.tx_bytes - prevTxBytes;
+            const rxMbps = Math.max(0, (rxDelta * 8) / (5 * 1000000)).toFixed(2);
+            const txMbps = Math.max(0, (txDelta * 8) / (5 * 1000000)).toFixed(2);
+            
+            netChart.data.labels.push(now);
+            netChart.data.datasets[0].data.push(parseFloat(rxMbps));
+            netChart.data.datasets[1].data.push(parseFloat(txMbps));
+            if (netChart.data.labels.length > 10) {
+                netChart.data.labels.shift();
+                netChart.data.datasets[0].data.shift();
+                netChart.data.datasets[1].data.shift();
+            }
+            netChart.update();
+        }
+        prevRxBytes = data.rx_bytes;
+        prevTxBytes = data.tx_bytes;
+        
+    } catch (e) {
+        console.error(e);
+    }
+}
+
 function openAddModal() {
     document.getElementById('modalTitle').innerText = 'Add Server Asset';
     document.getElementById('modalAction').value = 'add';
