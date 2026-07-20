@@ -86,6 +86,7 @@ for ($i = $start_long; $i <= $end_long; $i++) {
             if (!empty($fresh)) $arp_cache = array_merge($arp_cache, $fresh);
             $signals['arp'] = isset($arp_cache[$ip]);
         }
+        $signals['mac'] = $arp_cache[$ip] ?? null;
     } else {
         // LEGACY MODE: Standard multi-probe detection
         $signals = detect_host_signals($ip, $arp_cache);
@@ -116,6 +117,20 @@ for ($i = $start_long; $i <= $end_long; $i++) {
             }
         }
 
+        // OS Fingerprinting (only if nmap is enabled and os not yet known)
+        $os_detected = null;
+        if (defined('ENABLE_NMAP_FALLBACK') && ENABLE_NMAP_FALLBACK && has_nmap_binary()) {
+            $skip_os = ($existing && !empty($existing['os']) && $existing['os'] !== 'Unknown');
+            if (!$skip_os) {
+                $os_detected = nmap_fingerprint_os($ip);
+                if ($os_detected && $os_detected !== 'Unknown') {
+                    echo "OS detected for $ip: $os_detected\n";
+                }
+            } else {
+                $os_detected = $existing['os']; // Keep existing
+            }
+        }
+
         // Update DB: Mark ACTIVE, Reset fail_count
         $stmt = $db->prepare("
             INSERT INTO ip_addresses (subnet_id, ip_addr, mac_addr, vendor, os, state, confidence_score, data_sources, conflict_detected, fail_count, last_seen)
@@ -123,7 +138,7 @@ for ($i = $start_long; $i <= $end_long; $i++) {
             ON DUPLICATE KEY UPDATE
                 mac_addr = IF(VALUES(mac_addr) IS NOT NULL, VALUES(mac_addr), mac_addr),
                 vendor = IF(VALUES(vendor) IS NOT NULL, VALUES(vendor), vendor),
-                os = IF(VALUES(os) IS NOT NULL, VALUES(os), os),
+                os = IF(VALUES(os) IS NOT NULL AND VALUES(os) != 'Unknown', VALUES(os), os),
                 state = 'active',
                 confidence_score = VALUES(confidence_score),
                 data_sources = VALUES(data_sources),
@@ -137,7 +152,7 @@ for ($i = $start_long; $i <= $end_long; $i++) {
             $ip,
             $new_mac,
             $vendor,
-            $signals['os'] ?? null,
+            $os_detected,
             $confidence_data['score'],
             $confidence_data['sources'],
             $conflict_detected
