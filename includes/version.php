@@ -3,12 +3,13 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.25.1');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.25.2');
 if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-07-20');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.25.2', 'date' => '2026-07-20', 'changes' => ['Nmap OS Fingerprinting integrated into scanner worker (Legacy & Masscan modes)', 'MAC address enrichment for Masscan discovery path', 'Offline IP auto-cleanup reduced to 1 hour (was 24 hours)']],
     ['ver' => '2.25.1', 'date' => '2026-07-20', 'changes' => ['UI Menu Categorization & Account Labeling', 'Added Netwatch down indicator badge in sidebar', 'Smooth CSS hover transitions for sidebar navigation', 'Fixed .htaccess generic path rewrite for subfolder installations', 'Replaced missing Lucide GitHub brand icon with inline SVG']],
     ['ver' => '2.25.0', 'date' => '2026-06-24', 'changes' => ['SFP/DOM Transceiver Monitoring (MikroTik, Juniper, Generic)', 'RouterOS v7 Full SNMP Compatibility', 'Professional NOC Console Login Redesign', 'Mobile-First Responsive Grid System', 'Unified Color Palette (Legacy Indigo/Blue Cleanup)', '.htaccess RewriteBase Fix for Clean URLs', 'Ponytail Lazy Senior Dev Rules Integration']],
     ['ver' => '2.24.1', 'date' => '2026-05-22', 'changes' => ['Security hardening for all cron scripts (cron_netwatch, cron_switch_poll, cron_scanner)', 'Clean CLI log mode for switch poller by suppressing HTML wrapper', 'CLI context auth bypass with IS_CRON constant', 'SQL binding interval compatibility fixes', 'Fixed premature scanner exit preventing auto-cleanup execution', 'Improved git ignore rules for debug and check files']],

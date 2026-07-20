@@ -63,7 +63,7 @@ $log("[" . date('Y-m-d H:i:s') . "] Starting Database Maintenance...");
 // --- Custom Cleanup Rules ---
 
 // Rule: Delete offline IP addresses older than a configured period
-$offline_ip_retention_hours = (int)Settings::get('retention_offline_ips_hours', 24); // Default to 24 hours
+$offline_ip_retention_hours = (int)Settings::get('retention_offline_ips_hours', 1); // Default to 1 hour
 if ($offline_ip_retention_hours > 0) {
     $log("  🗑️ Deleting offline IP addresses older than {$offline_ip_retention_hours} hours...");
     try {
