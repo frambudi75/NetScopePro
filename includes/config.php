@@ -14,6 +14,10 @@ if (getenv('DOCKER_ENV') === '1') {
     define('DB_USER', getenv('DB_USER') ?: 'root');
     define('DB_PASS', getenv('DB_PASS') ?: '');
 }
+
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+}
 require_once 'version.php';
 require_once 'settings.helper.php';
 require_once 'updater.php';

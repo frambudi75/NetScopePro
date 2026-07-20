@@ -454,7 +454,6 @@ CREATE TABLE `switch_port_map` (
 
 LOCK TABLES `switch_port_map` WRITE;
 /*!40000 ALTER TABLE `switch_port_map` DISABLE KEYS */;
-INSERT INTO `switch_port_map` VALUES (223,'10:60:4B:71:B0:C4',3,'ether5-backup',100,NULL,'up','ethernet','1G','','2026-05-09 10:36:23'),(224,'74:4D:28:AD:1B:FD',3,'Port 0',200,NULL,NULL,NULL,NULL,NULL,'2026-05-09 10:36:23'),(225,'74:4D:28:AD:1B:FE',3,'ether3-to-Sw',200,NULL,'up','ethernet','1G','','2026-05-09 10:36:23'),(226,'74:4D:28:AD:1C:00',3,'ether5-backup',100,NULL,'up','ethernet','1G','','2026-05-09 10:36:23'),(227,'90:8D:78:D8:2E:EE',3,'ether3-to-Sw',100,NULL,'up','ethernet','1G','','2026-05-09 10:36:23'),(228,'BC:F1:F2:96:C1:01',3,'ether3-to-Sw',200,NULL,'up','ethernet','1G','','2026-05-09 10:36:23'),(229,'4C:F5:DC:5E:E9:D2',3,'ether4-to-cctv',200,NULL,'up','ethernet','10M','','2026-05-09 10:36:23'),(232,'74:4D:28:AD:1B:FF',3,'ether4-to-cctv',200,NULL,'up','ethernet','10M','','2026-05-09 10:36:23'),(234,'',3,'ether1-inet',NULL,NULL,'up','ethernet','1G',NULL,'2026-05-09 10:33:34');
 /*!40000 ALTER TABLE `switch_port_map` ENABLE KEYS */;
 UNLOCK TABLES;
 
