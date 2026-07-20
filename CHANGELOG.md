@@ -2,6 +2,18 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.25.1] - 2026-07-20
+### Added
+- **UI Categorization**: Sidebar menu is now grouped into "Infrastructure", "Monitoring & Tools", and "Account" sections for better readability.
+- **Status Indicators**: Netwatch menu item now displays a red badge dynamically showing the count of down devices.
+
+### Changed
+- **Navigation UX**: Added smooth CSS hover transitions to all sidebar navigation items.
+- **Lucide Icons**: Replaced `data-lucide="github"` with an inline SVG across the app due to Lucide dropping brand icons.
+
+### Fixed
+- **Clean URLs in Subfolders**: Updated `.htaccess` with generic relative rewrite rules, fixing 404 errors when running the application in a subfolder (removing hardcoded `RewriteBase`).
+
 ## [2.25.0] - 2026-06-24
 ### Added
 - **SFP/DOM Transceiver Monitoring**: Automatic detection and logging of SFP module data (Vendor, Part, Serial, Rx/Tx Power) during switch polling via SNMP.
