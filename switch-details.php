@@ -37,6 +37,11 @@ $query = "
         m.port_type,
         m.port_speed,
         m.port_alias,
+        m.sfp_vendor,
+        m.sfp_part,
+        m.sfp_serial,
+        m.sfp_rx_power,
+        m.sfp_tx_power,
         m.updated_at as last_seen_on_port,
         ip.ip_addr,
         ip.hostname,
@@ -206,7 +211,7 @@ include 'includes/header.php';
                                 // Check if this is likely an uplink port (> 3 MACs on the same port)
                                 $is_uplink = ($port_mac_counts[$port['port_name']] ?? 0) > 3;
                             ?>
-                            <tr style="border-bottom: 1px solid var(--border); cursor: pointer;" class="port-row" onclick="selectPort('<?php echo htmlspecialchars($port['port_name']); ?>')">
+                            <tr style="border-bottom: 1px solid var(--border); cursor: pointer;" class="port-row" data-port-name="<?php echo htmlspecialchars($port['port_name']); ?>" onclick="selectPort('<?php echo htmlspecialchars($port['port_name']); ?>')">
                                 <td style="padding: 1rem; white-space: nowrap;">
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <i data-lucide="cable" style="width: 14px; color: <?php echo $statusColor; ?>;"></i>
@@ -217,7 +222,7 @@ include 'includes/header.php';
                                                     <span style="font-size: 0.65rem; background: var(--brand-soft); color: var(--primary); padding: 1px 6px; border-radius: 4px; font-weight: 800; letter-spacing: 0.5px;">UPLINK</span>
                                                 <?php endif; ?>
                                             </div>
-                                            <div style="font-size: 0.7rem; color: var(--text-muted); display: flex; gap: 6px; margin-top: 2px;">
+                                            <div style="font-size: 0.7rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin-top: 2px; flex-wrap: wrap;">
                                                 <?php if ($typeLabel && $typeLabel !== 'other'): ?>
                                                     <span><?php echo htmlspecialchars($typeLabel); ?></span>
                                                 <?php endif; ?>
@@ -226,6 +231,11 @@ include 'includes/header.php';
                                                 <?php endif; ?>
                                                 <?php if (!empty($port['port_alias'])): ?>
                                                     <span title="<?php echo htmlspecialchars($port['port_alias']); ?>">• <?php echo htmlspecialchars(substr($port['port_alias'], 0, 20)); ?></span>
+                                                <?php endif; ?>
+                                                <?php if (!empty($port['sfp_vendor'])): ?>
+                                                    <span style="color: var(--warning); display: inline-flex; align-items: center; gap: 3px;" title="SFP Module Info&#10;Vendor: <?php echo htmlspecialchars($port['sfp_vendor']); ?>&#10;Part: <?php echo htmlspecialchars($port['sfp_part'] ?? 'N/A'); ?>&#10;S/N: <?php echo htmlspecialchars($port['sfp_serial'] ?? 'N/A'); ?>&#10;RX Power: <?php echo htmlspecialchars($port['sfp_rx_power'] ?? 'N/A'); ?>&#10;TX Power: <?php echo htmlspecialchars($port['sfp_tx_power'] ?? 'N/A'); ?>">
+                                                        • <i data-lucide="cpu" style="width: 11px; height: 11px;"></i> SFP
+                                                    </span>
                                                 <?php endif; ?>
                                             </div>
                                         </div>
@@ -529,7 +539,7 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
         
         // Highlight row
         document.querySelectorAll('.port-row').forEach(r => {
-            r.style.background = r.textContent.includes(portName) ? 'rgba(88, 166, 255, 0.08)' : '';
+            r.style.background = r.getAttribute('data-port-name') === portName ? 'rgba(88, 166, 255, 0.08)' : '';
         });
 
         safeFetch(`api/port-history?id=${SWITCH_ID}&port=${encodeURIComponent(portName)}&hours=6`)
