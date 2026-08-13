@@ -47,7 +47,7 @@ graph TD
 - **Enterprise OS Fingerprinting**: High-accuracy detection via **Nmap** (Windows, Linux, IoT).
 - **Anti-Ghost Engine**: Strict ARP/MAC validation to prevent false positives in subnet discovery.
 - **Parallel Subnet Scanning**: High-speed discovery with multiple background workers for large-scale networks.
-- **Physical Port Mapping**: Trace MAC addresses directly to physical switch ports and VLANs.
+- **Physical Port Mapping & SFP/DOM**: Trace MAC addresses directly to physical switch ports, VLANs, and monitor transceiver details (vendor, serial number, RX/TX optical power).
 
 ### 📊 Real-time Visualization
 
