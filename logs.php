@@ -34,7 +34,13 @@ $stmt = $db->prepare("SELECT a.*, u.username FROM audit_logs a LEFT JOIN users u
 $stmt->execute($params);
 $logs = $stmt->fetchAll();
 
-$total_logs = $db->query("SELECT COUNT(*) FROM audit_logs $where_clause")->fetchColumn();
+if (!empty($search)) {
+    $stmt_count = $db->prepare("SELECT COUNT(*) FROM audit_logs WHERE details LIKE ? OR action LIKE ?");
+    $stmt_count->execute($params);
+    $total_logs = $stmt_count->fetchColumn();
+} else {
+    $total_logs = $db->query("SELECT COUNT(*) FROM audit_logs")->fetchColumn();
+}
 $total_pages = ceil($total_logs / $limit);
 
 $page_title = 'System Audit Logs';
