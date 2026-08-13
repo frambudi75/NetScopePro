@@ -215,6 +215,9 @@ function preseed_arp_batch($start_long, $end_long, $timeout_ms = 200) {
  */
 function get_nmap_binary() {
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        if (file_exists("C:\\Program Files\\Nmap\\nmap.exe")) {
+            return "\"C:\\Program Files\\Nmap\\nmap.exe\"";
+        }
         if (file_exists("C:\\Program Files (x86)\\Nmap\\nmap.exe")) {
             return "\"C:\\Program Files (x86)\\Nmap\\nmap.exe\"";
         }
@@ -237,8 +240,8 @@ function has_nmap_binary() {
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
         exec("where nmap", $out, $code);
         if ($code !== 0) {
-            // Check common install path if not in PATH
-            if (file_exists("C:\\Program Files (x86)\\Nmap\\nmap.exe")) {
+            // Check common install paths if not in PATH
+            if (file_exists("C:\\Program Files\\Nmap\\nmap.exe") || file_exists("C:\\Program Files (x86)\\Nmap\\nmap.exe")) {
                 $available = true;
                 return true;
             }
