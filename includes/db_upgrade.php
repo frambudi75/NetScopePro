@@ -47,6 +47,14 @@ try {
         echo "Added conflict_mac and conflict_details to ip_addresses.\n";
     }
 
+    try {
+        $hasConflictIdx = $db->query("SHOW INDEX FROM `ip_addresses` WHERE Key_name = 'idx_conflict'")->rowCount();
+        if ($hasConflictIdx === 0) {
+            $db->exec("ALTER TABLE `ip_addresses` ADD INDEX idx_conflict (conflict_detected)");
+            echo "Added idx_conflict index to ip_addresses.\n";
+        }
+    } catch (Exception $e) {}
+
     // --- Switch SNMP Port Monitoring Updates ---
     
     // Check and update `switch_port_map` columns

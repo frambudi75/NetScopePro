@@ -105,6 +105,13 @@ function run_auto_migrations($db) {
         $db->exec("ALTER TABLE ip_addresses ADD COLUMN owner varchar(100) DEFAULT NULL AFTER asset_tag");
     }
 
+    try {
+        $hasConflictIdx = $db->query("SHOW INDEX FROM ip_addresses WHERE Key_name = 'idx_conflict'")->rowCount();
+        if ($hasConflictIdx === 0) {
+            $db->exec("ALTER TABLE ip_addresses ADD INDEX idx_conflict (conflict_detected)");
+        }
+    } catch (Exception $e) {}
+
     // 3. Settings table
     try {
         $db->query("SELECT 1 FROM settings LIMIT 1");

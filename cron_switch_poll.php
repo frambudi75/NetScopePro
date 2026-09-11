@@ -12,11 +12,11 @@
  * - Human-readable uptime formatting
  */
 
-require_once 'includes/config.php';
-require_once 'includes/db.php';
-require_once 'includes/network.php';
-require_once 'includes/audit.helper.php';
-require_once 'includes/vendor.helper.php';
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/network.php';
+require_once __DIR__ . '/includes/audit.helper.php';
+require_once __DIR__ . '/includes/vendor.helper.php';
 
 $is_cli = (php_sapi_name() === 'cli');
 

@@ -11,9 +11,19 @@ if (isset($_SESSION['user_id'])) {
 }
 
 $error = '';
+$max_attempts = 5;
+$lockout_seconds = 60;
+$now = time();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = $_POST['username'] ?? '';
+$failed_attempts = $_SESSION['login_failed_attempts'] ?? 0;
+$lockout_until = $_SESSION['login_lockout_until'] ?? 0;
+$is_locked = ($lockout_until > $now);
+
+if ($is_locked) {
+    $remaining = $lockout_until - $now;
+    $error = "Terlalu banyak percobaan gagal. Akses diblokir sementara. Coba lagi dalam {$remaining} detik.";
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
     if ($username && $password) {
@@ -23,16 +33,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password'])) {
+            unset($_SESSION['login_failed_attempts']);
+            unset($_SESSION['login_lockout_until']);
+
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
             header('Location: index');
             exit;
         } else {
-            $error = 'Invalid credentials provided. Access denied.';
+            $failed_attempts++;
+            $_SESSION['login_failed_attempts'] = $failed_attempts;
+            if ($failed_attempts >= $max_attempts) {
+                $_SESSION['login_lockout_until'] = $now + $lockout_seconds;
+                $is_locked = true;
+                $error = "Terlalu banyak percobaan gagal. Akses diblokir sementara selama {$lockout_seconds} detik.";
+            } else {
+                $rem = $max_attempts - $failed_attempts;
+                $error = "Kredensial tidak valid. Sisa percobaan: {$rem}.";
+            }
         }
     } else {
-        $error = 'Please provide both identity and security key.';
+        $error = 'Harap isi nama pengguna dan kata sandi.';
     }
 }
 ?>
@@ -261,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
-                <button type="submit" class="btn-submit">
+                <button type="submit" class="btn-submit" <?php echo $is_locked ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''; ?>>
                     Initialize Session
                     <i data-lucide="arrow-right" style="width: 16px; height: 16px;"></i>
                 </button>

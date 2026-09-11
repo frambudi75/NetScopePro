@@ -5,10 +5,14 @@ All major functional changes, enhancements, and critical fixes are documented he
 ## [2.26.0] - 2026-09-11
 ### Added
 - **IP Conflict Detection Engine**: Real-time identification of IP collisions and MAC flapping in `api/scan.php` and `scanner_worker.php`.
-- **Database Schema Expansion**: Extended `ip_addresses` with `conflict_mac` and `conflict_details` columns, fully managed by idempotent auto-migrations in `includes/db_upgrade.php` and `run_auto_migrations()`.
+- **Database Schema Expansion & Indexing**: Extended `ip_addresses` with `conflict_mac`, `conflict_details`, and `idx_conflict` index on `conflict_detected` for instantaneous queries across large subnets, fully managed by idempotent auto-migrations in `includes/db_upgrade.php` and `run_auto_migrations()`.
 - **Multi-OS Collision Heuristic**: Automatically flags disparate/inconsistent OS fingerprints (e.g. MikroTik RouterOS + Linux VM / OpenWrt responding on the same IP) as active conflicts.
 - **Conflict Diagnostic Prober**: New interactive network diagnostic tool in `tools.php` with live multi-probe ICMP TTL variance detection, ARP integrity verification, and L2 physical switch port cross-referencing.
+- **Dashboard NOC Alert Banner**: Prominent NOC alert banner in `index.php` that dynamically notifies network engineers of active IP collisions with quick actions to probe or view subnets.
+- **Subnet Details Conflict Filter**: Added "Conflict Only" state filter and automatic URL parameter resolution (`?filter=conflict`) to isolate colliding IP addresses instantly.
 - **Conflict Resolution Workflow**: Subnet grid and table views in `subnet-details.php` now feature prominent `CONFLICT` badges, collision tooltips, and a modal action to resolve and clear conflict states.
+- **Brute-Force Rate Limiting**: Added session-based failed login rate limiting in `login.php` with temporary lockout to protect against brute-force attacks.
+- **Windows Task Runner (`run_cron.bat`)**: Automated background service script for Windows/XAMPP environments to easily run Netwatch, Subnet Scanner, and Switch Poller tasks.
 
 ### Changed
 - **Persistent Conflict State**: Prevented premature erasure of conflict states during subsequent scans until explicitly resolved.
@@ -16,7 +20,7 @@ All major functional changes, enhancements, and critical fixes are documented he
 - **Composer & Dependency Management**: Integrated autoloading for `phpseclib` and configured `.gitignore` to prevent tracking of local composer binaries.
 
 ### Fixed
-- **PHP Function Redeclaration Guard**: Added `function_exists` guards and `__DIR__` paths in `includes/db.php`, `includes/settings.helper.php`, and `includes/config.php` preventing fatal redeclaration crashes during CLI and web invocation.
+- **PHP Function Redeclaration Guard**: Added `function_exists` guards and `__DIR__` paths in `includes/db.php`, `includes/settings.helper.php`, `includes/config.php`, `cron_netwatch.php`, and `cron_switch_poll.php` preventing fatal redeclaration crashes during CLI and web invocation.
 
 ## [2.25.2] - 2026-07-20
 ### Added

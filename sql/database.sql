@@ -105,6 +105,7 @@ CREATE TABLE `ip_addresses` (
   KEY `subnet_id` (`subnet_id`),
   KEY `idx_mac` (`mac_addr`),
   KEY `idx_host` (`hostname`),
+  KEY `idx_conflict` (`conflict_detected`),
   CONSTRAINT `ip_addresses_ibfk_1` FOREIGN KEY (`subnet_id`) REFERENCES `subnets` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=141 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
