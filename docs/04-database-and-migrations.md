@@ -68,6 +68,31 @@ ADD COLUMN confidence_score TINYINT(3) UNSIGNED NOT NULL DEFAULT 0,
 ADD COLUMN data_sources VARCHAR(100) NULL;
 ```
 
+### 4) Tambah kolom IP Conflict Detection (v2.26.0+)
+
+```sql
+ALTER TABLE ip_addresses
+ADD COLUMN conflict_detected TINYINT(1) DEFAULT 0,
+ADD COLUMN conflict_details TEXT NULL;
+```
+
+### 5) Tambah kolom STP & Loop Detection pada Switches (v2.27.0+)
+
+```sql
+ALTER TABLE switches
+ADD COLUMN stp_enabled TINYINT(1) DEFAULT 0,
+ADD COLUMN stp_protocol VARCHAR(32) DEFAULT NULL,
+ADD COLUMN loop_detected TINYINT(1) DEFAULT 0,
+ADD COLUMN loop_details TEXT DEFAULT NULL,
+ADD COLUMN stp_topology_changes INT UNSIGNED DEFAULT 0;
+
+ALTER TABLE switch_port_map
+ADD COLUMN stp_state VARCHAR(20) DEFAULT 'unknown';
+```
+
+Catatan: Sistem menyertakan `includes/db_upgrade.php` yang menjalankan migrasi di atas secara otomatis dan idempoten setiap kali aplikasi dimulai atau polling switch dijalankan.
+
+
 ## Query Verifikasi
 
 ### Cek index unik

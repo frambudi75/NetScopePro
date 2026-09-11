@@ -16,6 +16,12 @@ IPManage adalah aplikasi IP Address Management (IPAM) untuk:
   Manajemen subnet dan operasi scan per subnet.
 - `devices.php`  
   Inventori perangkat lintas subnet.
+- `switches.php`, `switch-details.php`  
+  Inventori switch L2/L3, port mapping, status Spanning Tree (STP/RSTP), SFP/DOM monitoring, dan loop alerts.
+- `tools.php`  
+  Network diagnostic toolkit: Live Ping, Traceroute, Port Scanner, Subnet Calculator, IP Conflict Diagnostic Prober, dan L2 Loop Diagnostic Prober.
+- `cron_switch_poll.php`  
+  Background daemon untuk polling SNMP switch ports, FDB table, optical DOM, dan status STP / MAC flapping.
 - `api/scan.php`  
   Endpoint scan manual/chunked untuk UI.
 - `api/cron.php`  
@@ -36,6 +42,8 @@ IPManage adalah aplikasi IP Address Management (IPAM) untuk:
 - Multi-probe activity detection (ping + ARP + port scan).
 - Confidence scoring berbasis sumber data.
 - Auto-mark offline berbasis TTL.
+- **Enterprise IP Conflict Detection**: Deteksi tabrakan IP, Smart OS Family Classifier, dan Trunk-Aware switch mapping.
+- **L2 Switching Loop & STP Discovery**: Polling status STP (`forwarding`, `blocking`), pemantauan TCN, dan deteksi MAC flapping/thrashing pada switch yang sama.
 
 ## Terminologi
 
@@ -47,3 +55,9 @@ IPManage adalah aplikasi IP Address Management (IPAM) untuk:
   Sumber data yang berkontribusi pada hasil (`snmp,arp,ping,port,dns`).
 - `scan_interval`  
   Interval scan otomatis per subnet (menit).
+- `conflict_detected`  
+  Flag (0/1) penanda IP mengalami konflik kepemilikan MAC atau anomali respon OS.
+- `stp_state`  
+  Status operasional Spanning Tree pada port switch (`forwarding`, `blocking`, `learning`, `disabled`).
+- `loop_detected`  
+  Flag (0/1) penanda switch mendeteksi adanya L2 loop atau MAC thrashing.

@@ -49,6 +49,22 @@ graph TD
 - **Parallel Subnet Scanning**: High-speed discovery with multiple background workers for large-scale networks.
 - **Physical Port Mapping & SFP/DOM**: Trace MAC addresses directly to physical switch ports, VLANs, and monitor transceiver details (vendor, serial number, RX/TX optical power).
 
+### 🔄 L2 Switching Loop & STP Discovery Engine (New in v2.27.0)
+
+- **Spanning Tree (STP/RSTP) State Polling**: Real-time SNMP polling of `dot1dStp` MIB to identify Root Bridge, root path cost, and per-port STP operational states (`forwarding`, `blocking`, `learning`, `disabled`).
+- **Loop Mitigation Guard Detection**: Automatically flags ports placed in `BLOCKING` state by switch STP to isolate physical loops and prevent broadcast storms.
+- **FDB MAC Thrashing / Flapping**: Detects rapid MAC alternating between ports on the same switch to identify loops on unmanaged switches or ports without STP.
+- **Topology Change Monitoring**: Tracks Spanning Tree Topology Change Notifications (TCN) and time elapsed since last topology change to alert on link instability.
+- **Interactive L2 Loop Prober**: 6-phase live diagnostic tool in `tools.php` to verify switch bridge architecture, STP configuration, and port loop status.
+
+### 🛡️ Enterprise IP Conflict Detection Engine (New in v2.26.0 / v2.27.0)
+
+- **Collision & Flapping Identification**: Real-time identification of duplicate IP assignments and MAC flapping across subnets.
+- **Smart OS Family Classifier**: Classifies OS fingerprints into broad families (Windows, Linux, BSD, Cisco, MikroTik) to eliminate false positives on multi-guess Nmap detections.
+- **Trunk-Aware L2 Mapping**: Intelligent switch port analysis that distinguishes normal multi-switch uplink/trunk propagation from true IP/MAC conflicts.
+- **Interactive Conflict Prober**: Multi-probe ICMP TTL variance analysis, ARP integrity verification, and physical switch port cross-referencing in `tools.php`.
+- **NOC Alert Banners**: Prominent, real-time alert banners on the main dashboard for immediate visibility into IP collisions and L2 loops.
+
 ### 📊 Real-time Visualization
 
 - **Live SNMP Tracking**: Streaming CPU, Memory, & Uptime data via _Server-Sent Events (SSE)_.
