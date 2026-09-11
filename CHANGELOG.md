@@ -2,6 +2,30 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.26.0] - 2026-09-11
+### Added
+- **IP Conflict Detection Engine**: Real-time identification of IP collisions and MAC flapping in `api/scan.php` and `scanner_worker.php`.
+- **Database Schema Expansion**: Extended `ip_addresses` with `conflict_mac` and `conflict_details` columns, fully managed by idempotent auto-migrations in `includes/db_upgrade.php` and `run_auto_migrations()`.
+- **Multi-OS Collision Heuristic**: Automatically flags disparate/inconsistent OS fingerprints (e.g. MikroTik RouterOS + Linux VM / OpenWrt responding on the same IP) as active conflicts.
+- **Conflict Diagnostic Prober**: New interactive network diagnostic tool in `tools.php` with live multi-probe ICMP TTL variance detection, ARP integrity verification, and L2 physical switch port cross-referencing.
+- **Conflict Resolution Workflow**: Subnet grid and table views in `subnet-details.php` now feature prominent `CONFLICT` badges, collision tooltips, and a modal action to resolve and clear conflict states.
+
+### Changed
+- **Persistent Conflict State**: Prevented premature erasure of conflict states during subsequent scans until explicitly resolved.
+- **Multi-Drive MIBDIRS Auto-Detection**: Dynamically locates Net-SNMP MIB directories on both `D:\xampp` and `C:\xampp` in `.htaccess` and `includes/config.php`.
+- **Composer & Dependency Management**: Integrated autoloading for `phpseclib` and configured `.gitignore` to prevent tracking of local composer binaries.
+
+### Fixed
+- **PHP Function Redeclaration Guard**: Added `function_exists` guards and `__DIR__` paths in `includes/db.php`, `includes/settings.helper.php`, and `includes/config.php` preventing fatal redeclaration crashes during CLI and web invocation.
+
+## [2.25.2] - 2026-07-20
+### Added
+- **Nmap OS Fingerprinting**: Integrated OS fingerprinting into scanner workers for both Legacy and Masscan discovery modes.
+- **MAC Enrichment**: Enhanced MAC address resolution for the Masscan discovery pipeline.
+
+### Changed
+- **Retention Tuning**: Reduced offline IP auto-cleanup threshold to 1 hour (previously 24 hours).
+
 ## [2.25.1] - 2026-07-20
 ### Added
 - **UI Categorization**: Sidebar menu is now grouped into "Infrastructure", "Monitoring & Tools", and "Account" sections for better readability.
