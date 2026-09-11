@@ -107,3 +107,31 @@ Aturan update:
 - `hostname`, `mac`, `vendor`, `description` tidak overwrite dengan string kosong.
 - `state` dipaksa `active` saat terdeteksi.
 - `last_seen` selalu di-refresh.
+- `conflict_detected` dan `conflict_details` diperbarui secara presisi dengan nilai scan terbaru (mencegah persistensi alert palsu lama).
+
+## H. Enterprise IP Conflict Detection Pipeline
+
+Dijalankan saat host discovery (`api/scan.php`, `scanner_worker.php`):
+
+1. **Pemeriksaan Flapping MAC**:
+   - Jika satu IP dilaporkan merespons dengan MAC address yang berbeda dari data inventory sebelumnya dalam interval waktu singkat.
+2. **Smart OS Family Classifier (`get_os_family()`)**:
+   - Mengelompokkan variasi fingerprint Nmap (contoh: `Linux 4.15`, `OpenWrt 21.02`, `MikroTik RouterOS`) ke dalam kategori keluarga `linux`.
+   - Hanya memicu alarm konflik jika terdapat ketidakcocokan antar-keluarga (contoh: respon terdeteksi `windows` vs `linux` pada IP yang sama).
+3. **Pembersihan Otomatis (Auto-Healing)**:
+   - Jika pada scan berikutnya IP terbukti stabil dan hanya dimiliki satu MAC/OS, flag `conflict_detected` dinormalkan kembali ke `0`.
+
+## I. Switch STP & L2 Loop Polling Engine (`cron_switch_poll.php`)
+
+Dijalankan via background daemon / scheduler:
+
+1. **SNMP MIB Polling**:
+   - Menanyakan OID `dot1dStpPortState` (`.1.3.6.1.2.1.17.2.15.1.3`) untuk setiap port fisik switch.
+   - Mengidentifikasi status port: `1: disabled`, `2: blocking`, `3: listening`, `4: learning`, `5: forwarding`, `6: broken`.
+2. **Deteksi Port Blocking**:
+   - Port dengan state `2` (`blocking`) disimpan ke `switch_port_map.stp_state`.
+   - Ditampilkan di UI sebagai badge merah `🚫 BLOCKING` dan memicu counter di dashboard NOC.
+3. **Pemantauan Flapping FDB (MAC Thrashing)**:
+   - Membaca tabel bridge forwarding (`dot1dTpFdbPort`).
+   - Mendeteksi jika MAC address berpindah-pindah antar port pada switch fisik yang sama, mengindikasikan loop di switch unmanaged bawahan.
+

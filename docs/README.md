@@ -16,6 +16,8 @@ Dokumentasi ini menjadi referensi utama untuk konfigurasi, arsitektur, operasi s
   Panduan menjalankan scan manual/otomatis, schedule cron/task scheduler, serta tuning.
 - `docs/06-troubleshooting.md`  
   Checklist diagnosis jika host miss, MAC kosong, hostname kosong, atau performa scan menurun.
+- `docs/07-loop-and-conflict-detection.md`  
+  Panduan lengkap arsitektur L2 Switching Loop (STP, blocked ports, MAC flapping) dan Enterprise IP Conflict detection.
 
 ## Rekomendasi Urutan Baca
 
@@ -23,7 +25,8 @@ Dokumentasi ini menjadi referensi utama untuk konfigurasi, arsitektur, operasi s
 2. `docs/04-database-and-migrations.md`
 3. `docs/03-backend-discovery-engine.md`
 4. `docs/05-operations-and-cron.md`
-5. `docs/06-troubleshooting.md`
+5. `docs/07-loop-and-conflict-detection.md`
+6. `docs/06-troubleshooting.md`
 
 ## Catatan Cepat
 
