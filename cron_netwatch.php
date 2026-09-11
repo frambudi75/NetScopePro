@@ -3,9 +3,9 @@
  * Netwatch Background Scanner
  * Runs as a cron job to check host availability
  */
-require_once 'includes/config.php';
-require_once 'includes/db.php';
-require_once 'includes/notifications.php';
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/notifications.php';
 
 $is_cli = (php_sapi_name() === 'cli');
 

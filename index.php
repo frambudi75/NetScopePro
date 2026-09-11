@@ -131,13 +131,85 @@ try {
     $active_switch_ports = (int)($switch_stats['active'] ?? 0);
     $switch_count = (int)($switch_stats['count'] ?? 0);
     
+    // IP Conflict Stats & Active Alerts
+    $conflict_count = $db->query("SELECT COUNT(*) FROM ip_addresses WHERE conflict_detected = 1")->fetchColumn() ?: 0;
+    $conflict_ips = [];
+    if ($conflict_count > 0) {
+        $conflict_ips = $db->query("
+            SELECT ip.id, ip.ip_addr, ip.mac_addr, ip.conflict_mac, ip.hostname, ip.conflict_details, ip.subnet_id, s.subnet, s.mask
+            FROM ip_addresses ip
+            LEFT JOIN subnets s ON s.id = ip.subnet_id
+            WHERE ip.conflict_detected = 1
+            ORDER BY ip.last_seen DESC
+            LIMIT 5
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (Exception $e) {
     $subnet_count = 0; $ip_count = 0; $vlan_count = 0;
     $active_count = 0; $offline_count = 0; $avg_confidence = 0; $low_confidence_count = 0;
     $asset_count = 0; $asset_online = 0; $asset_offline = 0; $asset_categories = [];
     $recent_subnets = []; $needs_attention = [];
+    $conflict_count = 0; $conflict_ips = [];
 }
 ?>
+
+<?php if ($conflict_count > 0): ?>
+<!-- Critical NOC IP Conflict Alert Banner -->
+<div class="section-container animate-up" style="margin-bottom: 2rem;">
+    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(245, 158, 11, 0.1) 100%); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: var(--radius); padding: 1.25rem 1.5rem; position: relative; box-shadow: 0 4px 20px rgba(239, 68, 68, 0.12);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(239, 68, 68, 0.2); display: flex; align-items: center; justify-content: center; color: #ef4444; flex-shrink: 0; box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);">
+                    <i data-lucide="alert-triangle" style="width: 22px; height: 22px;"></i>
+                </div>
+                <div>
+                    <h3 style="font-size: 1.1rem; font-weight: 700; color: #f87171; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                        NOC Alert: IP Conflict Detected (<?php echo $conflict_count; ?> Host<?php echo $conflict_count > 1 ? 's' : ''; ?>)
+                    </h3>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.25rem 0 0 0;">
+                        Multiple MAC addresses or conflicting OS signatures are responding to the same IP address.
+                    </p>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <a href="tools?tab=conflict" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 0.85rem; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5; display: inline-flex; align-items: center; gap: 0.4rem;">
+                    <i data-lucide="crosshair" style="width: 14px;"></i> Buka Conflict Prober
+                </a>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.75rem; margin-top: 1rem;">
+            <?php foreach ($conflict_ips as $cip): ?>
+                <div style="background: var(--surface); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: calc(var(--radius) - 2px); padding: 0.75rem 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                    <div>
+                        <div style="font-family: monospace; font-weight: 700; font-size: 0.95rem; color: #ef4444;">
+                            <?php echo htmlspecialchars($cip['ip_addr']); ?>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+                            <?php echo htmlspecialchars($cip['conflict_details'] ?: ($cip['mac_addr'] . ' vs ' . ($cip['conflict_mac'] ?: 'Unknown'))); ?>
+                        </div>
+                        <?php if (!empty($cip['subnet'])): ?>
+                            <div style="font-size: 0.7rem; color: var(--text-muted); opacity: 0.8;">
+                                Subnet: <?php echo htmlspecialchars($cip['subnet'] . '/' . $cip['mask']); ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-end;">
+                        <?php if (!empty($cip['subnet_id'])): ?>
+                            <a href="subnet-details?id=<?php echo $cip['subnet_id']; ?>&filter=conflict" class="btn btn-secondary" style="font-size: 0.7rem; padding: 0.3rem 0.6rem; display: inline-flex; align-items: center; gap: 3px;">
+                                View Subnet <i data-lucide="arrow-right" style="width: 12px;"></i>
+                            </a>
+                        <?php endif; ?>
+                        <a href="tools?tab=conflict&ip=<?php echo urlencode($cip['ip_addr']); ?>" class="btn btn-secondary" style="font-size: 0.7rem; padding: 0.3rem 0.6rem; color: #f87171; border-color: rgba(239,68,68,0.3);">
+                            Probe IP
+                        </a>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php if (is_admin()): ?>
 <!-- Asset Monitoring Overview -->

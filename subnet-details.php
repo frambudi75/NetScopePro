@@ -317,6 +317,7 @@ include 'includes/header.php';
             <div 
                 class="grid-cell"
                 data-state="<?php echo $cell_state; ?>"
+                data-conflict="<?php echo (int)($info['conflict_detected'] ?? 0); ?>"
                 data-ip="<?php echo $ip; ?>"
                 <?php if (is_admin()): ?>
                 onclick="openEditModal('<?php echo $ip; ?>', '<?php echo $info['hostname'] ?? ''; ?>', '<?php echo $info['description'] ?? ''; ?>', '<?php echo $info['state'] ?? 'active'; ?>', '<?php echo $info['asset_tag'] ?? ''; ?>', '<?php echo $info['owner'] ?? ''; ?>', <?php echo (int)($info['conflict_detected'] ?? 0); ?>, '<?php echo $js_conflict_details; ?>')"
@@ -348,6 +349,7 @@ include 'includes/header.php';
         <div class="no-print" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
             <select id="stateFilter" onchange="applyFilters()" style="background: var(--surface-light); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; color: var(--text); outline: none; cursor: pointer;">
                 <option value="all">All States</option>
+                <option value="conflict">⚠️ Conflict Only</option>
                 <option value="active">Active</option>
                 <option value="reserved">Reserved</option>
                 <option value="offline">Offline</option>
@@ -405,7 +407,7 @@ include 'includes/header.php';
                         }
                     }
                 ?>
-                    <tr class="ip-row" data-state="<?php echo $row_state; ?>" data-search="<?php echo strtolower($ip . ' ' . ($info['hostname'] ?? '') . ' ' . ($info['mac_addr'] ?? '') . ' ' . ($info['vendor'] ?? '') . ' ' . ($info['asset_tag'] ?? '') . ' ' . ($info['owner'] ?? '')); ?>" style="border-bottom: 1px solid var(--border);">
+                    <tr class="ip-row" data-state="<?php echo $row_state; ?>" data-conflict="<?php echo (int)($info['conflict_detected'] ?? 0); ?>" data-search="<?php echo strtolower($ip . ' ' . ($info['hostname'] ?? '') . ' ' . ($info['mac_addr'] ?? '') . ' ' . ($info['vendor'] ?? '') . ' ' . ($info['asset_tag'] ?? '') . ' ' . ($info['owner'] ?? '')); ?>" style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 1rem; font-family: monospace; font-size: 0.9375rem; font-weight: 500; color: <?php echo $info ? 'var(--text)' : 'var(--text-muted)'; ?>;">
                             <?php echo $ip; ?>
                         </td>
@@ -595,8 +597,16 @@ function applyFilters() {
 
     rows.forEach(row => {
         const rowState = row.dataset.state;
+        const isConflict = row.dataset.conflict === '1';
         const searchText = row.dataset.search;
-        const stateMatch = (stateFilter === 'all' || rowState === stateFilter);
+        let stateMatch = false;
+        if (stateFilter === 'all') {
+            stateMatch = true;
+        } else if (stateFilter === 'conflict') {
+            stateMatch = isConflict;
+        } else {
+            stateMatch = (rowState === stateFilter);
+        }
         const searchMatch = !searchQuery || searchText.includes(searchQuery);
 
         if (stateMatch && searchMatch) {
@@ -611,8 +621,16 @@ function applyFilters() {
     const cells = document.querySelectorAll('#ipGrid .grid-cell');
     cells.forEach(cell => {
         const cellState = cell.dataset.state;
+        const isConflict = cell.dataset.conflict === '1';
         const cellIp = cell.dataset.ip || '';
-        const stateMatch = (stateFilter === 'all' || cellState === stateFilter);
+        let stateMatch = false;
+        if (stateFilter === 'all') {
+            stateMatch = true;
+        } else if (stateFilter === 'conflict') {
+            stateMatch = isConflict;
+        } else {
+            stateMatch = (cellState === stateFilter);
+        }
         const searchMatch = !searchQuery || cellIp.includes(searchQuery);
 
         if (stateMatch && searchMatch) {
@@ -624,6 +642,16 @@ function applyFilters() {
 
     document.getElementById('tableCount').textContent = visibleCount + ' entries';
 }
+
+// Auto apply filter if present in URL (?filter=conflict)
+window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const filterParam = urlParams.get('filter');
+    if (filterParam && document.getElementById('stateFilter')) {
+        document.getElementById('stateFilter').value = filterParam;
+        applyFilters();
+    }
+});
 
 // ====== SCAN ======
 async function scanSubnet(id) {
