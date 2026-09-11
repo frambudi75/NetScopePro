@@ -17,6 +17,7 @@ require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/network.php';
 require_once __DIR__ . '/includes/audit.helper.php';
 require_once __DIR__ . '/includes/vendor.helper.php';
+require_once __DIR__ . '/includes/notifications.php';
 
 $is_cli = (php_sapi_name() === 'cli');
 
@@ -657,6 +658,11 @@ foreach ($switches as $switch) {
             $db->prepare("UPDATE switches SET last_poll = CURRENT_TIMESTAMP, stp_enabled = ?, stp_protocol = ?, loop_detected = ?, loop_details = ?, stp_topology_changes = ? WHERE id = ?")
                ->execute([$stp_enabled, $stp_protocol, $loop_detected, $loop_details, $stp_top_changes, $switch['id']]);
 
+            // Dispatch instant alert if loop or blocking condition is detected
+            if ($loop_detected && class_exists('NotificationHelper')) {
+                NotificationHelper::notifySwitchLoop($switch['name'], $ip, $loop_details, array_values($stp_blocked_ports ?? []));
+            }
+
             echo "Discovered $discovered_count MAC-Port mappings (VLAN ".($is_vlan_aware ? "ON" : "OFF").") on {$switch['name']}.\n";
             AuditLogHelper::log("poll_switch", "switch", $switch['id'], "Discovered $discovered_count mappings on {$switch['name']}" . ($loop_detected ? " | LOOP ALERT: $loop_details" : ""));
         }
@@ -738,6 +744,14 @@ foreach ($switches as $switch) {
                 $dummy_mac = 'PORT:' . substr($name, 0, 12);
                 $db->prepare("INSERT IGNORE INTO switch_port_map (mac_addr, switch_id, port_name, port_status, stp_state, port_type, port_speed, sfp_vendor, sfp_part, sfp_serial, sfp_rx_power, sfp_tx_power) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
                    ->execute([$dummy_mac, $switch['id'], $name, $status, $port_stp, $type, $speed, $sfp['vendor'], $sfp['part'], $sfp['serial'], $sfp['rx_power'], $sfp['tx_power']]);
+            }
+
+            // Check for critical optical power degradation on active SFP interfaces
+            if ($status === 'up' && !empty($sfp['rx_power']) && is_numeric($sfp['rx_power']) && class_exists('NotificationHelper')) {
+                $rx_val = (float)$sfp['rx_power'];
+                if ($rx_val <= -24.0 && $rx_val > -40.0) {
+                    NotificationHelper::notifySfpOpticalWarning($switch['name'], $ip, $name, $sfp['rx_power'], $sfp['tx_power']);
+                }
             }
 
             // --- Traffic BPS Calculation ---

@@ -31,23 +31,44 @@ $query = "
 ";
 
 $stmt = $db->prepare($query);
-$stmt->execute([$switch_id, $port_name, $hours]);
+$stmt->execute([$switch_id, $port_name, max(1, $hours)]);
 $rows = $stmt->fetchAll();
 
 $labels = [];
 $rx = [];
 $tx = [];
 
+$label_format = ($hours > 24) ? 'd/m H:i' : 'H:i';
+
 foreach ($rows as $row) {
-    $labels[] = date('H:i', strtotime($row['recorded_at']));
-    // Convert to Mbps for better readability if needed, but keeping as bps for flexibility
-    $rx[] = round($row['rx_bps'] / 1000000, 2); // Mbps
-    $tx[] = round($row['tx_bps'] / 1000000, 2); // Mbps
+    $labels[] = date($label_format, strtotime($row['recorded_at']));
+    // Convert to Mbps (Megabits per second)
+    $rx[] = round((float)$row['rx_bps'] / 1000000, 2);
+    $tx[] = round((float)$row['tx_bps'] / 1000000, 2);
 }
+
+$count = count($rx);
+$current_rx = $count > 0 ? end($rx) : 0.0;
+$current_tx = $count > 0 ? end($tx) : 0.0;
+$peak_rx    = $count > 0 ? max($rx) : 0.0;
+$peak_tx    = $count > 0 ? max($tx) : 0.0;
+$avg_rx     = $count > 0 ? round(array_sum($rx) / $count, 2) : 0.0;
+$avg_tx     = $count > 0 ? round(array_sum($tx) / $count, 2) : 0.0;
 
 json_response([
     'labels' => $labels,
     'rx' => $rx,
     'tx' => $tx,
-    'port' => $port_name
+    'port' => $port_name,
+    'hours' => $hours,
+    'count' => $count,
+    'stats' => [
+        'current_rx' => $current_rx,
+        'current_tx' => $current_tx,
+        'peak_rx' => $peak_rx,
+        'peak_tx' => $peak_tx,
+        'avg_rx' => $avg_rx,
+        'avg_tx' => $avg_tx
+    ]
 ]);
+

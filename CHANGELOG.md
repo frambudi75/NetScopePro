@@ -2,6 +2,23 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.28.0] - 2026-09-11
+### Added
+- **Enterprise Multi-Event Telegram Alert Engine**: Comprehensive instant alerting via Telegram Bot API with clean HTML formatting, supporting:
+  - 🔄 **L2 Switching Loop & STP Blocking Alerts**: Real-time notification when switch loops or ports in `BLOCKING` state are detected by `cron_switch_poll.php`.
+  - 🚨 **Netwatch Host Down & Recovery Alerts**: Instant downtime notification with latency and downtime duration metrics.
+  - ⚠️ **Enterprise IP Conflict Alerts**: Dispatches alerts when IP collision or MAC flapping occurs across subnets.
+  - 📉 **SFP Optical Fiber (DDM) Warnings**: Alerts when SFP RX optical power drops below safety thresholds (e.g. `<= -24 dBm`).
+  - ⚡ **New Device Discovery Alerts**: Notifications when newly discovered active hosts appear on any subnet.
+- **Granular Alert Toggles in System Settings**: Added event-specific checkboxes in `settings.php` allowing administrators to enable or disable individual alert categories.
+- **Anti-Spam & Intelligent Cooldown Engine**: Lightweight lock-based throttling mechanism preventing administrators from being flooded with duplicate alert notifications during prolonged network incidents.
+- **Switch Port Live Bandwidth & Throughput Visualization**:
+  - Direct `Traffic` button pill on each switch port row in `switch-details.php` with smooth auto-scroll to the chart.
+  - Enhanced Chart.js throughput graph with dual-color gradient fills (Inbound/Download in Sky Blue, Outbound/Upload in Pink).
+  - Time range selectors for `1h`, `6h`, `24h`, and `48h`.
+  - Live KPI metric cards displaying Current RX/TX, Peak RX/TX, and Average RX/TX in Mbps computed from SNMP 64-bit counter history.
+  - Enhanced `api/port-history.php` with statistical aggregates (`stats` object) and responsive time formatting.
+
 ## [2.27.0] - 2026-09-11
 ### Added
 - **L2 Switching Loop Detection Engine**: Automated discovery of network loops in `cron_switch_poll.php` by analyzing Spanning Tree Protocol (STP) blocked ports and rapid MAC address thrashing (flapping) between physical ports on the same switch.

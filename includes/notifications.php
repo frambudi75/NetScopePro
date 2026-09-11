@@ -100,22 +100,41 @@ class NotificationHelper {
     }
 
     /**
+     * Check if an alert event is currently throttled (cooldown) to avoid spamming.
+     */
+    private static function isThrottled($key, $cooldownSeconds = 900) {
+        $tmp_dir = __DIR__ . '/../tmp';
+        if (!is_dir($tmp_dir)) {
+            @mkdir($tmp_dir, 0755, true);
+        }
+        $file = $tmp_dir . '/throttle_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $key) . '.lock';
+        if (file_exists($file)) {
+            $mtime = @filemtime($file);
+            if ($mtime && (time() - $mtime < $cooldownSeconds)) {
+                return true;
+            }
+        }
+        @touch($file);
+        return false;
+    }
+
+    /**
      * Send a notification when a new device is discovered.
      */
     public static function notifyNewDevice($ip, $mac, $vendor, $hostname, $subnet_name) {
-        $telegram_enabled = Settings::enabled('telegram_enabled');
+        $telegram_enabled = Settings::enabled('telegram_enabled') && (Settings::get('telegram_notify_new_device', '1') === '1');
         $email_enabled = Settings::enabled('email_enabled');
 
         if (!$telegram_enabled && !$email_enabled) return;
 
         if ($telegram_enabled) {
-            $message = "🚨 *New Device Discovered!*\n\n";
-            $message .= "📍 *Subnet:* {$subnet_name}\n";
-            $message .= "🌐 *IP:* `{$ip}`\n";
-            $message .= "🏷 *Hostname:* " . ($hostname ?: 'Unknown') . "\n";
-            $message .= "🔌 *MAC:* `{$mac}`\n";
-            $message .= "🏢 *Vendor:* {$vendor}\n";
-            $message .= "🕒 *Time:* " . date('Y-m-d H:i:s');
+            $message = "🚨 <b>New Device Discovered!</b>\n\n";
+            $message .= "📍 <b>Subnet:</b> " . htmlspecialchars($subnet_name) . "\n";
+            $message .= "🌐 <b>IP:</b> <code>" . htmlspecialchars($ip) . "</code>\n";
+            $message .= "🏷 <b>Hostname:</b> " . htmlspecialchars($hostname ?: 'Unknown') . "\n";
+            $message .= "🔌 <b>MAC:</b> <code>" . htmlspecialchars($mac) . "</code>\n";
+            $message .= "🏢 <b>Vendor:</b> " . htmlspecialchars($vendor ?: 'Generic') . "\n";
+            $message .= "🕒 <b>Time:</b> " . date('Y-m-d H:i:s');
             self::sendTelegram($message);
         }
 
@@ -134,23 +153,47 @@ class NotificationHelper {
     }
 
     /**
-     * Send notification for an IP conflict (MAC address change).
+     * Send notification for an IP conflict (MAC address change or flapping).
      */
     public static function notifyConflict($ip, $old_mac, $new_mac, $subnet_name) {
-        $telegram_enabled = Settings::enabled('telegram_enabled');
-        $email_enabled = Settings::enabled('email_enabled');
+        // Cooldown per IP to prevent spamming
+        if (self::isThrottled('conflict_' . $ip, 900)) return;
 
-        if (!$telegram_enabled && !$email_enabled) return;
+        $telegram_enabled = Settings::enabled('telegram_enabled') && (Settings::get('telegram_notify_conflict', '1') === '1');
+        $email_enabled = Settings::enabled('email_enabled');
+        $discord_enabled = Settings::enabled('discord_enabled');
+        $slack_enabled = Settings::enabled('slack_enabled');
+
+        if (!$telegram_enabled && !$email_enabled && !$discord_enabled && !$slack_enabled) return;
+
+        $time = date('Y-m-d H:i:s');
+        $safe_ip = htmlspecialchars($ip);
+        $safe_subnet = htmlspecialchars($subnet_name);
+        $safe_old = htmlspecialchars($old_mac);
+        $safe_new = htmlspecialchars($new_mac);
 
         if ($telegram_enabled) {
-            $message = "⚠️ *IP Conflict Detected!*\n\n";
-            $message .= "📍 *Subnet:* {$subnet_name}\n";
-            $message .= "🌐 *IP:* `{$ip}`\n";
-            $message .= "🛑 *Old MAC:* `{$old_mac}`\n";
-            $message .= "🚩 *New MAC:* `{$new_mac}`\n";
-            $message .= "🕒 *Time:* " . date('Y-m-d H:i:s');
+            $message = "⚠️ <b>IP Conflict Detected!</b>\n\n";
+            $message .= "📍 <b>Subnet:</b> {$safe_subnet}\n";
+            $message .= "🌐 <b>Target IP:</b> <code>{$safe_ip}</code>\n";
+            $message .= "🛑 <b>Initial MAC:</b> <code>{$safe_old}</code>\n";
+            $message .= "🚩 <b>Conflicting MAC:</b> <code>{$safe_new}</code>\n";
+            $message .= "🕒 <b>Time:</b> {$time}\n\n";
+            $message .= "<i>Gunakan Network Tools (IP Conflict Prober) untuk diagnosis mendalam.</i>";
             self::sendTelegram($message);
         }
+
+        $markdown = "**[ IP CONFLICT DETECTED ]**\n";
+        $markdown .= "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n";
+        $markdown .= "🌐 **IP:** `{$ip}`\n";
+        $markdown .= "📍 **Subnet:** {$subnet_name}\n";
+        $markdown .= "🛑 **Initial MAC:** `{$old_mac}`\n";
+        $markdown .= "🚩 **New MAC:** `{$new_mac}`\n";
+        $markdown .= "🕒 **Waktu:** {$time}\n";
+        $markdown .= "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
+
+        if ($discord_enabled) self::sendDiscord($markdown);
+        if ($slack_enabled) self::sendSlack($markdown);
 
         if ($email_enabled) {
             $subject = "⚠️ IP Conflict: {$ip}";
@@ -166,20 +209,136 @@ class NotificationHelper {
     }
 
     /**
+     * Send notification for L2 Switching Loop or STP Port Blocking.
+     */
+    public static function notifySwitchLoop($switch_name, $switch_ip, $loop_details, $blocked_ports = []) {
+        // Cooldown per switch (15 minutes)
+        if (self::isThrottled('loop_' . $switch_ip, 900)) return;
+
+        $telegram_enabled = Settings::enabled('telegram_enabled') && (Settings::get('telegram_notify_loop', '1') === '1');
+        $email_enabled = Settings::enabled('email_enabled');
+        $discord_enabled = Settings::enabled('discord_enabled');
+        $slack_enabled = Settings::enabled('slack_enabled');
+
+        if (!$telegram_enabled && !$email_enabled && !$discord_enabled && !$slack_enabled) return;
+
+        $time = date('Y-m-d H:i:s');
+        $safe_name = htmlspecialchars($switch_name);
+        $safe_ip = htmlspecialchars($switch_ip);
+        $safe_details = htmlspecialchars($loop_details);
+
+        if ($telegram_enabled) {
+            $message = "🚨 <b>CRITICAL: L2 Switching Loop Alert!</b>\n\n";
+            $message .= "🏢 <b>Switch:</b> {$safe_name}\n";
+            $message .= "🌐 <b>IP Address:</b> <code>{$safe_ip}</code>\n";
+            $message .= "⚠️ <b>Event:</b> {$safe_details}\n";
+            if (!empty($blocked_ports)) {
+                $message .= "🚫 <b>Blocked Port(s):</b> <code>" . htmlspecialchars(implode(', ', $blocked_ports)) . "</code>\n";
+            }
+            $message .= "🕒 <b>Time:</b> {$time}\n\n";
+            $message .= "<i>Tindakan: Periksa kabel loop fisik atau port downstream switch yang bersangkutan.</i>";
+            self::sendTelegram($message);
+        }
+
+        $markdown = "**[ L2 SWITCHING LOOP ALERT ]**\n";
+        $markdown .= "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n";
+        $markdown .= "🏢 **Switch:** {$switch_name} (`{$switch_ip}`)\n";
+        $markdown .= "⚠️ **Detail:** {$loop_details}\n";
+        if (!empty($blocked_ports)) {
+            $markdown .= "🚫 **Blocked Ports:** `" . implode(', ', $blocked_ports) . "`\n";
+        }
+        $markdown .= "🕒 **Waktu:** {$time}\n";
+        $markdown .= "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
+
+        if ($discord_enabled) self::sendDiscord($markdown);
+        if ($slack_enabled) self::sendSlack($markdown);
+
+        if ($email_enabled) {
+            $subject = "🚨 CRITICAL: L2 Switching Loop on {$switch_name} ({$switch_ip})";
+            $body = "<h2>L2 Switching Loop / Port Blocking Alert</h2>";
+            $body .= "<p>Switch <b>{$switch_name}</b> ({$switch_ip}) has reported loop conditions:</p>";
+            $body .= "<blockquote>{$loop_details}</blockquote>";
+            if (!empty($blocked_ports)) {
+                $body .= "<p><b>Blocked Ports:</b> " . implode(', ', $blocked_ports) . "</p>";
+            }
+            self::sendEmail($subject, $body);
+        }
+    }
+
+    /**
+     * Send notification for critical SFP Optical RX Power drop (Fiber DDM).
+     */
+    public static function notifySfpOpticalWarning($switch_name, $switch_ip, $port_name, $rx_power, $tx_power = null) {
+        // Cooldown per port (30 minutes)
+        if (self::isThrottled('sfp_' . $switch_ip . '_' . $port_name, 1800)) return;
+
+        $telegram_enabled = Settings::enabled('telegram_enabled') && (Settings::get('telegram_notify_sfp', '1') === '1');
+        $email_enabled = Settings::enabled('email_enabled');
+        $discord_enabled = Settings::enabled('discord_enabled');
+        $slack_enabled = Settings::enabled('slack_enabled');
+
+        if (!$telegram_enabled && !$email_enabled && !$discord_enabled && !$slack_enabled) return;
+
+        $time = date('Y-m-d H:i:s');
+        $safe_name = htmlspecialchars($switch_name);
+        $safe_ip = htmlspecialchars($switch_ip);
+        $safe_port = htmlspecialchars($port_name);
+        $safe_rx = htmlspecialchars($rx_power);
+        $safe_tx = $tx_power !== null ? htmlspecialchars($tx_power) : null;
+
+        if ($telegram_enabled) {
+            $message = "⚠️ <b>OPTICAL WARNING: SFP Low RX Power</b>\n\n";
+            $message .= "🏢 <b>Switch:</b> {$safe_name} (<code>{$safe_ip}</code>)\n";
+            $message .= "🔌 <b>Port:</b> <code>{$safe_port}</code>\n";
+            $message .= "📉 <b>Optical RX Power:</b> <code>{$safe_rx} dBm</code> (Critical Drop)\n";
+            if ($safe_tx) {
+                $message .= "📈 <b>Optical TX Power:</b> <code>{$safe_tx} dBm</code>\n";
+            }
+            $message .= "🕒 <b>Time:</b> {$time}\n\n";
+            $message .= "<i>Peringatan: Redaman fiber optik tinggi. Periksa kabel patchcord, konektor kotor, atau bending fisik.</i>";
+            self::sendTelegram($message);
+        }
+
+        $markdown = "**[ SFP OPTICAL POWER WARNING ]**\n";
+        $markdown .= "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n";
+        $markdown .= "🏢 **Switch:** {$switch_name} (`{$switch_ip}`)\n";
+        $markdown .= "🔌 **Port:** `{$port_name}`\n";
+        $markdown .= "📉 **RX Power:** `{$rx_power} dBm`\n";
+        if ($tx_power) $markdown .= "📈 **TX Power:** `{$tx_power} dBm`\n";
+        $markdown .= "🕒 **Waktu:** {$time}\n";
+        $markdown .= "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
+
+        if ($discord_enabled) self::sendDiscord($markdown);
+        if ($slack_enabled) self::sendSlack($markdown);
+
+        if ($email_enabled) {
+            $subject = "⚠️ Optical Warning: Port {$port_name} on {$switch_name} RX {$rx_power} dBm";
+            $body = "<h2>SFP Optical Power Degradation</h2>";
+            $body .= "<p>Switch <b>{$switch_name}</b> port <b>{$port_name}</b> optical RX is critically low:</p>";
+            $body .= "<ul><li>RX Power: {$rx_power} dBm</li>";
+            if ($tx_power) $body .= "<li>TX Power: {$tx_power} dBm</li>";
+            $body .= "</ul>";
+            self::sendEmail($subject, $body);
+        }
+    }
+
+    /**
      * Notify when a subnet is nearly full.
      */
     public static function notifySubnetFull($subnet, $mask, $percent, $used, $total) {
+        if (self::isThrottled('subnet_full_' . $subnet, 3600)) return;
+
         $telegram_enabled = Settings::enabled('telegram_enabled');
         $email_enabled = Settings::enabled('email_enabled');
 
         if (!$telegram_enabled && !$email_enabled) return;
 
         if ($telegram_enabled) {
-            $message = "☢️ *Subnet Nearly Full! ({$percent}%)*\n\n";
-            $message .= "📍 *Subnet:* {$subnet}/{$mask}\n";
-            $message .= "📊 *Usage:* {$used} / {$total} IPs\n";
-            $message .= "⚡️ *Notice:* Consider expanding this subnet soon.\n";
-            $message .= "🕒 *Time:* " . date('Y-m-d H:i:s');
+            $message = "☢️ <b>Subnet Nearly Full! (" . (int)$percent . "%)</b>\n\n";
+            $message .= "📍 <b>Subnet:</b> <code>" . htmlspecialchars($subnet . '/' . $mask) . "</code>\n";
+            $message .= "📊 <b>Usage:</b> {$used} / {$total} IPs\n";
+            $message .= "⚡️ <b>Notice:</b> Pertimbangkan memperluas subnet ini segera.\n";
+            $message .= "🕒 <b>Time:</b> " . date('Y-m-d H:i:s');
             self::sendTelegram($message);
         }
 
@@ -296,7 +455,19 @@ class NotificationHelper {
     }
 
     public static function testTelegram() {
-        $message = "🔹 *Test Notification* 🔹\n\n✅ Your Telegram Bot integration for **" . APP_NAME . "** is working correctly!\n\n🕒 *Sent at:* " . date('Y-m-d H:i:s');
+        $server_host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'Localhost');
+        $message = "🔹 <b>" . APP_NAME . " • Test Notification</b> 🔹\n\n";
+        $message .= "✅ <b>Integration Status: CONNECTED</b>\n";
+        $message .= "Telegram Bot alert dispatcher beroperasi dengan normal.\n\n";
+        $message .= "🖥 <b>Server:</b> <code>" . htmlspecialchars($server_host) . "</code>\n";
+        $message .= "📦 <b>Version:</b> <code>v" . APP_VERSION . "</code>\n";
+        $message .= "🔔 <b>Monitored Events:</b>\n";
+        $message .= "  • 🔄 L2 Switching Loop & STP Blocking\n";
+        $message .= "  • 🚨 Netwatch Host Down/Recovery\n";
+        $message .= "  • ⚠️ Enterprise IP Conflict\n";
+        $message .= "  • 📉 SFP Optical Fiber DDM\n";
+        $message .= "  • ⚡ New Device Discovery\n\n";
+        $message .= "🕒 <b>Timestamp:</b> " . date('Y-m-d H:i:s');
         return self::sendTelegram($message);
     }
 
@@ -309,11 +480,18 @@ class NotificationHelper {
     /**
      * Send message via Telegram Bot API
      */
-    private static function sendTelegram($text) {
+    public static function sendTelegram($text) {
         $token = Settings::get('telegram_bot_token');
         $chat_id = Settings::get('telegram_chat_id');
 
         if (!$token || !$chat_id) return false;
+
+        // Auto-convert common markdown bold/code to HTML if text lacks HTML tags
+        if (strpos($text, '<') === false) {
+            $text = preg_replace('/\*\*(.*?)\*\*/s', '<b>$1</b>', $text);
+            $text = preg_replace('/(?<!\*)\*(?!\*)(.*?)\*/s', '<b>$1</b>', $text);
+            $text = preg_replace('/`(.*?)`/s', '<code>$1</code>', $text);
+        }
 
         $url = "https://api.telegram.org/bot{$token}/sendMessage";
         $data = [
@@ -323,12 +501,39 @@ class NotificationHelper {
             'disable_web_page_preview' => true
         ];
 
+        // Prefer cURL if available
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => http_build_query($data),
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 8,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false
+            ]);
+            $res = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err = curl_error($ch);
+            curl_close($ch);
+
+            if ($res === false || $http_code >= 400) {
+                error_log("Telegram Send Error: HTTP {$http_code} | " . ($err ?: $res));
+                return false;
+            }
+            return true;
+        }
+
         $options = [
             'http' => [
                 'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
                 'method'  => 'POST',
                 'content' => http_build_query($data),
-                'timeout' => 5
+                'timeout' => 8
+            ],
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false
             ]
         ];
 
@@ -337,7 +542,6 @@ class NotificationHelper {
         
         if ($result === false) {
             $error = error_get_last();
-            // Try to get more info from the response headers (contains Telegram error body)
             $response_headers = $http_response_header ?? [];
             $status_line = $response_headers[0] ?? 'Unknown Status';
             error_log("Telegram Send Error: " . ($error['message'] ?? 'Unknown error') . " | Status: " . $status_line);
