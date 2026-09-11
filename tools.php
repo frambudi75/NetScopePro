@@ -12,10 +12,10 @@ $page_title = 'Network Toolbox';
 include 'includes/header.php';
 
 $output = '';
-$target = $_POST['target'] ?? '';
-$action = $_POST['action'] ?? '';
+$target = trim($_POST['target'] ?? ($_GET['target'] ?? ''));
+$action = trim($_POST['action'] ?? ($_GET['action'] ?? ''));
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($target)) {
+if ((!empty($_POST) || !empty($_GET)) && !empty($target)) {
     $is_windows = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN');
     
     // Sanitize target (must be IP or domain)
@@ -45,6 +45,151 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($target)) {
             } else {
                 $output = "MAC: $mac\nVendor Information Not Found (HTTP $status).";
             }
+        } elseif ($action === 'conflict') {
+            if (!filter_var($target, FILTER_VALIDATE_IP)) {
+                $output = "Error: Conflict Prober requires a valid IPv4 address.";
+            } else {
+                $db = get_db_connection();
+                $output = "=== NetScope Pro: IP Conflict Diagnostic Prober ===\n";
+                $output .= "Target IP        : " . $target . "\n";
+                $output .= "Timestamp        : " . date('Y-m-d H:i:s') . "\n";
+                $output .= "Runner Platform  : " . ($is_windows ? "Windows" : "Linux / Docker") . "\n";
+                $output .= "------------------------------------------------------------\n\n";
+
+                // Phase 1: Database Inventory Records
+                $output .= "[Phase 1] Database & Inventory Record\n";
+                $stmt = $db->prepare("SELECT * FROM ip_addresses WHERE ip_addr = ?");
+                $stmt->execute([$target]);
+                $db_rows = $stmt->fetchAll();
+                
+                $has_db_conflict = false;
+                if (!empty($db_rows)) {
+                    foreach ($db_rows as $row) {
+                        $output .= "  • Subnet ID        : " . $row['subnet_id'] . "\n";
+                        $output .= "  • Hostname         : " . ($row['hostname'] ?: '-') . "\n";
+                        $output .= "  • Recorded MAC     : " . ($row['mac_addr'] ?: 'Unknown') . " (" . ($row['vendor'] ?: 'Unknown Vendor') . ")\n";
+                        $output .= "  • Recorded OS      : " . ($row['os'] ?: '-') . "\n";
+                        $output .= "  • Status           : " . strtoupper($row['state']) . " (Confidence: " . $row['confidence_score'] . "%)\n";
+                        $output .= "  • Conflict Flag    : " . ($row['conflict_detected'] ? "YES (⚠️ ACTIVE CONFLICT)" : "None") . "\n";
+                        if (!empty($row['conflict_mac'])) {
+                            $output .= "  • Conflicting MAC  : " . $row['conflict_mac'] . "\n";
+                        }
+                        if (!empty($row['conflict_details'])) {
+                            $output .= "  • Conflict Details : " . $row['conflict_details'] . "\n";
+                        }
+                        if ($row['conflict_detected']) $has_db_conflict = true;
+                    }
+                } else {
+                    $output .= "  • No existing IPAM database record for this IP.\n";
+                }
+                $output .= "\n";
+
+                // Phase 2: Switch Port L2 Cross-Reference
+                $output .= "[Phase 2] Switch Port & L2 Hardware Mapping\n";
+                $stmt = $db->prepare("
+                    SELECT spm.*, s.name as switch_name, s.ip_addr as switch_ip 
+                    FROM switch_port_map spm 
+                    LEFT JOIN switches s ON spm.switch_id = s.id 
+                    WHERE spm.mac_addr IN (
+                        SELECT mac_addr FROM ip_addresses WHERE ip_addr = ? AND mac_addr IS NOT NULL
+                        UNION
+                        SELECT conflict_mac FROM ip_addresses WHERE ip_addr = ? AND conflict_mac IS NOT NULL
+                    )
+                ");
+                $stmt->execute([$target, $target]);
+                $ports = $stmt->fetchAll();
+                $unique_ports = [];
+                if (!empty($ports)) {
+                    foreach ($ports as $p) {
+                        $output .= "  • Switch           : " . $p['switch_name'] . " (" . $p['switch_ip'] . ")\n";
+                        $output .= "    Port             : " . $p['port_name'] . " (VLAN " . ($p['vlan_id'] ?: '1') . ", Status: " . ($p['port_status'] ?: 'up') . ")\n";
+                        $output .= "    MAC Attached     : " . $p['mac_addr'] . "\n";
+                        $unique_ports[$p['switch_id'] . '_' . $p['port_name']] = true;
+                    }
+                    if (count($unique_ports) > 1) {
+                        $output .= "  ⚠️ Warning: MACs for this IP are mapped across " . count($unique_ports) . " different switch ports!\n";
+                    }
+                } else {
+                    $output .= "  • No switch port entries directly associated with recorded MACs.\n";
+                }
+                $output .= "\n";
+
+                // Phase 3: Live Probing & TTL Analysis
+                $output .= "[Phase 3] Live Probing & TTL Consistency Analysis\n";
+                
+                // Run 6 pings
+                $ping_cmd = $is_windows ? "ping -n 6 " . escapeshellarg($target) : "ping -c 6 " . escapeshellarg($target);
+                $raw_ping = (string)shell_exec($ping_cmd);
+                
+                $ttls = [];
+                if (preg_match_all('/TTL=(\d+)/i', $raw_ping, $matches)) {
+                    $ttls = array_map('intval', $matches[1]);
+                }
+
+                // Read ARP after ping
+                $arp_after_lines = [];
+                if ($is_windows) {
+                    @exec("arp -a " . escapeshellarg($target), $arp_after_lines);
+                } else {
+                    @exec("arp -n " . escapeshellarg($target), $arp_after_lines);
+                }
+
+                // Extract resolved MAC after ping
+                $current_active_mac = null;
+                foreach ($arp_after_lines as $aline) {
+                    if (preg_match('/([0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2})/', $aline, $m)) {
+                        $current_active_mac = strtolower(str_replace('-', ':', $m[1]));
+                        break;
+                    }
+                }
+
+                $output .= "  • Packets Transmitted : 6\n";
+                $output .= "  • Packets Received    : " . count($ttls) . "\n";
+                $unique_ttls = array_values(array_unique($ttls));
+                if (!empty($ttls)) {
+                    $output .= "  • Observed TTL Values : " . implode(', ', $ttls) . " (Unique: " . implode(', ', $unique_ttls) . ")\n";
+                    $output .= "  • Live ARP MAC        : " . ($current_active_mac ?: 'Not in ARP table') . "\n";
+                } else {
+                    $output .= "  • Host is completely unresponsive to ICMP ping probes.\n";
+                }
+                $output .= "\n";
+
+                // Phase 4: Diagnosis & Verdict
+                $output .= "==================== VERDICT ====================\n";
+                $conflict_score = 0;
+                $reasons = [];
+
+                if (count($unique_ttls) > 1) {
+                    $conflict_score += 40;
+                    $reasons[] = "Fluctuating TTL detected (" . implode(' vs ', $unique_ttls) . "). Multiple different operating systems or devices are answering this IP!";
+                }
+
+                if ($has_db_conflict) {
+                    $conflict_score += 35;
+                    $reasons[] = "NetScope IPAM has flagged an active conflict (MAC flapping or conflicting OS fingerprints).";
+                }
+
+                if (count($unique_ports) > 1) {
+                    $conflict_score += 35;
+                    $reasons[] = "Associated MAC addresses are connected to multiple distinct switch ports.";
+                }
+
+                if ($conflict_score >= 35) {
+                    $output .= "🚨 STATUS: CONFIRMED / HIGH RISK IP CONFLICT!\n";
+                    $output .= "Risk Score: " . min(100, $conflict_score + 25) . "%\n\n";
+                    $output .= "Key Indicators:\n";
+                    foreach ($reasons as $r) {
+                        $output .= "  [!] $r\n";
+                    }
+                    $output .= "\nRecommended Next Steps:\n";
+                    $output .= "  1. Inspect the switch port(s) and isolate/disconnect the rogue device.\n";
+                    $output .= "  2. Verify static IP configuration on the offending device and switch it to DHCP.\n";
+                    $output .= "  3. In Subnet Details, edit the IP and check 'Resolve Conflict' once cleared.\n";
+                } else {
+                    $output .= "✅ STATUS: NO ACTIVE CONFLICT DETECTED\n";
+                    $output .= "Host responses and network signatures appear steady and consistent.\n";
+                }
+            }
         }
     } else {
         $output = "Error: Invalid target format.";
@@ -69,8 +214,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($target)) {
             
             <div style="display: flex; flex-direction: column; gap: 0.8rem; margin-top: 1.5rem;">
                 <?php 
-                    $active_action = $_POST['action'] ?? 'ping'; 
+                    $active_action = $action ?: 'ping'; 
                 ?>
+                <button type="submit" name="action" value="conflict" class="btn <?php echo $active_action === 'conflict' ? 'btn-primary' : ''; ?>" style="justify-content: flex-start; <?php echo $active_action !== 'conflict' ? 'background: var(--surface-light); color: var(--text-muted);' : ''; ?>">
+                    <i data-lucide="shield-alert" style="width: 16px;"></i> Cek Konflik IP (Prober)
+                </button>
                 <button type="submit" name="action" value="ping" class="btn <?php echo $active_action === 'ping' ? 'btn-primary' : ''; ?>" style="justify-content: flex-start; <?php echo $active_action !== 'ping' ? 'background: var(--surface-light); color: var(--text-muted);' : ''; ?>">
                     <i data-lucide="radio" style="width: 16px;"></i> Ping Utility
                 </button>

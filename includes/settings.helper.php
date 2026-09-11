@@ -8,7 +8,7 @@ class Settings {
 
     private static function init() {
         if (self::$cached_settings === null) {
-            require_once 'db.php';
+            require_once __DIR__ . '/db.php';
             self::$db = get_db_connection();
             
             $stmt = self::$db->query("SELECT * FROM settings");

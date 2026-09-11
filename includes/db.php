@@ -3,8 +3,9 @@
  * Database connection helper using PDO
  */
 
-require_once 'config.php';
+require_once __DIR__ . '/config.php';
 
+if (!function_exists('get_db_connection')) {
 function get_db_connection() {
     $port = defined('DB_PORT') ? DB_PORT : '3306';
     $dsn = "mysql:host=" . DB_HOST . ";port=" . $port . ";dbname=" . DB_NAME . ";charset=utf8mb4";
@@ -23,11 +24,13 @@ function get_db_connection() {
         die("Connection failed: " . $e->getMessage());
     }
 }
+}
 
 /**
  * IPManager - Global Redis Client Getter
  * Returns a Redis instance if extension is loaded and connection works.
  */
+if (!function_exists('get_redis_connection')) {
 function get_redis_connection() {
     static $redis_instance = null;
     
@@ -47,10 +50,12 @@ function get_redis_connection() {
         return null; // Silent fail if redis is down
     }
 }
+}
 
 /**
  * Ensures database structure is up to date
  */
+if (!function_exists('run_auto_migrations')) {
 function run_auto_migrations($db) {
     // Check if subnets table exists first
     $tableExists = $db->query("SHOW TABLES LIKE 'subnets'")->rowCount() > 0;
@@ -78,6 +83,14 @@ function run_auto_migrations($db) {
 
     if (!in_array('conflict_detected', $ip_cols)) {
         $db->exec("ALTER TABLE ip_addresses ADD COLUMN conflict_detected tinyint(1) NOT NULL DEFAULT 0 AFTER os");
+    }
+
+    if (!in_array('conflict_mac', $ip_cols)) {
+        $db->exec("ALTER TABLE ip_addresses ADD COLUMN conflict_mac varchar(20) DEFAULT NULL AFTER conflict_detected");
+    }
+
+    if (!in_array('conflict_details', $ip_cols)) {
+        $db->exec("ALTER TABLE ip_addresses ADD COLUMN conflict_details varchar(255) DEFAULT NULL AFTER conflict_mac");
     }
 
     if (!in_array('fail_count', $ip_cols)) {
@@ -289,4 +302,5 @@ function run_auto_migrations($db) {
             ");
         }
     } catch (Exception $e) {}
+}
 }

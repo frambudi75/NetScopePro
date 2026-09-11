@@ -109,11 +109,20 @@ for ($i = $start_long; $i <= $end_long; $i++) {
             'masscan' => $signals['masscan'] ?? false
         ]);
 
-        $conflict_detected = 0;
+        $conflict_detected = (int)($existing['conflict_detected'] ?? 0);
+        $conflict_mac = $existing['conflict_mac'] ?? null;
+        $conflict_details = $existing['conflict_details'] ?? null;
+
+        // 1. MAC Flapping Detection
         if ($existing && !empty($existing['mac_addr']) && !empty($new_mac)) {
-            if (strtolower($existing['mac_addr']) !== strtolower($new_mac)) {
+            if (strtolower(trim($existing['mac_addr'])) !== strtolower(trim($new_mac))) {
                 $conflict_detected = 1;
-                NotificationHelper::notifyConflict($ip, $existing['mac_addr'], $new_mac, $subnet['subnet'] . '/' . $subnet['mask']);
+                $conflict_mac = $existing['mac_addr'];
+                $old_vendor = $existing['vendor'] ?? 'Unknown';
+                $conflict_details = "MAC Flapping: " . $existing['mac_addr'] . " (" . $old_vendor . ") vs " . $new_mac . " (" . $vendor . ")";
+                try {
+                    NotificationHelper::notifyConflict($ip, $existing['mac_addr'], $new_mac, $subnet['subnet'] . '/' . $subnet['mask']);
+                } catch (Exception $e) {}
             }
         }
 
@@ -131,10 +140,26 @@ for ($i = $start_long; $i <= $end_long; $i++) {
             }
         }
 
+        // 2. Multi-OS collision detection (e.g. MikroTik + OpenWrt/Linux VM answering on same IP)
+        $check_os = $os_detected ?: ($existing['os'] ?? '');
+        if (!empty($check_os) && $check_os !== 'Unknown') {
+            $has_mikrotik = (stripos($check_os, 'MikroTik') !== false || stripos($check_os, 'RouterOS') !== false);
+            $has_openwrt = (stripos($check_os, 'OpenWrt') !== false);
+            $has_windows = (stripos($check_os, 'Windows') !== false);
+            $has_linux_pc = (stripos($check_os, 'Linux') !== false && !$has_mikrotik && !$has_openwrt);
+            $os_count = ($has_mikrotik ? 1 : 0) + ($has_openwrt ? 1 : 0) + ($has_windows ? 1 : 0) + ($has_linux_pc ? 1 : 0);
+            if ($os_count >= 2) {
+                $conflict_detected = 1;
+                if (empty($conflict_details)) {
+                    $conflict_details = "Multi-OS Discrepancy: Conflicting OS fingerprints ($check_os)";
+                }
+            }
+        }
+
         // Update DB: Mark ACTIVE, Reset fail_count
         $stmt = $db->prepare("
-            INSERT INTO ip_addresses (subnet_id, ip_addr, mac_addr, vendor, os, state, confidence_score, data_sources, conflict_detected, fail_count, last_seen)
-            VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, 0, CURRENT_TIMESTAMP)
+            INSERT INTO ip_addresses (subnet_id, ip_addr, mac_addr, vendor, os, state, confidence_score, data_sources, conflict_detected, conflict_mac, conflict_details, fail_count, last_seen)
+            VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
             ON DUPLICATE KEY UPDATE
                 mac_addr = IF(VALUES(mac_addr) IS NOT NULL, VALUES(mac_addr), mac_addr),
                 vendor = IF(VALUES(vendor) IS NOT NULL, VALUES(vendor), vendor),
@@ -142,7 +167,9 @@ for ($i = $start_long; $i <= $end_long; $i++) {
                 state = 'active',
                 confidence_score = VALUES(confidence_score),
                 data_sources = VALUES(data_sources),
-                conflict_detected = VALUES(conflict_detected),
+                conflict_detected = IF(VALUES(conflict_detected) = 1, 1, conflict_detected),
+                conflict_mac = IF(VALUES(conflict_mac) IS NOT NULL, VALUES(conflict_mac), conflict_mac),
+                conflict_details = IF(VALUES(conflict_details) IS NOT NULL, VALUES(conflict_details), conflict_details),
                 fail_count = 0,
                 last_seen = CURRENT_TIMESTAMP
         ");
@@ -155,7 +182,9 @@ for ($i = $start_long; $i <= $end_long; $i++) {
             $os_detected,
             $confidence_data['score'],
             $confidence_data['sources'],
-            $conflict_detected
+            $conflict_detected,
+            $conflict_mac,
+            $conflict_details
         ]);
 
         if (!$existing) {

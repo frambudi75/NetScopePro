@@ -93,6 +93,8 @@ CREATE TABLE `ip_addresses` (
   `vendor` varchar(100) DEFAULT NULL,
   `os` varchar(100) DEFAULT NULL,
   `conflict_detected` tinyint(1) NOT NULL DEFAULT 0,
+  `conflict_mac` varchar(20) DEFAULT NULL,
+  `conflict_details` varchar(255) DEFAULT NULL,
   `confidence_score` tinyint(3) unsigned NOT NULL DEFAULT 0,
   `data_sources` varchar(100) DEFAULT NULL,
   `fail_count` int(11) NOT NULL DEFAULT 0,
