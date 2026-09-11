@@ -35,6 +35,7 @@ define('APP_AUTHOR_EMAIL', 'habibframbudi@gmail.com');
 define('APP_GITHUB', GITHUB_URL);
 define('APP_SAWERIA', 'https://saweria.co/Habibframbudi');
 define('APP_PAYPAL', 'https://paypal.me/habibframbudi');
+define('APP_QRIS_IMG', 'assets/img/qris_dana.png');
 
 $page_title = 'About';
 include 'includes/header.php';
@@ -58,6 +59,55 @@ include 'includes/header.php';
         gap: 1rem;
         justify-content: center;
         flex-wrap: wrap;
+    }
+    .qris-modal-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.78);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+    }
+    .qris-modal-backdrop.active {
+        display: flex;
+        opacity: 1;
+    }
+    .qris-modal-content {
+        background: var(--surface, #1e293b);
+        border: 1px solid var(--border, rgba(255,255,255,0.1));
+        border-radius: 20px;
+        width: 100%;
+        max-width: 420px;
+        padding: 1.75rem;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+        position: relative;
+        text-align: center;
+        transform: scale(0.94);
+        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .qris-modal-backdrop.active .qris-modal-content {
+        transform: scale(1);
+    }
+    .qris-img-wrapper {
+        background: #ffffff;
+        padding: 12px;
+        border-radius: 16px;
+        display: inline-block;
+        margin: 1rem 0;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    .qris-img-wrapper img {
+        max-width: 250px;
+        width: 100%;
+        height: auto;
+        display: block;
+        border-radius: 8px;
     }
     .changelog-item {
         display: flex;
@@ -206,8 +256,76 @@ include 'includes/header.php';
     <div class="support-btn-group">
         <a href="<?php echo APP_SAWERIA; ?>" target="_blank" class="btn btn-primary" style="padding: 12px 24px; font-weight: 700;">☕ Saweria (IDR)</a>
         <a href="<?php echo APP_PAYPAL; ?>" target="_blank" class="btn btn-secondary" style="padding: 12px 24px; font-weight: 700;">💳 PayPal (USD)</a>
+        <button type="button" onclick="openQrisModal()" class="btn" style="padding: 12px 24px; font-weight: 700; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 15px rgba(16,185,129,0.35);">
+            <i data-lucide="qr-code" style="width: 18px; height: 18px;"></i> 📱 QRIS / DANA
+        </button>
     </div>
 </div>
+
+<!-- QRIS DANA Modal -->
+<div id="qrisModal" class="qris-modal-backdrop" onclick="handleQrisBackdropClick(event)">
+    <div class="qris-modal-content">
+        <button type="button" onclick="closeQrisModal()" style="position: absolute; top: 1.25rem; right: 1.25rem; background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--text-muted); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+            <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+        </button>
+        
+        <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); border-radius: 12px; margin-bottom: 0.75rem; color: #10b981;">
+            <i data-lucide="qr-code" style="width: 26px; height: 26px;"></i>
+        </div>
+        
+        <h3 style="font-size: 1.25rem; font-weight: 800; color: white; margin-bottom: 0.25rem;">QRIS / DANA</h3>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Dukung pengembangan NetScope Pro via QRIS</p>
+        
+        <div class="qris-img-wrapper">
+            <img src="<?php echo APP_QRIS_IMG; ?>" alt="QRIS DANA Habib Frambudi" loading="lazy">
+        </div>
+        
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem; margin-bottom: 1rem;">
+            <span style="font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.2);">QRIS Standar</span>
+            <span style="font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(59,130,246,0.1); color: #60a5fa; border: 1px solid rgba(59,130,246,0.2);">DANA</span>
+            <span style="font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border);">GoPay</span>
+            <span style="font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border);">OVO</span>
+            <span style="font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border);">Mobile Banking</span>
+        </div>
+        
+        <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1.25rem;">
+            Buka aplikasi e-wallet atau mobile banking Anda, lalu scan kode QR di atas untuk mengirim donasi / dukungan.
+        </p>
+        
+        <div style="display: flex; gap: 0.75rem; justify-content: center;">
+            <a href="<?php echo APP_QRIS_IMG; ?>" download="QRIS_DANA_HabibFrambudi.png" class="btn" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border); font-size: 0.8rem; padding: 8px 16px; color: white; display: inline-flex; align-items: center; gap: 0.4rem;">
+                <i data-lucide="download" style="width: 15px; height: 15px;"></i> Simpan Gambar
+            </a>
+            <button type="button" onclick="closeQrisModal()" class="btn" style="background: var(--surface-light); border: 1px solid var(--border); font-size: 0.8rem; padding: 8px 16px; color: var(--text-muted);">
+                Tutup
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openQrisModal() {
+    const m = document.getElementById('qrisModal');
+    if (!m) return;
+    m.style.display = 'flex';
+    setTimeout(() => m.classList.add('active'), 10);
+    if (window.lucide) lucide.createIcons();
+}
+function closeQrisModal() {
+    const m = document.getElementById('qrisModal');
+    if (!m) return;
+    m.classList.remove('active');
+    setTimeout(() => m.style.display = 'none', 250);
+}
+function handleQrisBackdropClick(e) {
+    if (e.target.id === 'qrisModal') {
+        closeQrisModal();
+    }
+}
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeQrisModal();
+});
+</script>
 
 <!-- Changelog Preview -->
 <div class="card">
