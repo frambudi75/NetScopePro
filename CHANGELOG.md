@@ -2,6 +2,16 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.27.0] - 2026-09-11
+### Added
+- **L2 Switching Loop Detection Engine**: Automated discovery of network loops in `cron_switch_poll.php` by analyzing Spanning Tree Protocol (STP) blocked ports and rapid MAC address thrashing (flapping) between physical ports on the same switch.
+- **L2 Loop & STP Stability Diagnostic Prober**: New interactive diagnostic tool in `tools.php` (`action=loop`) that runs multi-phase diagnostic probes on switches (STP configuration, Root Bridge election, Port Forwarding vs. Blocking states, TCN rate, and FDB MAC distributions).
+- **Spanning Tree (STP / RSTP) State Discovery**: Added SNMP discovery for `dot1dStp` MIB (protocol specification, root cost, time since topology change, and per-port STP operational states: disabled, blocking, listening, learning, forwarding).
+- **Dashboard NOC Switching Loop Alert Banner**: Added high-priority banner in `index.php` that immediately alerts network operations of active switching loops or STP blocked ports with one-click direct diagnostics.
+- **Switch Management Loop Indicators**: Enhanced `switches.php` cards with active loop warning badges, STP protocol tags (e.g. `RSTP`, `STP`), and direct loop probe shortcuts.
+- **Switch Port Mapping STP Badges**: Updated `switch-details.php` with STP & Topology Stability sidebar card and per-port `STP: FWD` / `🚫 BLOCKING` status badges to identify ports actively preventing network loops.
+- **Database Schema Expansion**: Added `stp_enabled`, `stp_protocol`, `loop_detected`, `loop_details`, `stp_topology_changes` to `switches` table and `stp_state` to `switch_port_map` with idempotent auto-migration in `includes/db.php` and `includes/db_upgrade.php`.
+
 ## [2.26.0] - 2026-09-11
 ### Added
 - **IP Conflict Detection Engine**: Real-time identification of IP collisions and MAC flapping in `api/scan.php` and `scanner_worker.php`.

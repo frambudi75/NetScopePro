@@ -384,6 +384,56 @@ foreach ($switches as $switch) {
             }
             // If none found, will use normalized fallback later
         }
+
+        // 5.5 Poll Spanning Tree Protocol (STP) & Loop Protection Status
+        echo "  Polling Spanning Tree (STP) & Loop Status...\n";
+        $stp_proto_raw = @snmp2_get($ip, $community, ".1.3.6.1.2.1.17.2.1.0");
+        $stp_protocol = 'none';
+        $stp_enabled = 0;
+        if ($stp_proto_raw !== false) {
+            $stp_proto_val = (int)trim(str_replace(['INTEGER: ', '"'], '', $stp_proto_raw));
+            $stp_protocol = match($stp_proto_val) {
+                2 => 'decLb100',
+                3 => 'STP (802.1D)',
+                4 => 'RSTP (802.1w)',
+                default => 'enabled'
+            };
+            $stp_enabled = 1;
+        }
+
+        $stp_top_changes_raw = @snmp2_get($ip, $community, ".1.3.6.1.2.1.17.2.4.0");
+        $stp_top_changes = ($stp_top_changes_raw !== false) ? (int)trim(str_replace(['INTEGER: ', 'Counter32: '], '', $stp_top_changes_raw)) : 0;
+
+        // Poll STP Port States: .1.3.6.1.2.1.17.2.15.1.3 (1=disabled, 2=blocking, 3=listening, 4=learning, 5=forwarding, 6=broken)
+        $stp_port_states_raw = @snmprealwalk($ip, $community, ".1.3.6.1.2.1.17.2.15.1.3");
+        $stp_port_states_by_bport = [];
+        $stp_state_by_port_name = [];
+        if ($stp_port_states_raw && is_array($stp_port_states_raw)) {
+            foreach ($stp_port_states_raw as $oid => $val) {
+                $parts = explode('.', $oid);
+                $bport = end($parts);
+                $s_int = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
+                $s_name = match($s_int) {
+                    1 => 'disabled',
+                    2 => 'blocking',
+                    3 => 'listening',
+                    4 => 'learning',
+                    5 => 'forwarding',
+                    6 => 'broken',
+                    default => 'unknown'
+                };
+                $stp_port_states_by_bport[$bport] = $s_name;
+
+                $b_ifindex = $ifindex_map[$bport] ?? $bport;
+                $b_raw = $name_map[$b_ifindex] ?? null;
+                $b_norm = normalize_port_name($b_raw, $bport, $b_ifindex, $system_info);
+                $stp_state_by_port_name[$b_norm] = $s_name;
+                if ($s_name === 'blocking') {
+                    $stp_blocked_ports[$b_norm] = $b_norm;
+                }
+            }
+        }
+        echo "    STP: $stp_protocol, Topology Changes: $stp_top_changes\n";
         
         // 6. Get FDB table (MAC to Bridge Port + VLAN)
         // Detect if this is an Alcatel switch (flat bridge mode)
@@ -434,6 +484,16 @@ foreach ($switches as $switch) {
             }
             $is_vlan_aware = false; // Use dot1d parsing but with tagged VLANs
         }
+
+        // Cache existing MAC locations to track MAC Flapping (L2 loop indicator)
+        $existing_mac_ports = [];
+        try {
+            $prev_stmt = $db->prepare("SELECT mac_addr, port_name FROM switch_port_map WHERE switch_id = ? AND mac_addr NOT LIKE 'PORT:%'");
+            $prev_stmt->execute([$switch['id']]);
+            $existing_mac_ports = $prev_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        } catch (Exception $e) {}
+
+        $mac_flaps = [];
 
         if ($fdb_table) {
             $discovered_count = 0;
@@ -506,6 +566,21 @@ foreach ($switches as $switch) {
                 $raw_name = $name_map[$ifindex] ?? null;
                 $port_name = normalize_port_name($raw_name, $bridge_port, $ifindex, $system_info);
                 
+                // Track MAC Flapping on this switch
+                if (isset($existing_mac_ports[$mac_addr]) && $existing_mac_ports[$mac_addr] !== $port_name) {
+                    $mac_flaps[] = [
+                        'mac' => $mac_addr,
+                        'from' => $existing_mac_ports[$mac_addr],
+                        'to' => $port_name
+                    ];
+                }
+
+                // Get STP state for this bridge port
+                $port_stp_state = $stp_port_states_by_bport[$bridge_port] ?? null;
+                if ($port_stp_state === 'blocking') {
+                    $stp_blocked_ports[$port_name] = $port_name;
+                }
+
                 // Get interface status for this port
                 $port_status = null;
                 if ($ifindex && isset($oper_status_map[$ifindex])) {
@@ -543,8 +618,8 @@ foreach ($switches as $switch) {
                 $port_alias = $name_map_ifalias[$ifindex] ?? null;
                 
                 if ($mac_addr && $port_name) {
-                    $stmt = $db->prepare("INSERT INTO switch_port_map (mac_addr, switch_id, port_name, vlan_id, vlan_name, port_status, port_type, port_speed, port_alias) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE port_name = VALUES(port_name), vlan_id = VALUES(vlan_id), vlan_name = VALUES(vlan_name), port_status = VALUES(port_status), port_type = VALUES(port_type), port_speed = VALUES(port_speed), port_alias = VALUES(port_alias), updated_at = CURRENT_TIMESTAMP");
-                    $stmt->execute([$mac_addr, $switch['id'], $port_name, $vlan_id, $vlan_name, $port_status, $port_type, $port_speed, $port_alias]);
+                    $stmt = $db->prepare("INSERT INTO switch_port_map (mac_addr, switch_id, port_name, vlan_id, vlan_name, port_status, stp_state, port_type, port_speed, port_alias) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE port_name = VALUES(port_name), vlan_id = VALUES(vlan_id), vlan_name = VALUES(vlan_name), port_status = VALUES(port_status), stp_state = VALUES(stp_state), port_type = VALUES(port_type), port_speed = VALUES(port_speed), port_alias = VALUES(port_alias), updated_at = CURRENT_TIMESTAMP");
+                    $stmt->execute([$mac_addr, $switch['id'], $port_name, $vlan_id, $vlan_name, $port_status, $port_stp_state, $port_type, $port_speed, $port_alias]);
                     $discovered_count++;
 
                     // Save all tagged VLANs for this port
@@ -559,9 +634,31 @@ foreach ($switches as $switch) {
                 }
             }
             
-            $db->prepare("UPDATE switches SET last_poll = CURRENT_TIMESTAMP WHERE id = ?")->execute([$switch['id']]);
+            // Assess Loop Condition
+            $loop_detected = 0;
+            $loop_details = null;
+            if (!empty($stp_blocked_ports)) {
+                $loop_detected = 1;
+                $loop_details = "STP Loop Prevention Active: Port(s) " . implode(', ', $stp_blocked_ports) . " in BLOCKING state to prevent switching loop";
+                echo "  ⚠️ [STP LOOP MITIGATED]: $loop_details\n";
+            } elseif (count($mac_flaps) >= 3) {
+                $pair_counts = [];
+                foreach ($mac_flaps as $mf) {
+                    $pair = $mf['from'] . ' <-> ' . $mf['to'];
+                    $pair_counts[$pair] = ($pair_counts[$pair] ?? 0) + 1;
+                }
+                arsort($pair_counts);
+                $top_pair = array_key_first($pair_counts);
+                $loop_detected = 1;
+                $loop_details = "L2 Loop Warning: Rapid MAC flapping (" . count($mac_flaps) . " flaps) between " . $top_pair;
+                echo "  ⚠️ [L2 LOOP WARNING]: $loop_details\n";
+            }
+
+            $db->prepare("UPDATE switches SET last_poll = CURRENT_TIMESTAMP, stp_enabled = ?, stp_protocol = ?, loop_detected = ?, loop_details = ?, stp_topology_changes = ? WHERE id = ?")
+               ->execute([$stp_enabled, $stp_protocol, $loop_detected, $loop_details, $stp_top_changes, $switch['id']]);
+
             echo "Discovered $discovered_count MAC-Port mappings (VLAN ".($is_vlan_aware ? "ON" : "OFF").") on {$switch['name']}.\n";
-            AuditLogHelper::log("poll_switch", "switch", $switch['id'], "Discovered $discovered_count mappings on {$switch['name']}");
+            AuditLogHelper::log("poll_switch", "switch", $switch['id'], "Discovered $discovered_count mappings on {$switch['name']}" . ($loop_detected ? " | LOOP ALERT: $loop_details" : ""));
         }
     } else {
         echo "Note: Bridge port mapping (L2) not supported on {$ip}. Skipping L2, proceeding to L3 ARP...\n";
@@ -629,16 +726,18 @@ foreach ($switches as $switch) {
             $stmt_check->execute([$switch['id'], $name]);
             $existing_port_id = $stmt_check->fetchColumn();
 
+            $port_stp = $stp_state_by_port_name[$name] ?? null;
+
             if ($existing_port_id) {
-                // Update existing port (from FDB or previous run) with SFP and status data
-                $db->prepare("UPDATE switch_port_map SET port_status=?, port_type=?, port_speed=?, sfp_vendor=?, sfp_part=?, sfp_serial=?, sfp_rx_power=?, sfp_tx_power=? WHERE id=?")
-                   ->execute([$status, $type, $speed, $sfp['vendor'], $sfp['part'], $sfp['serial'], $sfp['rx_power'], $sfp['tx_power'], $existing_port_id]);
+                // Update existing port (from FDB or previous run) with SFP, STP, and status data
+                $db->prepare("UPDATE switch_port_map SET port_status=?, stp_state=COALESCE(?, stp_state), port_type=?, port_speed=?, sfp_vendor=?, sfp_part=?, sfp_serial=?, sfp_rx_power=?, sfp_tx_power=? WHERE id=?")
+                   ->execute([$status, $port_stp, $type, $speed, $sfp['vendor'], $sfp['part'], $sfp['serial'], $sfp['rx_power'], $sfp['tx_power'], $existing_port_id]);
             } else {
                 // Insert placeholder entry for the port itself (without a real MAC)
                 // Use a dummy MAC to avoid unique constraint violations on empty strings
                 $dummy_mac = 'PORT:' . substr($name, 0, 12);
-                $db->prepare("INSERT IGNORE INTO switch_port_map (mac_addr, switch_id, port_name, port_status, port_type, port_speed, sfp_vendor, sfp_part, sfp_serial, sfp_rx_power, sfp_tx_power) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                   ->execute([$dummy_mac, $switch['id'], $name, $status, $type, $speed, $sfp['vendor'], $sfp['part'], $sfp['serial'], $sfp['rx_power'], $sfp['tx_power']]);
+                $db->prepare("INSERT IGNORE INTO switch_port_map (mac_addr, switch_id, port_name, port_status, stp_state, port_type, port_speed, sfp_vendor, sfp_part, sfp_serial, sfp_rx_power, sfp_tx_power) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                   ->execute([$dummy_mac, $switch['id'], $name, $status, $port_stp, $type, $speed, $sfp['vendor'], $sfp['part'], $sfp['serial'], $sfp['rx_power'], $sfp['tx_power']]);
             }
 
             // --- Traffic BPS Calculation ---

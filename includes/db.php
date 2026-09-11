@@ -308,6 +308,37 @@ function run_auto_migrations($db) {
                 ADD COLUMN sfp_tx_power VARCHAR(50) DEFAULT NULL
             ");
         }
+        if (!in_array('stp_state', $spm_cols)) {
+            $db->exec("ALTER TABLE switch_port_map ADD COLUMN stp_state VARCHAR(30) DEFAULT NULL AFTER port_status");
+        }
+    } catch (Exception $e) {}
+
+    // 20. Switch STP & Loop Detection Columns
+    try {
+        $sw_cols = $db->query("SHOW COLUMNS FROM switches")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('stp_enabled', $sw_cols)) {
+            $db->exec("ALTER TABLE switches ADD COLUMN stp_enabled TINYINT(1) DEFAULT 0");
+        }
+        if (!in_array('stp_protocol', $sw_cols)) {
+            $db->exec("ALTER TABLE switches ADD COLUMN stp_protocol VARCHAR(50) DEFAULT NULL");
+        }
+        if (!in_array('loop_detected', $sw_cols)) {
+            $db->exec("ALTER TABLE switches ADD COLUMN loop_detected TINYINT(1) DEFAULT 0");
+        }
+        if (!in_array('loop_details', $sw_cols)) {
+            $db->exec("ALTER TABLE switches ADD COLUMN loop_details VARCHAR(255) DEFAULT NULL");
+        }
+        if (!in_array('stp_topology_changes', $sw_cols)) {
+            $db->exec("ALTER TABLE switches ADD COLUMN stp_topology_changes INT DEFAULT 0");
+        }
+    } catch (Exception $e) {}
+
+    // 21. Auto-heal legacy false-positive OS conflicts caused by old Nmap single-string parser
+    try {
+        $db->exec("UPDATE ip_addresses 
+            SET conflict_detected = 0, conflict_mac = NULL, conflict_details = NULL 
+            WHERE conflict_details LIKE 'Multi-OS Discrepancy: Conflicting OS fingerprints%'
+        ");
     } catch (Exception $e) {}
 }
 }

@@ -435,6 +435,7 @@ CREATE TABLE `switch_port_map` (
   `vlan_id` int(11) DEFAULT NULL,
   `vlan_name` varchar(100) DEFAULT NULL,
   `port_status` varchar(20) DEFAULT NULL,
+  `stp_state` varchar(30) DEFAULT NULL,
   `port_type` varchar(30) DEFAULT NULL,
   `port_speed` varchar(10) DEFAULT NULL,
   `port_alias` varchar(200) DEFAULT NULL,
@@ -484,6 +485,11 @@ CREATE TABLE `switches` (
   `total_ports` int(11) DEFAULT 0,
   `active_ports` int(11) DEFAULT 0,
   `parent_switch_id` int(11) DEFAULT NULL,
+  `stp_enabled` tinyint(1) DEFAULT 0,
+  `stp_protocol` varchar(50) DEFAULT NULL,
+  `loop_detected` tinyint(1) DEFAULT 0,
+  `loop_details` varchar(255) DEFAULT NULL,
+  `stp_topology_changes` int(11) DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;

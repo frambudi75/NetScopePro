@@ -435,6 +435,24 @@ function nmap_fingerprint_os($ip) {
 }
 
 /**
+ * Classify an OS fingerprint string into a broad family.
+ * Used to compare scans: only flag conflict when families truly differ
+ * (e.g. Windows vs Linux), not when Nmap gives multiple Linux-based guesses.
+ */
+function get_os_family($os_string) {
+    $os = strtolower($os_string);
+    if (strpos($os, 'windows') !== false) return 'windows';
+    if (strpos($os, 'mikrotik') !== false || strpos($os, 'routeros') !== false) return 'linux';
+    if (strpos($os, 'openwrt') !== false) return 'linux';
+    if (strpos($os, 'linux') !== false) return 'linux';
+    if (strpos($os, 'freebsd') !== false || strpos($os, 'openbsd') !== false) return 'bsd';
+    if (strpos($os, 'ios') !== false || strpos($os, 'cisco') !== false) return 'cisco';
+    if (strpos($os, 'junos') !== false || strpos($os, 'juniper') !== false) return 'juniper';
+    if (strpos($os, 'mac os') !== false || strpos($os, 'macos') !== false || strpos($os, 'darwin') !== false) return 'macos';
+    return 'unknown';
+}
+
+/**
  * FAST host detection optimized for Web UI scanning.
  * Uses short-circuit logic: ARP-first, then ping, then minimal port scan.
  * Avoids redundant ARP refreshes (caller provides pre-seeded map).

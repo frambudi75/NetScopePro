@@ -113,6 +113,13 @@ for ($i = $start_long; $i <= $end_long; $i++) {
         $conflict_mac = $existing['conflict_mac'] ?? null;
         $conflict_details = $existing['conflict_details'] ?? null;
 
+        // Auto-heal legacy false-positive OS conflicts
+        if (!empty($conflict_details) && strpos($conflict_details, 'Conflicting OS fingerprints') !== false) {
+            $conflict_detected = 0;
+            $conflict_mac = null;
+            $conflict_details = null;
+        }
+
         // 1. MAC Flapping Detection
         if ($existing && !empty($existing['mac_addr']) && !empty($new_mac)) {
             if (strtolower(trim($existing['mac_addr'])) !== strtolower(trim($new_mac))) {
@@ -140,18 +147,17 @@ for ($i = $start_long; $i <= $end_long; $i++) {
             }
         }
 
-        // 2. Multi-OS collision detection (e.g. MikroTik + OpenWrt/Linux VM answering on same IP)
-        $check_os = $os_detected ?: ($existing['os'] ?? '');
-        if (!empty($check_os) && $check_os !== 'Unknown') {
-            $has_mikrotik = (stripos($check_os, 'MikroTik') !== false || stripos($check_os, 'RouterOS') !== false);
-            $has_openwrt = (stripos($check_os, 'OpenWrt') !== false);
-            $has_windows = (stripos($check_os, 'Windows') !== false);
-            $has_linux_pc = (stripos($check_os, 'Linux') !== false && !$has_mikrotik && !$has_openwrt);
-            $os_count = ($has_mikrotik ? 1 : 0) + ($has_openwrt ? 1 : 0) + ($has_windows ? 1 : 0) + ($has_linux_pc ? 1 : 0);
-            if ($os_count >= 2) {
+        // 2. Multi-OS collision detection: compare PREVIOUS os vs CURRENT os
+        //    Only flag if both are known and belong to fundamentally different OS families
+        $prev_os = ($existing['os'] ?? '');
+        $curr_os = $os_detected ?: '';
+        if (!empty($prev_os) && $prev_os !== 'Unknown' && !empty($curr_os) && $curr_os !== 'Unknown') {
+            $prev_family = get_os_family($prev_os);
+            $curr_family = get_os_family($curr_os);
+            if ($prev_family !== $curr_family && $prev_family !== 'unknown' && $curr_family !== 'unknown') {
                 $conflict_detected = 1;
                 if (empty($conflict_details)) {
-                    $conflict_details = "Multi-OS Discrepancy: Conflicting OS fingerprints ($check_os)";
+                    $conflict_details = "Multi-OS Discrepancy: $prev_os → $curr_os";
                 }
             }
         }
@@ -167,9 +173,9 @@ for ($i = $start_long; $i <= $end_long; $i++) {
                 state = 'active',
                 confidence_score = VALUES(confidence_score),
                 data_sources = VALUES(data_sources),
-                conflict_detected = IF(VALUES(conflict_detected) = 1, 1, conflict_detected),
-                conflict_mac = IF(VALUES(conflict_mac) IS NOT NULL, VALUES(conflict_mac), conflict_mac),
-                conflict_details = IF(VALUES(conflict_details) IS NOT NULL, VALUES(conflict_details), conflict_details),
+                conflict_detected = VALUES(conflict_detected),
+                conflict_mac = VALUES(conflict_mac),
+                conflict_details = VALUES(conflict_details),
                 fail_count = 0,
                 last_seen = CURRENT_TIMESTAMP
         ");

@@ -80,10 +80,34 @@ include 'includes/header.php';
                 <h3 style="font-size: 1.125rem;"><?php echo htmlspecialchars($switch['name']); ?></h3>
                 <code style="color: var(--primary);"><?php echo htmlspecialchars($switch['ip_addr']); ?></code>
             </div>
-            <span style="background: rgba(59, 130, 246, 0.1); color: var(--primary); padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700;">
-                SNMP <?php echo strtoupper($switch['snmp_version']); ?>
-            </span>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end;">
+                <?php if (!empty($switch['loop_detected'])): ?>
+                <span style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 800; display: flex; align-items: center; gap: 3px;">
+                    <i data-lucide="alert-triangle" style="width: 10px; height: 10px;"></i> LOOP ALERT
+                </span>
+                <?php endif; ?>
+                <?php if (!empty($switch['stp_enabled'])): ?>
+                <span style="background: rgba(16, 185, 129, 0.15); color: var(--success); padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 700;" title="Spanning Tree Protocol">
+                    <?php echo htmlspecialchars($switch['stp_protocol'] ?: 'STP'); ?>
+                </span>
+                <?php endif; ?>
+                <span style="background: rgba(59, 130, 246, 0.1); color: var(--primary); padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700;">
+                    SNMP <?php echo strtoupper($switch['snmp_version']); ?>
+                </span>
+            </div>
         </div>
+
+        <?php if (!empty($switch['loop_detected'])): ?>
+            <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 1rem; display: flex; align-items: flex-start; gap: 8px;">
+                <i data-lucide="alert-triangle" style="width: 16px; height: 16px; color: #ef4444; flex-shrink: 0; margin-top: 2px;"></i>
+                <div style="font-size: 0.75rem; color: #f87171; line-height: 1.4;">
+                    <strong>Loop / STP Alert:</strong> <?php echo htmlspecialchars($switch['loop_details'] ?: 'Looping condition detected'); ?>
+                    <div style="margin-top: 4px;">
+                        <a href="tools?action=loop&target=<?php echo urlencode($switch['ip_addr']); ?>" style="color: #60a5fa; text-decoration: underline; font-weight: 600;">Diagnosa Loop &amp; STP &rarr;</a>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
         
         <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.5rem; background: rgba(0,0,0,0.05); padding: 0.75rem; border-radius: 8px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
@@ -123,9 +147,12 @@ include 'includes/header.php';
             <button class="btn btn-primary" style="flex: 1; font-size: 0.75rem;" onclick="location.href='switch-details?id=<?php echo $switch['id']; ?>'">
                 <i data-lucide="eye" style="width: 14px; margin-right: 4px;"></i> Details
             </button>
+            <button class="btn" style="background: var(--surface-light); font-size: 0.75rem;" title="Diagnosa Looping L2" onclick="location.href='tools?action=loop&target=<?php echo urlencode($switch['ip_addr']); ?>'">
+                <i data-lucide="refresh-cw" style="width: 14px;"></i>
+            </button>
             <?php if (is_admin()): ?>
-            <button class="btn" style="background: var(--surface-light); font-size: 0.75rem;" onclick="location.href='cron_switch_poll?id=<?php echo $switch['id']; ?>'">
-                <i data-lucide="refresh-cw" style="width: 14px;"></i> Poll
+            <button class="btn" style="background: var(--surface-light); font-size: 0.75rem;" title="Force Poll" onclick="location.href='cron_switch_poll?id=<?php echo $switch['id']; ?>'">
+                <i data-lucide="play" style="width: 14px;"></i>
             </button>
             <form action="" method="POST" onsubmit="return confirm('Remove this switch?');">
                 <input type="hidden" name="id" value="<?php echo $switch['id']; ?>">
