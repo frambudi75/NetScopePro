@@ -166,27 +166,51 @@ try {
             ]);
 
             // Database Persistence
-            $stmt = $db->prepare("SELECT state, mac_addr FROM ip_addresses WHERE subnet_id = ? AND ip_addr = ?");
+            $stmt = $db->prepare("SELECT state, mac_addr, vendor, os, conflict_detected, conflict_mac, conflict_details FROM ip_addresses WHERE subnet_id = ? AND ip_addr = ?");
             $stmt->execute([$subnet_id, $ip]);
             $current_data = $stmt->fetch();
 
-            $conflict_detected = 0;
+            $conflict_detected = (int)($current_data['conflict_detected'] ?? 0);
+            $conflict_mac = $current_data['conflict_mac'] ?? null;
+            $conflict_details = $current_data['conflict_details'] ?? null;
+
             if (!$current_data) {
                 try { NotificationHelper::notifyNewDevice($ip, $mac, $vendor, $hostname, $subnet['subnet']); } catch (Exception $e) {}
-            } elseif ($current_data['mac_addr'] && $mac && $current_data['mac_addr'] !== $mac) {
+            } elseif ($current_data['mac_addr'] && $mac && strtolower(trim($current_data['mac_addr'])) !== strtolower(trim($mac))) {
                 $conflict_detected = 1;
+                $conflict_mac = $current_data['mac_addr'];
+                $old_vendor = $current_data['vendor'] ?? 'Unknown';
+                $conflict_details = "MAC Flapping: " . $current_data['mac_addr'] . " (" . $old_vendor . ") vs " . $mac . " (" . $vendor . ")";
                 try { NotificationHelper::notifyConflict($ip, $current_data['mac_addr'], $mac, $subnet['subnet']); } catch (Exception $e) {}
             }
 
+            // Multi-OS conflict detection
+            $check_os = $os ?: ($current_data['os'] ?? '');
+            if (!empty($check_os) && $check_os !== 'Unknown') {
+                $has_mikrotik = (stripos($check_os, 'MikroTik') !== false || stripos($check_os, 'RouterOS') !== false);
+                $has_openwrt = (stripos($check_os, 'OpenWrt') !== false);
+                $has_windows = (stripos($check_os, 'Windows') !== false);
+                $has_linux_pc = (stripos($check_os, 'Linux') !== false && !$has_mikrotik && !$has_openwrt);
+                $os_count = ($has_mikrotik ? 1 : 0) + ($has_openwrt ? 1 : 0) + ($has_windows ? 1 : 0) + ($has_linux_pc ? 1 : 0);
+                if ($os_count >= 2) {
+                    $conflict_detected = 1;
+                    if (empty($conflict_details)) {
+                        $conflict_details = "Multi-OS Discrepancy: Conflicting OS fingerprints ($check_os)";
+                    }
+                }
+            }
+
             $stmt = $db->prepare("
-                INSERT INTO ip_addresses (subnet_id, ip_addr, hostname, mac_addr, vendor, os, conflict_detected, description, state, last_seen, confidence_score, data_sources) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, ?, ?)
+                INSERT INTO ip_addresses (subnet_id, ip_addr, hostname, mac_addr, vendor, os, conflict_detected, conflict_mac, conflict_details, description, state, last_seen, confidence_score, data_sources) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, ?, ?)
                 ON DUPLICATE KEY UPDATE 
                     hostname = IF(VALUES(hostname) != '', VALUES(hostname), hostname),
                     mac_addr = IF(VALUES(mac_addr) != '', VALUES(mac_addr), mac_addr),
                     vendor = IF(VALUES(vendor) != '', VALUES(vendor), vendor),
                     os = IF(VALUES(os) != '', VALUES(os), os),
-                    conflict_detected = VALUES(conflict_detected),
+                    conflict_detected = IF(VALUES(conflict_detected) = 1, 1, conflict_detected),
+                    conflict_mac = IF(VALUES(conflict_mac) IS NOT NULL, VALUES(conflict_mac), conflict_mac),
+                    conflict_details = IF(VALUES(conflict_details) IS NOT NULL, VALUES(conflict_details), conflict_details),
                     description = IF(VALUES(description) != '', VALUES(description), description),
                     confidence_score = VALUES(confidence_score),
                     data_sources = VALUES(data_sources),
@@ -194,7 +218,7 @@ try {
                     last_seen = CURRENT_TIMESTAMP,
                     fail_count = 0
             ");
-            $stmt->execute([$subnet_id, $ip, $hostname, $mac, $vendor, $os, $conflict_detected, $description, $confidence['score'], $confidence['sources']]);
+            $stmt->execute([$subnet_id, $ip, $hostname, $mac, $vendor, $os, $conflict_detected, $conflict_mac, $conflict_details, $description, $confidence['score'], $confidence['sources']]);
             
             $results['ips'][] = ['ip' => $ip, 'state' => 'active', 'hostname' => $hostname, 'mac' => $mac];
         } else {

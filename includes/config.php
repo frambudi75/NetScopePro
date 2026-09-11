@@ -6,7 +6,7 @@ ob_start();
 
 // Auto-Detection for Docker Environment
 if (getenv('DOCKER_ENV') === '1') {
-    require_once 'config.docker.php';
+    require_once __DIR__ . '/config.docker.php';
 } else {
     // Database Configuration (Default for XAMPP / Local)
     define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
@@ -18,13 +18,17 @@ if (getenv('DOCKER_ENV') === '1') {
 if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
 }
-require_once 'version.php';
-require_once 'settings.helper.php';
-require_once 'updater.php';
+require_once __DIR__ . '/version.php';
+require_once __DIR__ . '/settings.helper.php';
+require_once __DIR__ . '/updater.php';
 
 // Regional Settings
 date_default_timezone_set('Asia/Jakarta');
-putenv("MIBDIRS=C:/xampp/php/extras/mibs");
+if (is_dir('D:/xampp/php/extras/mibs')) {
+    putenv("MIBDIRS=D:/xampp/php/extras/mibs");
+} elseif (is_dir('C:/xampp/php/extras/mibs')) {
+    putenv("MIBDIRS=C:/xampp/php/extras/mibs");
+}
 
 // Dynamic Configuration from Database
 define('DISCOVERY_AGGRESSIVE_MODE', Settings::enabled('discovery_aggressive'));
@@ -34,7 +38,7 @@ define('MASSCAN_RATE', max(100, (int)Settings::get('masscan_rate', 1000)));
 
 // Application Configuration
 if (!defined('APP_NAME')) define('APP_NAME', 'NetScope Pro');
-if (!defined('APP_URL')) define('APP_URL', getenv('APP_URL') ?: 'http://localhost/netscope');
+if (!defined('APP_URL')) define('APP_URL', getenv('APP_URL') ?: 'http://localhost/netscopepro');
 if (!defined('ENCRYPTION_KEY')) define('ENCRYPTION_KEY', '27ffed91f93d4e8eaf12a66852b4a156');
 if (!defined('DEVELOPER_EMAIL')) define('DEVELOPER_EMAIL', 'frambudihabib@gmail.com');
 

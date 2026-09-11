@@ -37,6 +37,16 @@ try {
         echo "Table 'netwatch' created successfully.\n";
     }
 
+    // Check and update `ip_addresses` conflict tracking columns
+    $hasConflictMac = $db->query("SHOW COLUMNS FROM `ip_addresses` LIKE 'conflict_mac'")->rowCount();
+    if ($hasConflictMac === 0) {
+        echo "Updating ip_addresses table with conflict tracking columns...\n";
+        $db->exec("ALTER TABLE `ip_addresses` 
+            ADD COLUMN `conflict_mac` VARCHAR(20) DEFAULT NULL AFTER `conflict_detected`,
+            ADD COLUMN `conflict_details` VARCHAR(255) DEFAULT NULL AFTER `conflict_mac`");
+        echo "Added conflict_mac and conflict_details to ip_addresses.\n";
+    }
+
     // --- Switch SNMP Port Monitoring Updates ---
     
     // Check and update `switch_port_map` columns

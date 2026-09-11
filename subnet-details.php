@@ -52,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_ip']) && is_ad
     $state = $_POST['state'] ?? 'active';
     $asset_tag = $_POST['asset_tag'] ?? null;
     $owner = $_POST['owner'] ?? null;
+    $resolve_conflict = isset($_POST['resolve_conflict']) && $_POST['resolve_conflict'] == '1';
 
     // Fetch old info for logging
     $stmt = $db->prepare("SELECT * FROM ip_addresses WHERE subnet_id = ? AND ip_addr = ?");
@@ -59,8 +60,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_ip']) && is_ad
     $old_info = $stmt->fetch();
 
     try {
-        $stmt = $db->prepare("INSERT INTO ip_addresses (subnet_id, ip_addr, description, hostname, state, asset_tag, owner) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE description=VALUES(description), hostname=VALUES(hostname), state=VALUES(state), asset_tag=VALUES(asset_tag), owner=VALUES(owner)");
-        $stmt->execute([$subnet_id, $ip_addr, $description, $hostname, $state, $asset_tag, $owner]);
+        if ($resolve_conflict) {
+            $stmt = $db->prepare("INSERT INTO ip_addresses (subnet_id, ip_addr, description, hostname, state, asset_tag, owner, conflict_detected, conflict_mac, conflict_details) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL) ON DUPLICATE KEY UPDATE description=VALUES(description), hostname=VALUES(hostname), state=VALUES(state), asset_tag=VALUES(asset_tag), owner=VALUES(owner), conflict_detected=0, conflict_mac=NULL, conflict_details=NULL");
+            $stmt->execute([$subnet_id, $ip_addr, $description, $hostname, $state, $asset_tag, $owner]);
+        } else {
+            $stmt = $db->prepare("INSERT INTO ip_addresses (subnet_id, ip_addr, description, hostname, state, asset_tag, owner) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE description=VALUES(description), hostname=VALUES(hostname), state=VALUES(state), asset_tag=VALUES(asset_tag), owner=VALUES(owner)");
+            $stmt->execute([$subnet_id, $ip_addr, $description, $hostname, $state, $asset_tag, $owner]);
+        }
         
         // Log the change
         $new_info = ['hostname' => $hostname, 'description' => $description, 'state' => $state, 'asset_tag' => $asset_tag, 'owner' => $owner];
@@ -287,6 +293,7 @@ include 'includes/header.php';
                     $tooltip = $ip . " | " . strtoupper($cell_state);
                     if ($info['hostname']) $tooltip .= " | " . $info['hostname'];
                     if ($info['mac_addr']) $tooltip .= " | " . $info['mac_addr'];
+                    if (($info['conflict_detected'] ?? 0) == 1) $tooltip .= " | ⚠️ CONFLICT: " . ($info['conflict_details'] ?: 'MAC or OS discrepancy');
                     if ($info['last_seen']) $tooltip .= " | Last: " . time_ago($info['last_seen']);
                     
                     if ($info['state'] == 'active') { 
@@ -305,13 +312,14 @@ include 'includes/header.php';
                     $seen_ts = strtotime($info['last_seen']);
                     $is_new = (time() - $seen_ts) < 1800; // 30 min
                 }
+                $js_conflict_details = htmlspecialchars(addslashes($info['conflict_details'] ?? ''), ENT_QUOTES);
             ?>
             <div 
                 class="grid-cell"
                 data-state="<?php echo $cell_state; ?>"
                 data-ip="<?php echo $ip; ?>"
                 <?php if (is_admin()): ?>
-                onclick="openEditModal('<?php echo $ip; ?>', '<?php echo $info['hostname'] ?? ''; ?>', '<?php echo $info['description'] ?? ''; ?>', '<?php echo $info['state'] ?? 'active'; ?>', '<?php echo $info['asset_tag'] ?? ''; ?>', '<?php echo $info['owner'] ?? ''; ?>')"
+                onclick="openEditModal('<?php echo $ip; ?>', '<?php echo $info['hostname'] ?? ''; ?>', '<?php echo $info['description'] ?? ''; ?>', '<?php echo $info['state'] ?? 'active'; ?>', '<?php echo $info['asset_tag'] ?? ''; ?>', '<?php echo $info['owner'] ?? ''; ?>', <?php echo (int)($info['conflict_detected'] ?? 0); ?>, '<?php echo $js_conflict_details; ?>')"
                 style="aspect-ratio: 1; background: <?php echo $bg; ?>; border: 1px solid <?php echo $border; ?>; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: <?php echo $color; ?>; opacity: <?php echo $info ? '1' : '0.4'; ?>; position: relative;"
                 <?php else: ?>
                 style="aspect-ratio: 1; background: <?php echo $bg; ?>; border: 1px solid <?php echo $border; ?>; border-radius: 6px; cursor: default; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: <?php echo $color; ?>; opacity: <?php echo $info ? '1' : '0.4'; ?>; position: relative;"
@@ -403,12 +411,14 @@ include 'includes/header.php';
                         </td>
                         <td style="padding: 1rem;">
                             <?php if ($info): ?>
-                                <div style="display: flex; align-items: center; gap: 4px;">
+                                <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
                                     <span style="font-size: 0.7rem; padding: 4px 10px; border-radius: 6px; background: <?php echo $state_bg; ?>; color: <?php echo $state_color; ?>; text-transform: uppercase; font-weight: 700;">
                                         <?php echo $info['state']; ?>
                                     </span>
                                     <?php if (($info['conflict_detected'] ?? 0) == 1): ?>
-                                    <span title="MAC Conflict Detected" style="color: var(--danger); display: flex;"><i data-lucide="alert-triangle" style="width: 14px;"></i></span>
+                                    <span title="<?php echo htmlspecialchars($info['conflict_details'] ?: 'IP Conflict Detected'); ?>" style="color: var(--danger); display: inline-flex; align-items: center; gap: 3px; background: rgba(239, 68, 68, 0.15); padding: 3px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; border: 1px solid rgba(239, 68, 68, 0.3);">
+                                        <i data-lucide="alert-triangle" style="width: 12px;"></i> CONFLICT
+                                    </span>
                                     <?php endif; ?>
                                 </div>
                             <?php else: ?>
@@ -471,11 +481,16 @@ include 'includes/header.php';
                             <?php echo $info ? time_ago($info['last_seen']) : '-'; ?>
                         </td>
                         <td class="no-print" style="padding: 1rem; text-align: right;">
-                            <?php if (is_admin()): ?>
-                            <button class="btn" style="padding: 6px; background: var(--surface-light);" onclick="openEditModal('<?php echo $ip; ?>', '<?php echo $info['hostname'] ?? ''; ?>', '<?php echo $info['description'] ?? ''; ?>', '<?php echo $info['state'] ?? 'active'; ?>', '<?php echo $info['asset_tag'] ?? ''; ?>', '<?php echo $info['owner'] ?? ''; ?>')">
-                                <i data-lucide="edit-3" style="width: 14px;"></i>
-                            </button>
-                            <?php endif; ?>
+                            <div style="display: inline-flex; gap: 4px;">
+                                <a href="tools?action=conflict&target=<?php echo urlencode($ip); ?>" class="btn" style="padding: 6px; background: var(--surface-light); color: <?php echo (($info['conflict_detected'] ?? 0) == 1) ? 'var(--danger)' : 'var(--text-muted)'; ?>;" title="Cek Konflik IP (Conflict Prober)">
+                                    <i data-lucide="shield-alert" style="width: 14px;"></i>
+                                </a>
+                                <?php if (is_admin()): ?>
+                                <button class="btn" style="padding: 6px; background: var(--surface-light);" onclick="openEditModal('<?php echo $ip; ?>', '<?php echo $info['hostname'] ?? ''; ?>', '<?php echo $info['description'] ?? ''; ?>', '<?php echo $info['state'] ?? 'active'; ?>', '<?php echo $info['asset_tag'] ?? ''; ?>', '<?php echo $info['owner'] ?? ''; ?>', <?php echo (int)($info['conflict_detected'] ?? 0); ?>, '<?php echo $js_conflict_details; ?>')">
+                                    <i data-lucide="edit-3" style="width: 14px;"></i>
+                                </button>
+                                <?php endif; ?>
+                            </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -532,6 +547,18 @@ include 'includes/header.php';
         <form method="POST" autocomplete="off">
             <input type="hidden" name="assign_ip" value="1">
             <input type="hidden" name="ip_addr" id="modalIp">
+            
+            <div id="modalConflictAlert" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 1.2rem;">
+                <div style="display: flex; align-items: center; gap: 6px; color: var(--danger); font-weight: 700; font-size: 0.85rem; margin-bottom: 4px;">
+                    <i data-lucide="alert-triangle" style="width: 16px;"></i> IP Conflict Terdeteksi
+                </div>
+                <div id="modalConflictDesc" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px; line-height: 1.4;"></div>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; cursor: pointer; color: var(--text); background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 6px;">
+                    <input type="checkbox" name="resolve_conflict" id="modalResolveConflict" value="1">
+                    <span style="font-weight: 600;">Tandai konflik sudah diselesaikan (Resolve Conflict)</span>
+                </label>
+            </div>
+
             <div class="input-group">
                 <label>Hostname</label>
                 <input type="text" name="hostname" id="modalHostname" class="input-control">
@@ -663,7 +690,7 @@ async function analyzeNetwork(id) {
     } catch (err) { console.error(err); } finally { btn.disabled = false; }
 }
 
-function openEditModal(ip, hostname, desc, state, asset, owner) {
+function openEditModal(ip, hostname, desc, state, asset, owner, isConflict = 0, conflictDetails = '') {
     document.getElementById('modalTitle').innerText = 'Manage IP: ' + ip;
     document.getElementById('modalIp').value = ip;
     document.getElementById('modalHostname').value = hostname || '';
@@ -671,6 +698,19 @@ function openEditModal(ip, hostname, desc, state, asset, owner) {
     document.getElementById('modalState').value = state || 'active';
     document.getElementById('modalAssetTag').value = asset || '';
     document.getElementById('modalOwner').value = owner || '';
+
+    const conflictBox = document.getElementById('modalConflictAlert');
+    const conflictDesc = document.getElementById('modalConflictDesc');
+    const resolveCheck = document.getElementById('modalResolveConflict');
+    if (resolveCheck) resolveCheck.checked = false;
+
+    if (isConflict == 1) {
+        conflictBox.style.display = 'block';
+        conflictDesc.innerText = conflictDetails || 'Terdeteksi perubahan MAC address atau ketidakcocokan perangkat fisik pada IP ini.';
+    } else {
+        conflictBox.style.display = 'none';
+    }
+
     document.getElementById('editModal').style.display = 'flex';
 }
 </script>
