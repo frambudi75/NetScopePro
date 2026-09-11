@@ -144,14 +144,61 @@ try {
             LIMIT 5
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    // L2 Loop Detection Stats
+    $loop_switches = [];
+    try {
+        $loop_switches = $db->query("SELECT id, name, ip_addr, loop_details FROM switches WHERE loop_detected = 1")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
 } catch (Exception $e) {
     $subnet_count = 0; $ip_count = 0; $vlan_count = 0;
     $active_count = 0; $offline_count = 0; $avg_confidence = 0; $low_confidence_count = 0;
     $asset_count = 0; $asset_online = 0; $asset_offline = 0; $asset_categories = [];
     $recent_subnets = []; $needs_attention = [];
     $conflict_count = 0; $conflict_ips = [];
+    $loop_switches = [];
 }
 ?>
+
+<?php if (!empty($loop_switches)): ?>
+<!-- Critical NOC Switching Loop Alert Banner -->
+<div class="section-container animate-up" style="margin-bottom: 2rem;">
+    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.1) 100%); border: 1px solid rgba(239, 68, 68, 0.5); border-radius: var(--radius); padding: 1.25rem 1.5rem; position: relative; box-shadow: 0 4px 20px rgba(239, 68, 68, 0.18);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(239, 68, 68, 0.25); display: flex; align-items: center; justify-content: center; color: #ef4444; flex-shrink: 0; box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);">
+                    <i data-lucide="refresh-cw" style="width: 22px; height: 22px;"></i>
+                </div>
+                <div>
+                    <h3 style="font-size: 1.1rem; font-weight: 700; color: #f87171; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                        NOC Alert: L2 Switching Loop / STP Blocking Detected (<?php echo count($loop_switches); ?> Switch<?php echo count($loop_switches) > 1 ? 'es' : ''; ?>)
+                    </h3>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.25rem 0 0 0;">
+                        Active bridge loop or STP port blocking detected. Immediate physical topology inspection recommended.
+                    </p>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <a href="switches" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 0.85rem; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5; display: inline-flex; align-items: center; gap: 0.4rem;">
+                    <i data-lucide="server" style="width: 14px;"></i> View Switches
+                </a>
+            </div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+            <?php foreach ($loop_switches as $lsw): ?>
+                <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(239,68,68,0.3); border-radius: 6px; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.75rem;">
+                    <span style="font-weight: 700; color: #fff; font-size: 0.85rem;"><?php echo htmlspecialchars($lsw['name']); ?></span>
+                    <code style="font-size: 0.75rem; color: #fca5a5;"><?php echo htmlspecialchars($lsw['ip_addr']); ?></code>
+                    <span style="font-size: 0.75rem; color: #f87171;"><?php echo htmlspecialchars($lsw['loop_details'] ?: 'Loop detected'); ?></span>
+                    <a href="tools?action=loop&target=<?php echo urlencode($lsw['ip_addr']); ?>" class="btn" style="padding: 2px 8px; font-size: 0.7rem; background: rgba(59,130,246,0.2); color: #93c5fd;">
+                        Diagnosa Loop &rarr;
+                    </a>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php if ($conflict_count > 0): ?>
 <!-- Critical NOC IP Conflict Alert Banner -->

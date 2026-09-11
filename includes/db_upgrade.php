@@ -155,6 +155,27 @@ try {
         echo "Traffic monitoring tables created.\n";
     }
 
+    // --- Loop Detection & STP Monitoring Columns ---
+    $swColsLoop = $db->query("SHOW COLUMNS FROM `switches` LIKE 'loop_detected'")->rowCount();
+    if ($swColsLoop === 0) {
+        echo "Adding loop detection and STP columns to switches...\n";
+        $db->exec("ALTER TABLE `switches`
+            ADD COLUMN `stp_enabled` TINYINT(1) DEFAULT 0,
+            ADD COLUMN `stp_protocol` VARCHAR(50) DEFAULT NULL,
+            ADD COLUMN `loop_detected` TINYINT(1) DEFAULT 0,
+            ADD COLUMN `loop_details` VARCHAR(255) DEFAULT NULL,
+            ADD COLUMN `stp_topology_changes` INT DEFAULT 0
+        ");
+        echo "switches loop detection columns added.\n";
+    }
+
+    $spmColsStp = $db->query("SHOW COLUMNS FROM `switch_port_map` LIKE 'stp_state'")->rowCount();
+    if ($spmColsStp === 0) {
+        echo "Adding stp_state column to switch_port_map...\n";
+        $db->exec("ALTER TABLE `switch_port_map` ADD COLUMN `stp_state` VARCHAR(30) DEFAULT NULL AFTER `port_status`");
+        echo "switch_port_map stp_state added.\n";
+    }
+
     echo "Database schema is up to date.\n";
 
 } catch (Exception $e) {

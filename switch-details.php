@@ -34,6 +34,7 @@ $query = "
         m.vlan_id,
         m.vlan_name,
         m.port_status,
+        m.stp_state,
         m.port_type,
         m.port_speed,
         m.port_alias,
@@ -154,6 +155,37 @@ include 'includes/header.php';
             </div>
         </div>
 
+        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                <span style="font-size: 0.8rem; font-weight: 700; color: var(--text);">L2 Topology &amp; STP</span>
+                <?php if (!empty($switch['loop_detected'])): ?>
+                    <span style="font-size: 0.65rem; font-weight: 800; background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239,68,68,0.4); padding: 2px 6px; border-radius: 4px;">LOOP DETECTED</span>
+                <?php else: ?>
+                    <span style="font-size: 0.65rem; font-weight: 700; background: rgba(16, 185, 129, 0.15); color: var(--success); padding: 2px 6px; border-radius: 4px;">STABLE</span>
+                <?php endif; ?>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 0.4rem;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>STP Protocol:</span>
+                    <span style="font-weight: 600; color: var(--text);"><?php echo htmlspecialchars($switch['stp_protocol'] ?: 'None / Unknown'); ?></span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Topology Changes:</span>
+                    <span style="font-weight: 600; color: var(--text);"><?php echo (int)($switch['stp_topology_changes'] ?? 0); ?> events</span>
+                </div>
+                <?php if (!empty($switch['loop_details'])): ?>
+                <div style="font-size: 0.7rem; color: #f87171; background: rgba(239,68,68,0.1); border-radius: 4px; padding: 6px; margin-top: 4px; line-height: 1.4;">
+                    <?php echo htmlspecialchars($switch['loop_details']); ?>
+                </div>
+                <?php endif; ?>
+                <div style="margin-top: 0.5rem;">
+                    <a href="tools?action=loop&target=<?php echo urlencode($switch['ip_addr']); ?>" class="btn btn-secondary" style="width: 100%; font-size: 0.75rem; justify-content: center; padding: 5px 10px;">
+                        <i data-lucide="refresh-cw" style="width: 12px;"></i> Run Loop Diagnostic
+                    </a>
+                </div>
+            </div>
+        </div>
+
         <?php if (!empty($switch['system_info'])): ?>
             <div style="margin-top: 2rem;">
                 <h4 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; margin-bottom: 0.5rem;">System Information</h4>
@@ -249,6 +281,23 @@ include 'includes/header.php';
                                         </span>
                                     <?php else: ?>
                                         <span style="color: var(--text-muted); font-size: 0.75rem;">-</span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($port['stp_state'])): ?>
+                                        <div style="margin-top: 4px;">
+                                            <?php if ($port['stp_state'] === 'blocking'): ?>
+                                                <span style="display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 800; background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239,68,68,0.4);" title="STP Loop Prevention: Port is blocked to avoid switching loop">
+                                                    <i data-lucide="shield-alert" style="width: 10px; height: 10px;"></i> BLOCKING
+                                                </span>
+                                            <?php elseif ($port['stp_state'] === 'forwarding'): ?>
+                                                <span style="display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 600; background: rgba(16, 185, 129, 0.1); color: var(--success);" title="STP State: Forwarding">
+                                                    STP: FWD
+                                                </span>
+                                            <?php else: ?>
+                                                <span style="font-size: 0.65rem; color: var(--text-muted);" title="STP State">
+                                                    STP: <?php echo htmlspecialchars(ucfirst($port['stp_state'])); ?>
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
                                     <?php endif; ?>
                                 </td>
                                 <td style="padding: 1rem;">
