@@ -3,12 +3,13 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.27.0');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.28.0');
 if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-09-11');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.28.0', 'date' => '2026-09-11', 'changes' => ['Enterprise Multi-Event Telegram Alert Engine (L2 Loop, Netwatch, Conflict, SFP DDM)', 'Switch Port Live Bandwidth & Throughput Graph (SNMP 64-bit In/Out Mbps)', 'Event-Specific Alert Toggles in System Settings (Loop, SFP, Conflict, Netwatch)', 'Interactive Port Traffic Section with Live KPI Cards (Current, Peak, Average)', 'Intelligent Alert Throttling & Anti-Spam Protection Engine']],
     ['ver' => '2.27.0', 'date' => '2026-09-11', 'changes' => ['L2 Switching Loop Detection Engine (STP Blocking & MAC Thrashing)', 'L2 Loop & Topology Stability Diagnostic Prober in Network Tools', 'Spanning Tree Protocol (STP / RSTP) State Discovery & Port Badges', 'Dashboard NOC Alert Banner for Active Loops and Blocked Ports', 'Dynamic Switch Port STP Status Mapping & Hardware Sidebar Integration']],
     ['ver' => '2.26.0', 'date' => '2026-09-11', 'changes' => ['IP Conflict Detection Engine with MAC Flapping Protection', 'Conflict Diagnostic Prober Tool (TTL variance & ARP integrity)', 'Dashboard NOC Alert Banner & Subnet Conflict Filter', 'Login Brute-Force Rate Limiting & Windows Background Runner', 'Database Performance Index (idx_conflict) & Idempotent Migrations', 'PHP Function Redeclaration Guards & Autoloading Stabilization']],
     ['ver' => '2.25.2', 'date' => '2026-07-20', 'changes' => ['Nmap OS Fingerprinting integrated into scanner worker (Legacy & Masscan modes)', 'MAC address enrichment for Masscan discovery path', 'Offline IP auto-cleanup reduced to 1 hour (was 24 hours)']],

@@ -65,6 +65,20 @@ graph TD
 - **Interactive Conflict Prober**: Multi-probe ICMP TTL variance analysis, ARP integrity verification, and physical switch port cross-referencing in `tools.php`.
 - **NOC Alert Banners**: Prominent, real-time alert banners on the main dashboard for immediate visibility into IP collisions and L2 loops.
 
+### 📲 Multi-Channel Alert Engine (New in v2.28.0)
+
+- **Real-Time Telegram Alerts**: Instant dispatch for critical events: L2 Switching Loops, STP Blocked Ports, Netwatch Host Down/Recovery, IP Collisions, and SFP Optical Degradation.
+- **Granular Event Toggles**: Independent settings to toggle specific alert categories (Loops, Netwatch, Conflicts, SFP, New Devices).
+- **Anti-Spam & Intelligent Cooldown**: Lock-based throttling prevents notification storms during persistent network flapping.
+- **Multi-Platform Support**: Unified dispatcher with support for Telegram Bot API, Discord Webhooks, Slack Webhooks, and Authenticated SMTP Email.
+
+### 📈 Live Port Bandwidth & Traffic Graph (New in v2.28.0)
+
+- **SNMP 64-bit Throughput Counters**: Live and historical Inbound/Outbound traffic monitoring (Mbps) polled from standard `ifHCInOctets` / `ifHCOutOctets`.
+- **Interactive Visual Throughput**: Dual-tone gradient Chart.js area graphs with responsive time range selectors (1h, 6h, 24h, 48h).
+- **Instant Port Action Pills**: Direct 1-click access to traffic analysis for any physical switch interface with smooth viewport centering.
+- **Live KPI Metrics**: Real-time aggregation of Current, Peak, and Average bandwidth per port.
+
 ### 📊 Real-time Visualization
 
 - **Live SNMP Tracking**: Streaming CPU, Memory, & Uptime data via _Server-Sent Events (SSE)_.

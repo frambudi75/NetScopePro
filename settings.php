@@ -27,6 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
         'telegram_enabled' => isset($_POST['telegram_enabled']) ? '1' : '0',
         'telegram_bot_token' => $_POST['telegram_bot_token'] ?? '',
         'telegram_chat_id' => $_POST['telegram_chat_id'] ?? '',
+        'telegram_notify_loop' => isset($_POST['telegram_notify_loop']) ? '1' : '0',
+        'telegram_notify_netwatch' => isset($_POST['telegram_notify_netwatch']) ? '1' : '0',
+        'telegram_notify_conflict' => isset($_POST['telegram_notify_conflict']) ? '1' : '0',
+        'telegram_notify_sfp' => isset($_POST['telegram_notify_sfp']) ? '1' : '0',
+        'telegram_notify_new_device' => isset($_POST['telegram_notify_new_device']) ? '1' : '0',
         'email_enabled' => isset($_POST['email_enabled']) ? '1' : '0',
         'admin_email' => $_POST['admin_email'] ?? '',
         'smtp_host' => $_POST['smtp_host'] ?? 'localhost',
@@ -238,7 +243,31 @@ include 'includes/header.php';
                 <label>Chat ID</label>
                 <input type="text" name="telegram_chat_id" class="input-control" value="<?php echo htmlspecialchars($settings['telegram_chat_id'] ?? ''); ?>" placeholder="-100123456789">
             </div>
-            <button type="submit" name="test_telegram" class="btn btn-secondary" style="width: 100%; margin-top: 1rem; justify-content: center;">
+
+            <div style="margin-top: 1.25rem; padding: 1rem; background: rgba(0, 136, 204, 0.05); border: 1px solid rgba(0, 136, 204, 0.15); border-radius: 8px;">
+                <div style="font-weight: 700; font-size: 0.825rem; color: #0088cc; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="bell" style="width: 15px; height: 15px;"></i> Event Alert Triggers
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.6rem;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; color: var(--text);">
+                        <input type="checkbox" name="telegram_notify_loop" value="1" <?php echo ($settings['telegram_notify_loop'] ?? '1') == '1' ? 'checked' : ''; ?>> 🔄 L2 Loop & STP Blocking
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; color: var(--text);">
+                        <input type="checkbox" name="telegram_notify_netwatch" value="1" <?php echo ($settings['telegram_notify_netwatch'] ?? '1') == '1' ? 'checked' : ''; ?>> 🚨 Netwatch Host Down / Up
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; color: var(--text);">
+                        <input type="checkbox" name="telegram_notify_conflict" value="1" <?php echo ($settings['telegram_notify_conflict'] ?? '1') == '1' ? 'checked' : ''; ?>> ⚠️ IP Conflict & Flapping
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; color: var(--text);">
+                        <input type="checkbox" name="telegram_notify_sfp" value="1" <?php echo ($settings['telegram_notify_sfp'] ?? '1') == '1' ? 'checked' : ''; ?>> 📉 SFP Optical RX Warning
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; color: var(--text);">
+                        <input type="checkbox" name="telegram_notify_new_device" value="1" <?php echo ($settings['telegram_notify_new_device'] ?? '1') == '1' ? 'checked' : ''; ?>> ⚡ New Device Discovered
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" name="test_telegram" class="btn btn-secondary" style="width: 100%; margin-top: 1.25rem; justify-content: center;">
                 <i data-lucide="zap"></i> Test Telegram Connection
             </button>
         </div>

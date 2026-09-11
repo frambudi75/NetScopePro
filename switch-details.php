@@ -82,6 +82,28 @@ $page_title = "Switch: " . $switch['name'];
 include 'includes/header.php';
 ?>
 
+<style>
+.btn-traffic-pill {
+    padding: 2px 7px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    transition: all 0.2s;
+}
+.btn-traffic-pill:hover {
+    background: rgba(56, 189, 248, 0.25);
+    border-color: #38bdf8;
+    color: #fff;
+}
+</style>
+
 <div style="margin-bottom: 2rem;">
     <nav style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem;">
         <a href="switches" style="color: var(--primary); text-decoration: none;">Switches</a> / <?php echo htmlspecialchars($switch['name']); ?>
@@ -248,11 +270,14 @@ include 'includes/header.php';
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <i data-lucide="cable" style="width: 14px; color: <?php echo $statusColor; ?>;"></i>
                                         <div>
-                                            <div style="font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px;">
+                                            <div style="font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                                                 <?php echo htmlspecialchars($port['port_name']); ?>
                                                 <?php if ($is_uplink): ?>
                                                     <span style="font-size: 0.65rem; background: var(--brand-soft); color: var(--primary); padding: 1px 6px; border-radius: 4px; font-weight: 800; letter-spacing: 0.5px;">UPLINK</span>
                                                 <?php endif; ?>
+                                                <button type="button" class="btn-traffic-pill" onclick="event.stopPropagation(); selectPort('<?php echo htmlspecialchars($port['port_name'], ENT_QUOTES); ?>')" title="Lihat Live Traffic Bandwidth">
+                                                    <i data-lucide="activity" style="width: 10px; height: 10px;"></i> Traffic
+                                                </button>
                                             </div>
                                             <div style="font-size: 0.7rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin-top: 2px; flex-wrap: wrap;">
                                                 <?php if ($typeLabel && $typeLabel !== 'other'): ?>
@@ -407,15 +432,64 @@ include 'includes/header.php';
     </div>
 
     <!-- Port Traffic History (New) -->
-    <div class="card" id="port-traffic-section" style="display: none; margin-top: 1.5rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <h3 style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">
-                Traffic History: <span id="selected-port-name" style="color: var(--primary);">—</span>
-            </h3>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">
-                <span style="display: inline-block; width: 10px; height: 10px; background: var(--primary); border-radius: 2px; margin-right: 4px;"></span> Inbound (Download)
-                <span style="display: inline-block; width: 10px; height: 10px; background: #ec4899; border-radius: 2px; margin-left: 12px; margin-right: 4px;"></span> Outbound (Upload)
+    <div class="card" id="port-traffic-section" style="display: none; margin-top: 1.5rem; border: 1px solid rgba(56, 189, 248, 0.25); background: linear-gradient(180deg, rgba(15,23,42,0.8) 0%, rgba(15,23,42,0.6) 100%);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+                <h3 style="font-size: 0.95rem; font-weight: 800; color: white; display: flex; align-items: center; gap: 8px; margin: 0;">
+                    <i data-lucide="activity" style="color: #38bdf8; width: 18px; height: 18px;"></i>
+                    Port Traffic Bandwidth: <span id="selected-port-name" style="color: #38bdf8;">—</span>
+                </h3>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+                    Visualisasi throughput counter SNMP 64-bit real-time
+                </div>
             </div>
+            
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div style="display: flex; gap: 4px;" id="port-traffic-range-btns">
+                    <?php foreach ([1, 6, 24, 48] as $th): ?>
+                    <button type="button" onclick="changePortTrafficHours(<?php echo $th; ?>)"
+                            id="btn-port-h<?php echo $th; ?>"
+                            class="btn btn-secondary"
+                            style="padding: 3px 10px; font-size: 0.75rem; min-width: 45px; justify-content: center;
+                                   background: <?php echo $th == 6 ? 'var(--primary)' : 'var(--surface-light)'; ?>;
+                                   color: <?php echo $th == 6 ? '#fff' : 'var(--text-muted)'; ?>;">
+                        <?php echo $th; ?>h
+                    </button>
+                    <?php endforeach; ?>
+                </div>
+                <button type="button" onclick="closePortTraffic()" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75rem;" title="Tutup Grafik">
+                    <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Port KPI Metric Cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; text-align: center;">
+                <div style="font-size: 0.7rem; color: #38bdf8; font-weight: 700; text-transform: uppercase;">Current In (RX)</div>
+                <div style="font-size: 1.25rem; font-weight: 800; color: white; margin-top: 2px;" id="metric-cur-rx">—</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; text-align: center;">
+                <div style="font-size: 0.7rem; color: #ec4899; font-weight: 700; text-transform: uppercase;">Current Out (TX)</div>
+                <div style="font-size: 1.25rem; font-weight: 800; color: white; margin-top: 2px;" id="metric-cur-tx">—</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; text-align: center;">
+                <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Peak In</div>
+                <div style="font-size: 1.25rem; font-weight: 800; color: #38bdf8; margin-top: 2px;" id="metric-peak-rx">—</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; text-align: center;">
+                <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Peak Out</div>
+                <div style="font-size: 1.25rem; font-weight: 800; color: #ec4899; margin-top: 2px;" id="metric-peak-tx">—</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; text-align: center;">
+                <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Avg In / Out</div>
+                <div style="font-size: 1rem; font-weight: 700; color: var(--text); margin-top: 5px;" id="metric-avg-rxtx">—</div>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; align-items: center; gap: 1rem; margin-bottom: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
+            <div><span style="display: inline-block; width: 10px; height: 10px; background: #38bdf8; border-radius: 2px; margin-right: 4px;"></span> Inbound (Download)</div>
+            <div><span style="display: inline-block; width: 10px; height: 10px; background: #ec4899; border-radius: 2px; margin-right: 4px;"></span> Outbound (Upload)</div>
         </div>
         <div class="chart-container" style="height: 300px;">
             <canvas id="portTrafficChart"></canvas>
@@ -580,23 +654,72 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
     // --- Port Traffic Logic ---
     let trafficChart = null;
     let currentSelectedPort = null;
+    let currentPortHours = 6;
 
-    window.selectPort = function(portName) {
+    window.changePortTrafficHours = function(h) {
+        if (currentSelectedPort) {
+            selectPort(currentSelectedPort, h);
+        }
+    };
+
+    window.closePortTraffic = function() {
+        document.getElementById('port-traffic-section').style.display = 'none';
+        document.querySelectorAll('.port-row').forEach(r => {
+            r.style.background = '';
+        });
+    };
+
+    window.selectPort = function(portName, hours = null) {
         currentSelectedPort = portName;
+        if (hours !== null) {
+            currentPortHours = hours;
+        }
+
         document.getElementById('port-traffic-section').style.display = 'block';
         document.getElementById('selected-port-name').textContent = portName;
+
+        // Update active hour button
+        [1, 6, 24, 48].forEach(h => {
+            const btn = document.getElementById('btn-port-h' + h);
+            if (!btn) return;
+            btn.style.background = (h === currentPortHours) ? 'var(--primary)' : 'var(--surface-light)';
+            btn.style.color      = (h === currentPortHours) ? '#fff' : 'var(--text-muted)';
+        });
         
         // Highlight row
         document.querySelectorAll('.port-row').forEach(r => {
-            r.style.background = r.getAttribute('data-port-name') === portName ? 'rgba(88, 166, 255, 0.08)' : '';
+            r.style.background = r.getAttribute('data-port-name') === portName ? 'rgba(56, 189, 248, 0.08)' : '';
         });
 
-        safeFetch(`api/port-history?id=${SWITCH_ID}&port=${encodeURIComponent(portName)}&hours=6`)
+        safeFetch(`api/port-history?id=${SWITCH_ID}&port=${encodeURIComponent(portName)}&hours=${currentPortHours}`)
             .then(d => {
                 const ctx = document.getElementById('portTrafficChart').getContext('2d');
                 
+                // Update KPI metrics
+                if (d.stats) {
+                    document.getElementById('metric-cur-rx').textContent = d.stats.current_rx + ' Mbps';
+                    document.getElementById('metric-cur-tx').textContent = d.stats.current_tx + ' Mbps';
+                    document.getElementById('metric-peak-rx').textContent = d.stats.peak_rx + ' Mbps';
+                    document.getElementById('metric-peak-tx').textContent = d.stats.peak_tx + ' Mbps';
+                    document.getElementById('metric-avg-rxtx').textContent = d.stats.avg_rx + ' / ' + d.stats.avg_tx + ' Mbps';
+                } else {
+                    document.getElementById('metric-cur-rx').textContent = '—';
+                    document.getElementById('metric-cur-tx').textContent = '—';
+                    document.getElementById('metric-peak-rx').textContent = '—';
+                    document.getElementById('metric-peak-tx').textContent = '—';
+                    document.getElementById('metric-avg-rxtx').textContent = '—';
+                }
+
                 if (trafficChart) {
                     trafficChart.destroy();
+                }
+
+                function makeGrad(ctx, r, g, b) {
+                    if (!ctx.chart || !ctx.chart.ctx) return `rgba(${r},${g},${b},0.3)`;
+                    const gLine = ctx.chart.ctx.createLinearGradient(0, 0, 0, 250);
+                    gLine.addColorStop(0, `rgba(${r},${g},${b},0.35)`);
+                    gLine.addColorStop(1, `rgba(${r},${g},${b},0.01)`);
+                    return gLine;
                 }
 
                 trafficChart = new Chart(ctx, {
@@ -605,33 +728,54 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
                         labels: d.labels,
                         datasets: [
                             {
-                                label: 'In (Mbps)',
+                                label: 'Inbound / Download (Mbps)',
                                 data: d.rx,
-                                borderColor: '#58a6ff',
-                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                borderColor: '#38bdf8',
+                                backgroundColor: (ctx) => makeGrad(ctx, 56, 189, 248),
                                 fill: true,
-                                tension: 0.4,
+                                tension: 0.35,
                                 borderWidth: 2,
-                                pointRadius: 0
+                                pointRadius: d.labels.length > 50 ? 0 : 2,
+                                pointHoverRadius: 5
                             },
                             {
-                                label: 'Out (Mbps)',
+                                label: 'Outbound / Upload (Mbps)',
                                 data: d.tx,
                                 borderColor: '#ec4899',
-                                backgroundColor: 'rgba(236, 72, 153, 0.1)',
+                                backgroundColor: (ctx) => makeGrad(ctx, 236, 72, 153),
                                 fill: true,
-                                tension: 0.4,
+                                tension: 0.35,
                                 borderWidth: 2,
-                                pointRadius: 0
+                                pointRadius: d.labels.length > 50 ? 0 : 2,
+                                pointHoverRadius: 5
                             }
                         ]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                titleColor: '#94a3b8',
+                                bodyColor: '#ffffff',
+                                borderColor: 'rgba(255,255,255,0.1)',
+                                borderWidth: 1,
+                                padding: 10,
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.dataset.label + ': ' + context.parsed.y + ' Mbps';
+                                    }
+                                }
+                            }
+                        },
                         scales: {
-                            x: { grid: { display: false }, ticks: { color: '#888', font: { size: 10 } } },
+                            x: {
+                                grid: { color: 'rgba(255,255,255,0.03)' },
+                                ticks: { color: '#888', font: { size: 10 }, maxTicksLimit: 12 }
+                            },
                             y: { 
                                 beginAtZero: true, 
                                 grid: { color: 'rgba(255,255,255,0.05)' },
@@ -641,8 +785,9 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
                     }
                 });
                 
-                // Scroll to chart
+                // Scroll to chart smoothly
                 document.getElementById('port-traffic-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                if (window.lucide) lucide.createIcons();
             })
             .catch(err => {
                 console.warn('Port history load failed', err);
