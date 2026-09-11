@@ -3,8 +3,8 @@
  * Auto-Migration Handler for Docker & Existing Installs
  * Checks and creates missing tables dynamically.
  */
-require_once 'includes/config.php';
-require_once 'includes/db.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/db.php';
 
 echo "[$(date)] Checking for Database Upgrades...\n";
 
