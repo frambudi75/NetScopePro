@@ -39,7 +39,7 @@ define('MASSCAN_RATE', max(100, (int)Settings::get('masscan_rate', 1000)));
 // Application Configuration
 if (!defined('APP_NAME')) define('APP_NAME', 'NetScope Pro');
 if (!defined('APP_URL')) define('APP_URL', getenv('APP_URL') ?: 'http://localhost/netscopepro');
-if (!defined('ENCRYPTION_KEY')) define('ENCRYPTION_KEY', '27ffed91f93d4e8eaf12a66852b4a156');
+if (!defined('ENCRYPTION_KEY')) define('ENCRYPTION_KEY', getenv('ENCRYPTION_KEY') ?: Settings::get('app_encryption_key', ''));
 if (!defined('DEVELOPER_EMAIL')) define('DEVELOPER_EMAIL', 'frambudihabib@gmail.com');
 
 // Error reporting (disable in production)

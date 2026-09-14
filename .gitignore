@@ -13,8 +13,11 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Database / Sensitive
-# includes/config.php  <-- We keep this as a template but user should be careful
+# Database / Sensitive / Secrets
+.env
+.env.*
+docker/nginx/ssl/*
+!docker/nginx/ssl/.gitkeep
 sql/*.sql
 !sql/database.sql
 
