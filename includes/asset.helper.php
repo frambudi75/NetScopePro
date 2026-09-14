@@ -5,11 +5,24 @@
 class AssetHelper {
     
     /**
+     * Retrieve or generate binary encryption key securely
+     */
+    private static function getKey() {
+        $raw = defined('ENCRYPTION_KEY') && ENCRYPTION_KEY !== '' ? ENCRYPTION_KEY : Settings::get('app_encryption_key', '');
+        if (empty($raw)) {
+            // Auto-generate a secure 32-hex key and save to database settings
+            $raw = bin2hex(random_bytes(16));
+            Settings::set('app_encryption_key', $raw);
+        }
+        return @pack('H*', $raw);
+    }
+
+    /**
      * Encrypt a string using AES-256-CBC
      */
     public static function encrypt($data) {
         if (empty($data)) return $data;
-        $key = pack('H*', ENCRYPTION_KEY);
+        $key = self::getKey();
         $iv_size = openssl_cipher_iv_length('aes-256-cbc');
         $iv = openssl_random_pseudo_bytes($iv_size);
         $encrypted = openssl_encrypt($data, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
@@ -21,7 +34,7 @@ class AssetHelper {
      */
     public static function decrypt($data) {
         if (empty($data)) return $data;
-        $key = @pack('H*', ENCRYPTION_KEY);
+        $key = self::getKey();
         $decoded = @base64_decode($data);
         if (!$decoded) return $data; // Not base64
         
