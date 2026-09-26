@@ -9,9 +9,10 @@ composer.phar
 .DS_Store
 Thumbs.db
 
-# IDEs
+# IDEs & Agents
 .vscode/
 .idea/
+.agents/
 
 # Database / Sensitive / Secrets
 .env
