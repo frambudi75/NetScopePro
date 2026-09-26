@@ -2,6 +2,16 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.28.1] - 2026-09-26
+### Improved
+- **L2 Switching Loop & MAC Flapping Accuracy**:
+  - Implemented pair-specific MAC thrashing analysis (`Port A <-> Port B`) to eliminate false positive loop alerts caused by normal Wi-Fi roaming and mobile client movement.
+  - Added configurable `loop_flap_threshold` sensitivity setting in `settings.php` (default: 5 MACs on the exact same port pair).
+  - Implemented state-transition alerting to prevent notification spamming: alerts are only sent on new loop events or condition changes, with automatic recovery notification (`RESOLVED: L2 Switching Loop Cleared`) when topology stabilizes.
+  - Fixed per-switch STP blocked port tracker isolation in `cron_switch_poll.php` preventing cross-switch state leakage.
+- **AI Agent Skills & Quality System**:
+  - Integrated official antislop skills into `.agents/skills/` and registered pointer in `AGENTS.md`.
+
 ## [2.28.0] - 2026-09-11
 ### Added
 - **Enterprise Multi-Event Telegram Alert Engine**: Comprehensive instant alerting via Telegram Bot API with clean HTML formatting, supporting:

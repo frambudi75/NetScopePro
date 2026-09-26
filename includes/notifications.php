@@ -119,6 +119,17 @@ class NotificationHelper {
     }
 
     /**
+     * Reset a throttle lock file so the next alert triggers immediately.
+     */
+    public static function resetThrottle($key) {
+        $tmp_dir = __DIR__ . '/../tmp';
+        $file = $tmp_dir . '/throttle_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $key) . '.lock';
+        if (file_exists($file)) {
+            @unlink($file);
+        }
+    }
+
+    /**
      * Send a notification when a new device is discovered.
      */
     public static function notifyNewDevice($ip, $mac, $vendor, $hostname, $subnet_name) {
@@ -210,10 +221,15 @@ class NotificationHelper {
 
     /**
      * Send notification for L2 Switching Loop or STP Port Blocking.
+     * @param bool $force When true (new loop or changed condition), bypasses reminder throttle
      */
-    public static function notifySwitchLoop($switch_name, $switch_ip, $loop_details, $blocked_ports = []) {
-        // Cooldown per switch (15 minutes)
-        if (self::isThrottled('loop_' . $switch_ip, 900)) return;
+    public static function notifySwitchLoop($switch_name, $switch_ip, $loop_details, $blocked_ports = [], $force = false) {
+        // If not forced (meaning it's an ongoing, unchanged condition), throttle reminder to once every 6 hours (21600s)
+        if (!$force && self::isThrottled('loop_remind_' . $switch_ip, 21600)) return;
+        if ($force) {
+            // Touch reminder lock so periodic reminder doesn't fire immediately right after
+            self::isThrottled('loop_remind_' . $switch_ip, 21600);
+        }
 
         $telegram_enabled = Settings::enabled('telegram_enabled') && (Settings::get('telegram_notify_loop', '1') === '1');
         $email_enabled = Settings::enabled('email_enabled');
@@ -260,6 +276,60 @@ class NotificationHelper {
             $body .= "<blockquote>{$loop_details}</blockquote>";
             if (!empty($blocked_ports)) {
                 $body .= "<p><b>Blocked Ports:</b> " . implode(', ', $blocked_ports) . "</p>";
+            }
+            self::sendEmail($subject, $body);
+        }
+    }
+
+    /**
+     * Send notification when an L2 Switching Loop or STP Port Blocking condition has cleared.
+     */
+    public static function notifySwitchLoopResolved($switch_name, $switch_ip, $previous_details = '') {
+        // Reset reminder throttle
+        self::resetThrottle('loop_remind_' . $switch_ip);
+
+        $telegram_enabled = Settings::enabled('telegram_enabled') && (Settings::get('telegram_notify_loop', '1') === '1');
+        $email_enabled = Settings::enabled('email_enabled');
+        $discord_enabled = Settings::enabled('discord_enabled');
+        $slack_enabled = Settings::enabled('slack_enabled');
+
+        if (!$telegram_enabled && !$email_enabled && !$discord_enabled && !$slack_enabled) return;
+
+        $time = date('Y-m-d H:i:s');
+        $safe_name = htmlspecialchars($switch_name);
+        $safe_ip = htmlspecialchars($switch_ip);
+
+        if ($telegram_enabled) {
+            $message = "✅ <b>RESOLVED: L2 Switching Loop Cleared</b>\n\n";
+            $message .= "🏢 <b>Switch:</b> {$safe_name}\n";
+            $message .= "🌐 <b>IP Address:</b> <code>{$safe_ip}</code>\n";
+            if ($previous_details) {
+                $message .= "ℹ️ <b>Sebelumnya:</b> <i>" . htmlspecialchars($previous_details) . "</i>\n";
+            }
+            $message .= "🕒 <b>Time:</b> {$time}\n\n";
+            $message .= "<i>Topologi switch kembali normal dan frame forwarding stabil.</i>";
+            self::sendTelegram($message);
+        }
+
+        $markdown = "**[ L2 LOOP RESOLVED ]**\n";
+        $markdown .= "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n";
+        $markdown .= "🏢 **Switch:** {$switch_name} (`{$switch_ip}`)\n";
+        $markdown .= "✅ **Status:** Topologi telah kembali normal (Loop cleared).\n";
+        if ($previous_details) {
+            $markdown .= "ℹ️ **Sebelumnya:** {$previous_details}\n";
+        }
+        $markdown .= "🕒 **Waktu:** {$time}\n";
+        $markdown .= "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
+
+        if ($discord_enabled) self::sendDiscord($markdown);
+        if ($slack_enabled) self::sendSlack($markdown);
+
+        if ($email_enabled) {
+            $subject = "✅ RESOLVED: L2 Switching Loop on {$switch_name} ({$switch_ip})";
+            $body = "<h2>L2 Switching Loop Resolved</h2>";
+            $body .= "<p>Switch <b>{$switch_name}</b> ({$switch_ip}) has returned to normal topology state.</p>";
+            if ($previous_details) {
+                $body .= "<p><b>Previous Issue:</b> " . htmlspecialchars($previous_details) . "</p>";
             }
             self::sendEmail($subject, $body);
         }
