@@ -192,6 +192,9 @@ foreach ($switches as $switch) {
         $ip = $switch['ip_addr'];
         $community = $switch['community'];
         
+        // Reset per-switch STP and Loop trackers to prevent cross-switch leakage
+        $stp_blocked_ports = [];
+
         // Clear existing port VLAN associations for this switch before polling
         $db->prepare("DELETE FROM switch_port_vlans WHERE switch_id = ?")->execute([$switch['id']]);
 
@@ -635,32 +638,66 @@ foreach ($switches as $switch) {
                 }
             }
             
+            // Pair-specific MAC Flapping Analysis (Filters out normal WiFi roaming & client movement)
+            $pair_flaps = [];
+            foreach ($mac_flaps as $mf) {
+                $p1 = $mf['from'];
+                $p2 = $mf['to'];
+                if (!$p1 || !$p2 || $p1 === $p2) continue;
+                // Normalize pair so (Port A <-> Port B) and (Port B <-> Port A) are grouped together
+                $pair_key = ($p1 < $p2) ? "$p1 <-> $p2" : "$p2 <-> $p1";
+                $pair_flaps[$pair_key][] = $mf['mac'];
+            }
+
+            $top_pair = null;
+            $max_pair_flaps = 0;
+            foreach ($pair_flaps as $pair => $flapped_macs) {
+                $unique_macs = count(array_unique($flapped_macs));
+                if ($unique_macs > $max_pair_flaps) {
+                    $max_pair_flaps = $unique_macs;
+                    $top_pair = $pair;
+                }
+            }
+
+            // Flap sensitivity threshold: minimum distinct MACs flapping on the EXACT same port pair
+            $flap_threshold = max(3, (int)Settings::get('loop_flap_threshold', 5));
+
             // Assess Loop Condition
+            $prev_loop_detected = (int)($switch['loop_detected'] ?? 0);
+            $prev_loop_details = (string)($switch['loop_details'] ?? '');
+
             $loop_detected = 0;
             $loop_details = null;
             if (!empty($stp_blocked_ports)) {
                 $loop_detected = 1;
                 $loop_details = "STP Loop Prevention Active: Port(s) " . implode(', ', $stp_blocked_ports) . " in BLOCKING state to prevent switching loop";
                 echo "  ⚠️ [STP LOOP MITIGATED]: $loop_details\n";
-            } elseif (count($mac_flaps) >= 3) {
-                $pair_counts = [];
-                foreach ($mac_flaps as $mf) {
-                    $pair = $mf['from'] . ' <-> ' . $mf['to'];
-                    $pair_counts[$pair] = ($pair_counts[$pair] ?? 0) + 1;
-                }
-                arsort($pair_counts);
-                $top_pair = array_key_first($pair_counts);
+            } elseif ($top_pair !== null && $max_pair_flaps >= $flap_threshold) {
                 $loop_detected = 1;
-                $loop_details = "L2 Loop Warning: Rapid MAC flapping (" . count($mac_flaps) . " flaps) between " . $top_pair;
+                $loop_details = "L2 Loop Warning: High-frequency MAC thrashing ($max_pair_flaps MACs) between $top_pair";
                 echo "  ⚠️ [L2 LOOP WARNING]: $loop_details\n";
             }
 
             $db->prepare("UPDATE switches SET last_poll = CURRENT_TIMESTAMP, stp_enabled = ?, stp_protocol = ?, loop_detected = ?, loop_details = ?, stp_topology_changes = ? WHERE id = ?")
                ->execute([$stp_enabled, $stp_protocol, $loop_detected, $loop_details, $stp_top_changes, $switch['id']]);
 
-            // Dispatch instant alert if loop or blocking condition is detected
-            if ($loop_detected && class_exists('NotificationHelper')) {
-                NotificationHelper::notifySwitchLoop($switch['name'], $ip, $loop_details, array_values($stp_blocked_ports ?? []));
+            // Dispatch alert based on State Transition to prevent notification spamming
+            if (class_exists('NotificationHelper')) {
+                if ($loop_detected) {
+                    $is_new_event = !$prev_loop_detected;
+                    $is_state_changed = ($prev_loop_detected && $loop_details !== $prev_loop_details);
+
+                    if ($is_new_event || $is_state_changed) {
+                        // New loop or changed condition: dispatch immediately (force = true)
+                        NotificationHelper::notifySwitchLoop($switch['name'], $ip, $loop_details, array_values($stp_blocked_ports ?? []), true);
+                    } else {
+                        // Persistent unchanged condition: throttled to 6-hour reminders
+                        NotificationHelper::notifySwitchLoop($switch['name'], $ip, $loop_details, array_values($stp_blocked_ports ?? []), false);
+                    }
+                } elseif ($prev_loop_detected && !$loop_detected) {
+                    // Loop cleared: dispatch recovery notification
+                    NotificationHelper::notifySwitchLoopResolved($switch['name'], $ip, $prev_loop_details);
+                }
             }
 
             echo "Discovered $discovered_count MAC-Port mappings (VLAN ".($is_vlan_aware ? "ON" : "OFF").") on {$switch['name']}.\n";

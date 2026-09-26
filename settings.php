@@ -32,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
         'telegram_notify_conflict' => isset($_POST['telegram_notify_conflict']) ? '1' : '0',
         'telegram_notify_sfp' => isset($_POST['telegram_notify_sfp']) ? '1' : '0',
         'telegram_notify_new_device' => isset($_POST['telegram_notify_new_device']) ? '1' : '0',
+        'loop_flap_threshold' => max(3, (int)($_POST['loop_flap_threshold'] ?? 5)),
         'email_enabled' => isset($_POST['email_enabled']) ? '1' : '0',
         'admin_email' => $_POST['admin_email'] ?? '',
         'smtp_host' => $_POST['smtp_host'] ?? 'localhost',
@@ -264,6 +265,16 @@ include 'includes/header.php';
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; color: var(--text);">
                         <input type="checkbox" name="telegram_notify_new_device" value="1" <?php echo ($settings['telegram_notify_new_device'] ?? '1') == '1' ? 'checked' : ''; ?>> ⚡ New Device Discovered
                     </label>
+                </div>
+
+                <div style="margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px dashed rgba(0, 136, 204, 0.2); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text);">Sensitivitas Flapping Port (Loop Threshold)</div>
+                        <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.3;">Jumlah minimum MAC berpindah serentak di sepasang port yang sama untuk memicu alert loop (Default: 5). Nilai lebih tinggi mencegah notifikasi palsu akibat roaming Wi-Fi / laptop berpindah ruangan.</div>
+                    </div>
+                    <div style="width: 80px;">
+                        <input type="number" min="3" max="50" name="loop_flap_threshold" class="input-control" style="padding: 0.4rem 0.5rem; text-align: center; font-weight: bold;" value="<?php echo htmlspecialchars($settings['loop_flap_threshold'] ?? '5'); ?>">
+                    </div>
                 </div>
             </div>
 

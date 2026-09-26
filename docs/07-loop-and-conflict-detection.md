@@ -44,10 +44,15 @@ Sistem memanfaatkan MIB standar IEEE 802.1D Spanning Tree MIB (`dot1dStp`):
 - **STP Protocol Specification** (`dot1dStpProtocolSpecification`, OID `.1.3.6.1.2.1.17.2.1.0`):
   - Mengidentifikasi protokol yang aktif: `RSTP` (Rapid STP 802.1w), `STP` (802.1D klasik), atau `MSTP`.
 
-#### 2. Deteksi FDB MAC Thrashing / Flapping
-Jika STP tidak aktif atau loop terjadi di switch unmanaged (dumb hub) yang terhubung ke port access:
+#### 2. Deteksi FDB MAC Thrashing / Flapping & Anti False-Positive
+Jika STP tidak aktif atau loop terjadi di switch unmanaged (dumb switch/hub) yang terhubung ke port access:
 - Worker memantau Forwarding Database (FDB / CAM Table) dari switch (`dot1dTpFdbPort`).
-- Jika MAC address berpindah-pindah antar port pada **switch fisik yang sama** dalam waktu singkat, NetScope Pro memicu alarm `MAC Thrashing / Loop Detected` dengan rincian port yang terlibat.
+- **Analisis Pasangan Port Spesifik (Pair-Specific Grouping)**: Sistem mengelompokkan perpindahan MAC pada **sepasang port fisik yang persis sama** (`Port A <-> Port B`), bukan menjumlahkan perpindahan acak antar port berlainan di seluruh switch.
+- **Filter Roaming Wi-Fi & Device Move**: Untuk membedakan roaming klien Wi-Fi normal atau laptop berpindah meja dari badai switching loop asli, sistem menerapkan ambang batas (`loop_flap_threshold`, default: 5 MAC serentak pada pasangan port yang sama).
+- **Notifikasi Berbasis Perubahan Status (State-Transition Alerting)**:
+  - Notifikasi instan (Telegram, Discord, Slack, Email) hanya dikirim ketika terjadi **event baru** (`normal ➔ loop`) atau saat rincian port loop berubah.
+  - Kondisi loop yang belum terselesaikan tidak akan membanjiri notifikasi setiap interval poll (dibatasi pengingat berkala per 6 jam).
+  - Saat loop telah diatasi (`loop ➔ normal`), sistem otomatis mengirimkan notifikasi **RESOLVED (Recovery)**.
 
 ---
 
