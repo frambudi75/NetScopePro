@@ -9,6 +9,10 @@ All major functional changes, enhancements, and critical fixes are documented he
   - Added configurable `loop_flap_threshold` sensitivity setting in `settings.php` (default: 5 MACs on the exact same port pair).
   - Implemented state-transition alerting to prevent notification spamming: alerts are only sent on new loop events or condition changes, with automatic recovery notification (`RESOLVED: L2 Switching Loop Cleared`) when topology stabilizes.
   - Fixed per-switch STP blocked port tracker isolation in `cron_switch_poll.php` preventing cross-switch state leakage.
+- **Modern Sleek Dark Scrollbar**:
+  - Replaced bright-white default Windows/browser scrollbars and legacy arrow buttons with floating semi-transparent pill scrollbars.
+  - Added native `color-scheme: dark` and thin Firefox `scrollbar-width` support.
+  - Added cache-busting version parameters to CSS links in `header.php` and `login.php`.
 
 ## [2.28.0] - 2026-09-11
 ### Added

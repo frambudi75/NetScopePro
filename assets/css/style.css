@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
+    color-scheme: dark;
     /* NOC Console Palette — GitHub/Grafana inspired, muted & sophisticated */
     --primary: #58a6ff;
     --primary-hover: #79b8ff;
@@ -34,6 +35,53 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+/* Modern Sleek Dark Scrollbar */
+html {
+    color-scheme: dark;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.18);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(88, 166, 255, 0.5);
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:active {
+    background-color: var(--primary);
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* Hide legacy Windows arrow buttons */
+::-webkit-scrollbar-button {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
 }
 
 html, body {
@@ -77,6 +125,20 @@ ul {
     overflow-y: auto;
     z-index: 1000;
     transition: transform 0.3s ease;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+    width: 5px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(88, 166, 255, 0.4);
 }
 
 .main-content {
