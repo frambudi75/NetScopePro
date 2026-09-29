@@ -65,7 +65,7 @@ if ($is_locked) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='%2358a6ff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'><rect x='16' y='16' width='6' height='6' rx='1'/><rect x='2' y='16' width='6' height='6' rx='1'/><rect x='9' y='2' width='6' height='6' rx='1'/><path d='M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3'/><path d='M12 12V8'/></svg>">
     <title>Login - <?php echo APP_NAME; ?></title>
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/style.css?v=<?php echo APP_VERSION; ?>">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         body {
