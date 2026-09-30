@@ -2,6 +2,19 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.29.0] - 2026-09-30
+### Added
+- **Evidence-Based IP Conflict Prober (`tools.php?action=conflict`)**:
+  - **Sequential 3-Cycle MAC Stability Check**: Executes 3 successive ping and ARP resolution probes to catch oscillating MAC addresses caused by physical IP collisions in real time.
+  - **Multi-Layer Evidence Summary Checklist**: Structured breakdown covering Host Reachability, Multi-Probe MAC Consistency, ICMP TTL Fingerprint, Switch L2 Port Path, and IPAM Database records.
+  - **Diagnostic Confidence Score**: Quantified confidence rating (`HIGH`, `MEDIUM`, `LOW`) and conflict risk probability percentage so engineers immediately know the diagnostic certainty.
+- **Enhanced L2 Switching Loop & STP Stability Prober (`tools.php?action=loop`)**:
+  - **TCN Operational Analysis**: Interprets `dot1dStpTimeSinceTopologyChange` with human-readable elapsed time and real-time recalculation flags (`< 60s`), grading network convergence stability (`HIGH`, `MODERATE`, `CRITICAL`).
+  - **CAM Table Thrashing & Flapping Detection**: Cross-references FDB MAC counts across switch ports to spot abnormal concentration or flapping between ports.
+  - **Evidence Summary Checklist & Confidence Scoring**: Summarizes STP protocol, loop guard status, TCN recalculation rate, and CAM distribution before drawing conclusions.
+  - **Engineer-Accurate Non-Absolute Verdict**: Replaced misleading absolute claims with realistic verdicts (`NO ACTIVE LOOP INDICATORS DETECTED ON TARGET SWITCH`) accompanied by diagnostic scope notes acknowledging unmanaged hub boundaries.
+- **Documentation**: Updated `docs/07-loop-and-conflict-detection.md` with detailed explanations of the 5-phase IP Conflict probe and 7-phase L2 Loop probe architecture.
+
 ## [2.28.1] - 2026-09-26
 ### Improved
 - **L2 Switching Loop & MAC Flapping Accuracy**:
