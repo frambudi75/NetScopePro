@@ -2,6 +2,19 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.29.2] - 2026-10-01
+### Fixed
+- **Subnet Usage Bar Synchronization & Accurate State Filter**:
+  - Fixed query discrepancy between Subnet List (`subnets.php`, `export.php`, `reports.php`, `index.php`) and Subnet Details (`subnet-details.php`). Usage bars now consistently count allocated/used IPs (`active`, `reserved`, `dhcp`), ignoring stale `offline` records.
+  - Aligned `$assigned_total` and `$stats['free']` in `subnet-details.php` to match the visual segments on the utilization scale bar.
+- **CIDR Calculation Network Boundary Masking**:
+  - Fixed `cidr_to_range()` in `includes/network.php` to apply bitwise network mask (`$ip_long & $mask_long`). Subnets specified with gateway IPs (e.g. `10.11.0.1/24`) now calculate true network boundaries (`10.11.0.0` to `10.11.0.255`) instead of shifting the start by 1 IP.
+  - Added `normalize_subnet_address()` to normalize inputs upon adding or editing subnets.
+- **Orphaned / Ghost IP Record Healing**:
+  - Implemented `sync_and_cleanup_orphaned_ips()` which automatically detects and purges or reassigns ghost IP records whose `subnet_id` no longer falls within their subnet CIDR range after a subnet has been edited.
+- **Database Auto-Migrations (`includes/db.php`)**:
+  - Integrated `switch_port_vlans`, traffic history counters, and switch hardware metrics into the central auto-migration routine.
+
 ## [2.29.1] - 2026-10-01
 ### Fixed
 - **Server Assets Decryption Stability & Ciphertext Leak Fix**:

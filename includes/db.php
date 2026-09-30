@@ -401,5 +401,15 @@ function run_auto_migrations($db) {
             INDEX(recorded_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;");
     } catch (Exception $e) {}
+
+    // 24. Auto-heal any misaligned or ghost IP records across subnets
+    try {
+        if (file_exists(__DIR__ . '/network.php')) {
+            require_once __DIR__ . '/network.php';
+            if (function_exists('sync_and_cleanup_orphaned_ips')) {
+                sync_and_cleanup_orphaned_ips($db);
+            }
+        }
+    } catch (Exception $e) {}
 }
 }
