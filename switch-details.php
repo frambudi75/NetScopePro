@@ -57,19 +57,23 @@ $stmt->execute([$id]);
 $ports = $stmt->fetchAll();
 
 // Fetch all tagged VLANs for this switch, grouped by port_name
-$tagged_vlans_query = "
-    SELECT
-        port_name,
-        GROUP_CONCAT(CONCAT(vlan_id, ':', IFNULL(vlan_name, '')) ORDER BY vlan_id ASC SEPARATOR ',') AS tagged_vlans_str
-    FROM switch_port_vlans
-    WHERE switch_id = ?
-    GROUP BY port_name
-";
-$stmt_tagged_vlans = $db->prepare($tagged_vlans_query);
-$stmt_tagged_vlans->execute([$id]);
 $tagged_vlans_per_port = [];
-foreach ($stmt_tagged_vlans->fetchAll() as $row) {
-    $tagged_vlans_per_port[$row['port_name']] = $row['tagged_vlans_str'];
+try {
+    $tagged_vlans_query = "
+        SELECT
+            port_name,
+            GROUP_CONCAT(CONCAT(vlan_id, ':', IFNULL(vlan_name, '')) ORDER BY vlan_id ASC SEPARATOR ',') AS tagged_vlans_str
+        FROM switch_port_vlans
+        WHERE switch_id = ?
+        GROUP BY port_name
+    ";
+    $stmt_tagged_vlans = $db->prepare($tagged_vlans_query);
+    $stmt_tagged_vlans->execute([$id]);
+    foreach ($stmt_tagged_vlans->fetchAll() as $row) {
+        $tagged_vlans_per_port[$row['port_name']] = $row['tagged_vlans_str'];
+    }
+} catch (\Exception $e) {
+    $tagged_vlans_per_port = [];
 }
 
 // Pre-calculate MAC count per port to identify uplinks
