@@ -109,11 +109,10 @@ $stmt = $db->prepare("
 ");
 $stmt->execute([$subnet_id, $start_long, $end_long]);
 $stats = ['active' => 0, 'reserved' => 0, 'offline' => 0, 'dhcp' => 0];
-$assigned_total = 0;
 while ($row = $stmt->fetch()) {
     $stats[$row['state']] = (int)$row['count'];
-    $assigned_total += (int)$row['count'];
 }
+$assigned_total = $stats['active'] + $stats['reserved'] + $stats['dhcp'];
 $stats['free'] = max(0, $total_hosts - $assigned_total);
 
 // 2. Fetch Detailed Info ONLY for the current block (Saves memory for /16 subnets)

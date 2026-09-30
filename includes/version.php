@@ -3,12 +3,13 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.29.1');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.29.2');
 if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-01');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.29.2', 'date' => '2026-10-01', 'changes' => ['Subnet Usage Bar Synchronization (Accurate active/reserved/dhcp calculation across all views)', 'Subnet CIDR Bitwise Masking Fix in cidr_to_range()', 'Auto-heal & purge orphaned/ghost IP records across subnets', 'Added switch_port_vlans & missing columns to auto-migrations']],
     ['ver' => '2.29.1', 'date' => '2026-10-01', 'changes' => ['Server Assets Decryption Fix (Multi-key fallback preventing raw ciphertext leaks)', 'Universal Live Server Metrics (Reliable Linux /proc metrics & MikroTik RouterOS support)', 'Accurate Error Reporting in Metrics Modal (No more false 0% metrics on unsupported targets)', 'Aligned Server Asset Card Checkbox inside header boundary']],
     ['ver' => '2.29.0', 'date' => '2026-09-30', 'changes' => ['IP Conflict Multi-Probe Engine (3-cycle sequential ARP & MAC stability check)', 'Loop & STP Diagnostic Prober Enhancement (TCN operational analysis & CAM table thrashing detection)', 'Multi-Layer Evidence Checklist Summary across all diagnostic tools', 'Diagnostic Confidence Scoring (Confidence Grade & Risk Percentage)', 'Realistic Non-Absolute Verdicts with Diagnostic Scope Boundaries']],
     ['ver' => '2.28.1', 'date' => '2026-09-26', 'changes' => ['L2 Loop Detection & MAC Flapping Accuracy Enhancement (Pair-Specific Thrashing Analysis)', 'State-Transition Alerting (Only alerts on new events, suppressed duplicate spamming)', 'Automatic Recovery Notification (RESOLVED: L2 Switching Loop Cleared)', 'Configurable MAC Flap Sensitivity Threshold in Settings', 'Fixed cross-switch STP blocked port leakage bug']],

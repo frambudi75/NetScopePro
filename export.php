@@ -21,7 +21,8 @@ switch ($type) {
         $filename = "subnets_export_" . date('Y-m-d') . ".csv";
         $header = ['ID', 'Subnet', 'Mask', 'Description', 'VLAN', 'Scan Interval', 'Last Scan', 'Used IPs'];
         $query = "
-            SELECT s.*, v.number as vlan_number, COUNT(ip.id) as used_ips 
+            SELECT s.*, v.number as vlan_number, 
+                   COUNT(CASE WHEN ip.state IN ('active', 'reserved', 'dhcp') THEN ip.id END) as used_ips 
             FROM subnets s 
             LEFT JOIN vlans v ON s.vlan_id = v.id 
             LEFT JOIN ip_addresses ip ON ip.subnet_id = s.id 

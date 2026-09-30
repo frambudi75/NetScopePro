@@ -102,9 +102,9 @@ try {
 
     $recent_subnets = $db->query("
         SELECT s.id, s.subnet, s.mask, s.description,
-               COUNT(ip.id) AS used_ips
+               COUNT(CASE WHEN ip.state IN ('active', 'reserved', 'dhcp') THEN ip.id END) AS used_ips
         FROM subnets s
-        LEFT JOIN ip_addresses ip ON ip.subnet_id = s.id AND ip.state = 'active'
+        LEFT JOIN ip_addresses ip ON ip.subnet_id = s.id
         GROUP BY s.id, s.subnet, s.mask, s.description
         ORDER BY s.id DESC
         LIMIT 8

@@ -1,6 +1,7 @@
 <?php
 require_once 'includes/config.php';
 require_once 'includes/db.php';
+require_once 'includes/network.php';
 
 session_start();
 
@@ -21,8 +22,9 @@ if (isset($_GET['msg']) && $_GET['msg'] === 'added') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_subnet']) && is_admin()) {
-    $subnet = $_POST['subnet'] ?? '';
-    $mask = $_POST['mask'] ?? '';
+    $raw_subnet = $_POST['subnet'] ?? '';
+    $mask = (int)($_POST['mask'] ?? 24);
+    $subnet = normalize_subnet_address($raw_subnet, $mask);
     $description = $_POST['description'] ?? '';
     $section_id = $_POST['section_id'] ?? 1;
     $vlan_id = (isset($_POST['vlan_id']) && $_POST['vlan_id'] !== '') ? (int)$_POST['vlan_id'] : null;
@@ -31,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_subnet']) && is_a
     try {
         $stmt = $db->prepare("INSERT INTO subnets (subnet, mask, description, section_id, vlan_id, scan_interval) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([$subnet, $mask, $description, $section_id, $vlan_id, $scan_interval]);
+        sync_and_cleanup_orphaned_ips($db);
         $message = 'Subnet added successfully!';
     } catch (Exception $e) {
         $message = 'Error: ' . $e->getMessage();
@@ -40,8 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_subnet']) && is_a
 // Handle Edit Subnet
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_subnet']) && is_admin()) {
     $sid = (int)$_POST['subnet_id'];
-    $subnet = $_POST['subnet'] ?? '';
-    $mask = $_POST['mask'] ?? '';
+    $raw_subnet = $_POST['subnet'] ?? '';
+    $mask = (int)($_POST['mask'] ?? 24);
+    $subnet = normalize_subnet_address($raw_subnet, $mask);
     $description = $_POST['description'] ?? '';
     $vlan_id = (isset($_POST['vlan_id']) && $_POST['vlan_id'] !== '') ? (int)$_POST['vlan_id'] : null;
     $scan_interval = (int)($_POST['scan_interval'] ?? 0);
@@ -49,6 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_subnet']) && is_
     try {
         $stmt = $db->prepare("UPDATE subnets SET subnet = ?, mask = ?, description = ?, vlan_id = ?, scan_interval = ? WHERE id = ?");
         $stmt->execute([$subnet, $mask, $description, $vlan_id, $scan_interval, $sid]);
+        sync_and_cleanup_orphaned_ips($db);
         $message = 'Subnet updated successfully!';
     } catch (Exception $e) {
         $message = 'Error: ' . $e->getMessage();
@@ -79,10 +84,13 @@ if (isset($_GET['msg']) && $_GET['msg'] === 'deleted') {
     $message = 'Subnet deleted successfully!';
 }
 
-// Fetch subnets
-// Fetch subnets with usage count
+// Auto-clean any misaligned or ghost IPs from edited subnets before calculating stats
+sync_and_cleanup_orphaned_ips($db);
+
+// Fetch subnets with accurate usage count (counting active, reserved, dhcp within subnet boundaries)
 $subnets = $db->query("
-    SELECT s.*, v.number as vlan_number, COUNT(ip.id) as used_ips 
+    SELECT s.*, v.number as vlan_number, 
+           COUNT(CASE WHEN ip.state IN ('active', 'reserved', 'dhcp') THEN ip.id END) as used_ips 
     FROM subnets s 
     LEFT JOIN vlans v ON s.vlan_id = v.id 
     LEFT JOIN ip_addresses ip ON ip.subnet_id = s.id 

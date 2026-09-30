@@ -4,11 +4,28 @@
  */
 
 function cidr_to_range($cidr) {
+    if (strpos($cidr, '/') === false) {
+        $cidr .= '/32';
+    }
     list($subnet, $mask) = explode('/', $cidr);
-    $start = ip2long($subnet);
+    $mask = max(0, min(32, (int)$mask));
+    $ip_long = ip2long(trim($subnet));
+    if ($ip_long === false) {
+        return [0, 0];
+    }
+    $mask_long = $mask === 0 ? 0 : (~0 << (32 - $mask));
+    $start = ip2long(long2ip($ip_long & $mask_long));
     $total = pow(2, (32 - $mask));
     $end = $start + $total - 1;
     return [$start, $end];
+}
+
+function normalize_subnet_address($subnet, $mask) {
+    $mask = max(0, min(32, (int)$mask));
+    $ip_long = ip2long(trim($subnet));
+    if ($ip_long === false) return trim($subnet);
+    $mask_long = $mask === 0 ? 0 : (~0 << (32 - $mask));
+    return long2ip($ip_long & $mask_long);
 }
 
 function long2ip_safe($long) {
@@ -16,9 +33,51 @@ function long2ip_safe($long) {
 }
 
 function get_ip_usage_count($db, $subnet_id) {
-    $stmt = $db->prepare("SELECT COUNT(*) FROM ip_addresses WHERE subnet_id = ?");
+    $stmt = $db->prepare("SELECT COUNT(*) FROM ip_addresses WHERE subnet_id = ? AND state IN ('active', 'reserved', 'dhcp')");
     $stmt->execute([$subnet_id]);
-    return $stmt->fetchColumn();
+    return (int)$stmt->fetchColumn();
+}
+
+/**
+ * Re-aligns any IP addresses whose assigned subnet_id does not match their real CIDR range.
+ * If orphaned outside all subnets, removes them to avoid ghost usage in subnets.
+ */
+function sync_and_cleanup_orphaned_ips($db) {
+    try {
+        $subnets = $db->query("SELECT id, subnet, mask FROM subnets")->fetchAll(PDO::FETCH_ASSOC);
+        if (empty($subnets)) return;
+
+        $ranges = [];
+        foreach ($subnets as $s) {
+            list($start, $end) = cidr_to_range($s['subnet'] . '/' . $s['mask']);
+            $ranges[$s['id']] = ['start' => $start, 'end' => $end];
+        }
+
+        $ips = $db->query("SELECT id, subnet_id, ip_addr FROM ip_addresses")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($ips as $ip) {
+            $ip_long = ip2long($ip['ip_addr']);
+            if ($ip_long === false) continue;
+
+            $sid = (int)$ip['subnet_id'];
+            if (isset($ranges[$sid]) && $ip_long >= $ranges[$sid]['start'] && $ip_long <= $ranges[$sid]['end']) {
+                continue; // Matches correctly
+            }
+
+            $correct_sid = null;
+            foreach ($ranges as $sub_id => $r) {
+                if ($ip_long >= $r['start'] && $ip_long <= $r['end']) {
+                    $correct_sid = $sub_id;
+                    break;
+                }
+            }
+
+            if ($correct_sid !== null) {
+                $db->prepare("UPDATE ip_addresses SET subnet_id = ? WHERE id = ?")->execute([$correct_sid, $ip['id']]);
+            } else {
+                $db->prepare("DELETE FROM ip_addresses WHERE id = ?")->execute([$ip['id']]);
+            }
+        }
+    } catch (Exception $e) {}
 }
 
 /**

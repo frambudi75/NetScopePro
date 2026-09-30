@@ -28,13 +28,13 @@ $history = $db->query("SELECT snapshot_date, total_active FROM stats_history ORD
 // 3. Fetch Subnet Breakdown
 $subnet_list = $db->query("
     SELECT s.id, s.subnet, s.mask, s.description, 
-           COUNT(ip.id) as used_ips,
+           COUNT(CASE WHEN ip.state IN ('active', 'reserved', 'dhcp') THEN ip.id END) as used_ips,
            v.number as vlan_num
     FROM subnets s
-    LEFT JOIN ip_addresses ip ON ip.subnet_id = s.id AND ip.state = 'active'
+    LEFT JOIN ip_addresses ip ON ip.subnet_id = s.id
     LEFT JOIN vlans v ON s.vlan_id = v.id
     GROUP BY s.id
-    ORDER BY (COUNT(ip.id) * 1.0 / POW(2, (32 - s.mask))) DESC
+    ORDER BY (COUNT(CASE WHEN ip.state IN ('active', 'reserved', 'dhcp') THEN ip.id END) * 1.0 / POW(2, (32 - s.mask))) DESC
 ")->fetchAll();
 ?>
 
