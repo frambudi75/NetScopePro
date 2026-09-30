@@ -12,6 +12,10 @@ All major functional changes, enhancements, and critical fixes are documented he
   - Added `normalize_subnet_address()` to normalize inputs upon adding or editing subnets.
 - **Orphaned / Ghost IP Record Healing**:
   - Implemented `sync_and_cleanup_orphaned_ips()` which automatically detects and purges or reassigns ghost IP records whose `subnet_id` no longer falls within their subnet CIDR range after a subnet has been edited.
+- **Switch Polling & Redirect Stability**:
+  - Fixed 404 error redirecting to `/var/www/html/switches`: added `RewriteBase /` with leading slash rewrite in `.htaccess` and changed `cron_switch_poll.php` redirect target to clean URL `switches?message=Poll completed`.
+  - Fixed PHP Notices "Only variables should be passed by reference" on `end(explode())` in `includes/vendor.helper.php` and `includes/network.php`.
+  - Fixed PHP Warnings "Undefined array key rx_power/tx_power" in `cron_switch_poll.php` by properly initializing telemetry keys in vendor SFP helper and using null coalescing.
 - **Database Auto-Migrations (`includes/db.php`)**:
   - Integrated `switch_port_vlans`, traffic history counters, and switch hardware metrics into the central auto-migration routine.
 
