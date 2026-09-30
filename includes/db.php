@@ -3,10 +3,9 @@
  * Database connection helper using PDO
  */
 
-require_once __DIR__ . '/config.php';
-
 if (!function_exists('get_db_connection')) {
 function get_db_connection() {
+    require_once __DIR__ . '/config.php';
     $port = defined('DB_PORT') ? DB_PORT : '3306';
     $dsn = "mysql:host=" . DB_HOST . ";port=" . $port . ";dbname=" . DB_NAME . ";charset=utf8mb4";
     $options = [
@@ -296,9 +295,24 @@ function run_auto_migrations($db) {
         $db->exec("ALTER TABLE netwatch_history MODIFY COLUMN status ENUM('up', 'down', 'intermittent', 'unknown') DEFAULT 'unknown'");
     } catch (Exception $e) {}
 
-    // 19. SFP / DOM Monitoring Columns for Switch Port Map
+    // 19. Port Monitoring & SFP Columns for Switch Port Map
     try {
         $spm_cols = $db->query("SHOW COLUMNS FROM switch_port_map")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('port_status', $spm_cols)) {
+            $db->exec("ALTER TABLE switch_port_map ADD COLUMN port_status VARCHAR(20) DEFAULT NULL AFTER vlan_id");
+        }
+        if (!in_array('vlan_name', $spm_cols)) {
+            $db->exec("ALTER TABLE switch_port_map ADD COLUMN vlan_name VARCHAR(100) DEFAULT NULL AFTER port_status");
+        }
+        if (!in_array('port_type', $spm_cols)) {
+            $db->exec("ALTER TABLE switch_port_map ADD COLUMN port_type VARCHAR(30) DEFAULT NULL AFTER vlan_name");
+        }
+        if (!in_array('port_speed', $spm_cols)) {
+            $db->exec("ALTER TABLE switch_port_map ADD COLUMN port_speed VARCHAR(10) DEFAULT NULL AFTER port_type");
+        }
+        if (!in_array('port_alias', $spm_cols)) {
+            $db->exec("ALTER TABLE switch_port_map ADD COLUMN port_alias VARCHAR(200) DEFAULT NULL AFTER port_speed");
+        }
         if (!in_array('sfp_vendor', $spm_cols)) {
             $db->exec("ALTER TABLE switch_port_map 
                 ADD COLUMN sfp_vendor VARCHAR(100) DEFAULT NULL,
@@ -313,9 +327,15 @@ function run_auto_migrations($db) {
         }
     } catch (Exception $e) {}
 
-    // 20. Switch STP & Loop Detection Columns
+    // 20. Switch STP, Loop Detection, & Port Count Columns
     try {
         $sw_cols = $db->query("SHOW COLUMNS FROM switches")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('total_ports', $sw_cols)) {
+            $db->exec("ALTER TABLE switches ADD COLUMN total_ports INT(11) DEFAULT 0 AFTER system_info");
+        }
+        if (!in_array('active_ports', $sw_cols)) {
+            $db->exec("ALTER TABLE switches ADD COLUMN active_ports INT(11) DEFAULT 0 AFTER total_ports");
+        }
         if (!in_array('stp_enabled', $sw_cols)) {
             $db->exec("ALTER TABLE switches ADD COLUMN stp_enabled TINYINT(1) DEFAULT 0");
         }
@@ -339,6 +359,47 @@ function run_auto_migrations($db) {
             SET conflict_detected = 0, conflict_mac = NULL, conflict_details = NULL 
             WHERE conflict_details LIKE 'Multi-OS Discrepancy: Conflicting OS fingerprints%'
         ");
+    } catch (Exception $e) {}
+
+    // 22. Switch Port VLANs Table (Tagged / Trunk VLAN Tracking)
+    try {
+        $db->exec("CREATE TABLE IF NOT EXISTS `switch_port_vlans` (
+            `id` INT(11) NOT NULL AUTO_INCREMENT,
+            `switch_id` INT(11) NOT NULL,
+            `port_name` VARCHAR(100) NOT NULL,
+            `vlan_id` INT(11) NOT NULL,
+            `vlan_name` VARCHAR(100) DEFAULT NULL,
+            `is_tagged` TINYINT(1) NOT NULL DEFAULT 1,
+            `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `idx_unique_port_vlan` (`switch_id`, `port_name`, `vlan_id`),
+            KEY `fk_port_vlan_switch_id` (`switch_id`),
+            CONSTRAINT `fk_port_vlan_switch_id` FOREIGN KEY (`switch_id`) REFERENCES `switches` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    } catch (Exception $e) {}
+
+    // 23. Traffic Monitoring Tables
+    try {
+        $db->exec("CREATE TABLE IF NOT EXISTS switch_port_latest_counters (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            switch_id INT,
+            port_name VARCHAR(100),
+            last_rx_octets BIGINT UNSIGNED,
+            last_tx_octets BIGINT UNSIGNED,
+            last_poll TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY (switch_id, port_name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;");
+
+        $db->exec("CREATE TABLE IF NOT EXISTS switch_port_history (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            switch_id INT,
+            port_name VARCHAR(100),
+            rx_bps BIGINT,
+            tx_bps BIGINT,
+            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX(switch_id, port_name),
+            INDEX(recorded_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;");
     } catch (Exception $e) {}
 }
 }
