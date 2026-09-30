@@ -88,22 +88,24 @@ NetScope Pro menyediakan dua prober interaktif langsung dari menu **Network Tool
 ### A. L2 Loop & Topology Diagnostic Prober
 Akses via: `tools.php?action=loop&switch_id=<ID>`
 
-Prober ini menjalankan 6 fase pengujian real-time:
+Prober ini menjalankan 7 fase pengujian real-time:
 1. **Phase 1 - Switch Identity & Bridge MIB**: Validasi IP switch, sysName, vendor, dan ketersediaan Bridge MIB.
-2. **Phase 2 - STP Protocol & Root Bridge**: Membaca protokol STP (`RSTP`/`STP`), Root Bridge MAC, dan path cost.
+2. **Phase 2 - STP Protocol & Root Bridge**: Membaca protokol STP (`RSTP`/`STP`), Root Bridge MAC, and path cost.
 3. **Phase 3 - Port Operational States**: Melakukan iterasi seluruh port untuk mencari port dalam kondisi `BLOCKING` atau `BROKEN`.
-4. **Phase 4 - Topology Stability & TCN**: Menghitung counter TCN dan waktu stabil sejak perubahan terakhir.
-5. **Phase 5 - MAC Address Distribution**: Memeriksa FDB table terhadap anomali distribusi MAC multi-port.
-6. **Phase 6 - Diagnostic Verdict & Actionable Remediation**: Kesimpulan otomatis tingkat keparahan (CRITICAL / WARNING / HEALTHY) beserta panduan penanganan.
+4. **Phase 4 - Topology Stability & TCN Analysis**: Menghitung counter TCN, waktu sejak perubahan terakhir, dan evaluasi stabilitas topologi (High / Moderate / Critical Active TCN).
+5. **Phase 5 - FDB CAM Table & MAC Flapping Detection**: Memeriksa FDB table terhadap anomali distribusi MAC multi-port dan osilasi MAC flapping aktif pada switch fisik.
+6. **Phase 6 - Evidence Checklist & Confidence Analysis**: Daftar bukti komprehensif (STP Protocol, Blocked Ports, TCN Stability, CAM Cleanliness) beserta skor keyakinan diagnostik (*Confidence Score*).
+7. **Phase 7 - Non-Absolute Verdict & Recommendations**: Kesimpulan realistis non-absolut (`NO ACTIVE LOOP INDICATORS DETECTED ON TARGET SWITCH`) disertai batasan cakupan audit dan panduan remediasi.
 
 ### B. IP Conflict Diagnostic Prober
 Akses via: `tools.php?action=conflict&ip=<TARGET_IP>`
 
-Prober ini menjalankan 4 fase pengujian komprehensif:
-1. **Phase 1 - Database & Inventory Record**: Status IP, MAC, hostname, OS fingerprint, dan flag konflik tersimpan.
+Prober ini menjalankan 5 fase pengujian komprehensif:
+1. **Phase 1 - Database & Inventory Record**: Status IP, MAC, hostname, OS fingerprint, dan flag konflik tersimpan di IPAM.
 2. **Phase 2 - Switch Port & L2 Hardware Mapping**: Memetakan port switch tempat MAC terhubung secara trunk-aware.
-3. **Phase 3 - Multi-Probe ICMP Ping & TTL Variance**: Mengirim probe live ICMP berulang. Jika terdapat variasi nilai TTL (Time To Live) yang drastis, terindikasi dua host berbeda sedang menjawab paket.
-4. **Phase 4 - Diagnostic Verdict**: Rekomendasi apakah konflik valid dan panduan isolasi port.
+3. **Phase 3 - Multi-Probe Verification & MAC Stability Check**: Menjalankan 3 siklus probe ICMP dan ARP berurutan untuk mendeteksi apakah MAC address berosilasi (*MAC Stability Check: Stable vs Unstable/Oscillating*).
+4. **Phase 4 - Evidence Checklist & Confidence Analysis**: Ringkasan bukti checklist per-layer (Host Reachability, MAC Stability, TTL Variance, Switch Path, IPAM Registry) dan skor keyakinan (*Diagnostic Confidence Score*).
+5. **Phase 5 - Diagnostic Verdict & Actionable Remediation**: Kesimpulan probabilitas tabrakan IP (Conflict Probability) beserta panduan langkah penanganan teknis.
 
 ---
 

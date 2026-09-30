@@ -148,72 +148,180 @@ if ((!empty($_POST) || !empty($_GET)) && !empty($target)) {
                 }
                 $output .= "\n";
 
-                // Phase 3: Live Probing & TTL Analysis
-                $output .= "[Phase 3] Live Probing & TTL Consistency Analysis\n";
+                // Phase 3: Multi-Probe Live Verification & MAC Stability Check
+                $output .= "[Phase 3] Multi-Probe Verification & MAC Stability Check\n";
                 
-                // Run 6 pings
-                $ping_cmd = $is_windows ? "ping -n 6 " . escapeshellarg($target) : "ping -c 6 " . escapeshellarg($target);
-                $raw_ping = (string)shell_exec($ping_cmd);
-                
-                $ttls = [];
-                if (preg_match_all('/TTL=(\d+)/i', $raw_ping, $matches)) {
-                    $ttls = array_map('intval', $matches[1]);
-                }
+                $probe_cycles = 3;
+                $probes = [];
+                $all_ttls = [];
+                $observed_macs = [];
+                $packets_sent = 0;
+                $packets_received = 0;
 
-                // Read ARP after ping
-                $arp_after_lines = [];
-                if ($is_windows) {
-                    @exec("arp -a " . escapeshellarg($target), $arp_after_lines);
-                } else {
-                    @exec("arp -n " . escapeshellarg($target), $arp_after_lines);
-                }
+                for ($i = 1; $i <= $probe_cycles; $i++) {
+                    $packets_sent += 2;
+                    // Ping 2 packets per cycle
+                    $ping_cmd = $is_windows 
+                        ? "ping -n 2 -w 1000 " . escapeshellarg($target) 
+                        : "ping -c 2 -W 1 " . escapeshellarg($target);
+                    $raw_ping = (string)shell_exec($ping_cmd);
 
-                // Extract resolved MAC after ping
-                $current_active_mac = null;
-                foreach ($arp_after_lines as $aline) {
-                    if (preg_match('/([0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2})/', $aline, $m)) {
-                        $current_active_mac = strtolower(str_replace('-', ':', $m[1]));
-                        break;
+                    $p_ttl = null;
+                    if (preg_match_all('/TTL=(\d+)/i', $raw_ping, $ttl_matches)) {
+                        $p_ttls = array_map('intval', $ttl_matches[1]);
+                        $packets_received += count($p_ttls);
+                        $p_ttl = end($p_ttls);
+                        foreach ($p_ttls as $t_val) {
+                            $all_ttls[] = $t_val;
+                        }
+                    }
+
+                    // Query ARP table immediately after this probe cycle
+                    $arp_lines = [];
+                    if ($is_windows) {
+                        @exec("arp -a " . escapeshellarg($target), $arp_lines);
+                    } else {
+                        @exec("arp -n " . escapeshellarg($target), $arp_lines);
+                    }
+
+                    $p_mac = null;
+                    foreach ($arp_lines as $aline) {
+                        if (preg_match('/([0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2})/', $aline, $m)) {
+                            $p_mac = strtolower(str_replace('-', ':', $m[1]));
+                            break;
+                        }
+                    }
+
+                    if ($p_mac && $p_mac !== 'ff:ff:ff:ff:ff:ff' && $p_mac !== '00:00:00:00:00:00') {
+                        $observed_macs[] = $p_mac;
+                    }
+
+                    $probes[] = [
+                        'cycle' => $i,
+                        'ttl'   => $p_ttl,
+                        'mac'   => $p_mac
+                    ];
+
+                    $mac_disp = $p_mac ? strtoupper($p_mac) : 'Not in ARP';
+                    $ttl_disp = $p_ttl !== null ? "TTL=$p_ttl" : 'No Response';
+                    $output .= "  • Probe $i ➔ Status: $ttl_disp | Active MAC: $mac_disp\n";
+
+                    if ($i < $probe_cycles) {
+                        usleep(150000); // 150ms pause
                     }
                 }
 
-                $output .= "  • Packets Transmitted : 6\n";
-                $output .= "  • Packets Received    : " . count($ttls) . "\n";
-                $unique_ttls = array_values(array_unique($ttls));
-                if (!empty($ttls)) {
-                    $output .= "  • Observed TTL Values : " . implode(', ', $ttls) . " (Unique: " . implode(', ', $unique_ttls) . ")\n";
-                    $output .= "  • Live ARP MAC        : " . ($current_active_mac ?: 'Not in ARP table') . "\n";
-                } else {
-                    $output .= "  • Host is completely unresponsive to ICMP ping probes.\n";
+                $unique_ttls = array_values(array_unique($all_ttls));
+                $unique_probe_macs = array_values(array_unique($observed_macs));
+
+                $is_mac_stable = true;
+                $mac_stability_label = 'No ARP response observed';
+                if (!empty($unique_probe_macs)) {
+                    if (count($unique_probe_macs) === 1) {
+                        $is_mac_stable = true;
+                        $mac_stability_label = "Stable (Single MAC " . strtoupper($unique_probe_macs[0]) . " across all probes)";
+                    } else {
+                        $is_mac_stable = false;
+                        $mac_stability_label = "⚠️ UNSTABLE / OSCILLATING (" . implode(' ➔ ', array_map('strtoupper', $unique_probe_macs)) . ")";
+                    }
                 }
+
+                $output .= "\n  • Multi-Probe MAC Stability : " . $mac_stability_label . "\n";
+                $output .= "  • Observed TTL Values       : " . (!empty($all_ttls) ? implode(', ', $all_ttls) . " (Unique: " . implode(', ', $unique_ttls) . ")" : "None (Host unpingable)") . "\n";
+                $output .= "  • Probe Packet Loss         : " . ($packets_sent > 0 ? round((($packets_sent - $packets_received) / $packets_sent) * 100) : 0) . "% ($packets_received/$packets_sent received)\n";
                 $output .= "\n";
 
-                // Phase 4: Diagnosis & Verdict
-                $output .= "==================== VERDICT ====================\n";
-                $conflict_score = 0;
+                // Phase 4: Evidence Summary & Confidence Evaluation
+                $output .= "[Phase 4] Evidence Checklist & Confidence Analysis\n";
+
+                // Calculate Diagnostic Evidence Points & Confidence
+                $evidence = [];
+                $confidence_points = 0;
+                $conflict_risk_score = 0;
                 $reasons = [];
 
-                if (count($unique_ttls) > 1) {
-                    $conflict_score += 45;
-                    $reasons[] = "Fluctuating TTL detected (" . implode(' vs ', $unique_ttls) . "). Multiple different operating systems or devices are answering this IP!";
+                // 1. Host Reachability
+                if ($packets_received > 0) {
+                    $confidence_points += 25;
+                    $evidence[] = "✓ Host Reachability        : RESPONSIVE ($packets_received/$packets_sent ICMP probes answered)";
+                } else {
+                    $evidence[] = "⚠ Host Reachability        : UNRESPONSIVE (Host drops ICMP or is offline)";
                 }
 
+                // 2. MAC Stability Evidence
+                if (!empty($unique_probe_macs)) {
+                    $confidence_points += 30;
+                    if ($is_mac_stable) {
+                        $evidence[] = "✓ Multi-Probe MAC Stability: STABLE (Consistent single MAC observed)";
+                    } else {
+                        $conflict_risk_score += 50;
+                        $reasons[] = "MAC address is actively oscillating between probes (" . implode(' vs ', array_map('strtoupper', $unique_probe_macs)) . "), indicating dual hardware answering the same IP!";
+                        $evidence[] = "✗ Multi-Probe MAC Stability: ⚠️ UNSTABLE (" . count($unique_probe_macs) . " distinct MACs observed across probes)";
+                    }
+                } else {
+                    $evidence[] = "⚠ Local ARP Cache Lookup   : UNAVAILABLE (Target is beyond routed gateway or stealth)";
+                }
+
+                // 3. TTL Consistency Evidence
+                if (!empty($unique_ttls)) {
+                    $confidence_points += 20;
+                    if (count($unique_ttls) === 1) {
+                        $evidence[] = "✓ ICMP TTL Signature       : STABLE (TTL " . $unique_ttls[0] . ", variance: 0)";
+                    } else {
+                        $conflict_risk_score += 45;
+                        $reasons[] = "Fluctuating TTL detected (" . implode(' vs ', $unique_ttls) . "), confirming multiple disparate OS kernels answering this IP!";
+                        $evidence[] = "✗ ICMP TTL Signature       : ⚠️ FLUCTUATING (" . implode(' vs ', $unique_ttls) . ")";
+                    }
+                }
+
+                // 4. Switch Port / L2 Path Evidence
+                if (!empty($ports)) {
+                    $confidence_points += 25;
+                    if (count($distinct_macs) > 1) {
+                        $conflict_risk_score += 45;
+                        $reasons[] = "Multiple conflicting MAC addresses (" . implode(', ', array_keys($distinct_macs)) . ") found across switch port tables.";
+                        $evidence[] = "✗ Switch L2 Topology Path  : ⚠️ CONFLICT (" . count($distinct_macs) . " distinct MACs on switch ports)";
+                    } elseif (!empty($is_same_switch_flapping)) {
+                        $conflict_risk_score += 35;
+                        $reasons[] = "MAC address is flapping across multiple ports on the same switch: " . implode('; ', $flapping_switches);
+                        $evidence[] = "✗ Switch L2 Topology Path  : ⚠️ FLAPPING (Learned on multiple ports of same switch)";
+                    } else {
+                        $evidence[] = "✓ Switch L2 Topology Path  : STABLE (Consistent port forwarding path tracked)";
+                    }
+                } else {
+                    $evidence[] = "⚠ Switch L2 Hardware Path  : UNMAPPED (Target MAC not currently in switch FDB table)";
+                }
+
+                // 5. IPAM Database Registry
                 if ($has_db_conflict) {
-                    $conflict_score += 35;
-                    $reasons[] = "NetScope IPAM has flagged an active conflict: " . ($db_conflict_details ?: 'MAC/OS collision');
+                    $conflict_risk_score += 35;
+                    $reasons[] = "NetScope IPAM registry has flagged an active collision: " . ($db_conflict_details ?: 'MAC/OS collision');
+                    $evidence[] = "✗ IPAM Conflict Database   : ⚠️ FLAGGED (" . ($db_conflict_details ?: 'Active conflict') . ")";
+                } else {
+                    $evidence[] = "✓ IPAM Conflict Database   : CLEAN (No active collision flags in database)";
                 }
 
-                if (count($distinct_macs) > 1) {
-                    $conflict_score += 45;
-                    $reasons[] = "Multiple conflicting MAC addresses (" . implode(', ', array_keys($distinct_macs)) . ") found on switch ports for this IP.";
-                } elseif (!empty($is_same_switch_flapping)) {
-                    $conflict_score += 35;
-                    $reasons[] = "MAC address is flapping across multiple ports on the same switch: " . implode('; ', $flapping_switches);
+                // Confidence Level computation
+                $confidence_rating = 'LOW';
+                if ($confidence_points >= 75) {
+                    $confidence_rating = 'HIGH (' . $confidence_points . '%)';
+                } elseif ($confidence_points >= 45) {
+                    $confidence_rating = 'MEDIUM (' . $confidence_points . '%)';
+                } else {
+                    $confidence_rating = 'LOW (' . max(20, $confidence_points) . '%)';
                 }
 
-                if ($conflict_score >= 35) {
+                foreach ($evidence as $ev) {
+                    $output .= "  $ev\n";
+                }
+                $output .= "  • Diagnostic Confidence    : " . $confidence_rating . "\n";
+                $output .= "\n";
+
+                // Phase 5: Verdict & Actionable Guidance
+                $output .= "==================== VERDICT ====================\n";
+                if ($conflict_risk_score >= 35) {
                     $output .= "🚨 STATUS: CONFIRMED / HIGH RISK IP CONFLICT!\n";
-                    $output .= "Risk Score: " . min(100, $conflict_score + 25) . "%\n\n";
+                    $output .= "Conflict Probability : " . min(100, $conflict_risk_score + 15) . "% | Confidence: " . $confidence_rating . "\n\n";
                     $output .= "Key Indicators:\n";
                     foreach ($reasons as $r) {
                         $output .= "  [!] $r\n";
@@ -224,7 +332,8 @@ if ((!empty($_POST) || !empty($_GET)) && !empty($target)) {
                     $output .= "  3. In Subnet Details, edit the IP and check 'Resolve Conflict' once cleared.\n";
                 } else {
                     $output .= "✅ STATUS: NO ACTIVE CONFLICT DETECTED\n";
-                    $output .= "Host responses, TTL signatures (TTL " . (empty($unique_ttls) ? '-' : implode(', ', $unique_ttls)) . "), and L2 switch forwarding topology appear steady and consistent.\n";
+                    $output .= "Conflict Probability : 0% | Confidence: " . $confidence_rating . "\n\n";
+                    $output .= "Host responses, multi-probe MAC stability, and L2 forwarding topology appear steady and consistent.\n";
                 }
             }
         } elseif ($action === 'loop') {
@@ -376,8 +485,8 @@ if ((!empty($_POST) || !empty($_GET)) && !empty($target)) {
                 }
                 $output .= "\n";
 
-                // Phase 4: Topology Instability & TCN Metrics
-                $output .= "[Phase 4] Topology Stability & TCN (Topology Change) Metrics\n";
+                // Phase 4: Topology Stability & TCN (Topology Change) Analysis
+                $output .= "[Phase 4] Topology Stability & TCN (Topology Change) Analysis\n";
                 $tcn_count_raw = $has_snmp ? @snmp2_get($sw_ip, $community, ".1.3.6.1.2.1.17.2.4.0") : false;
                 $tcn_time_raw = $has_snmp ? @snmp2_get($sw_ip, $community, ".1.3.6.1.2.1.17.2.3.0") : false;
 
@@ -385,25 +494,52 @@ if ((!empty($_POST) || !empty($_GET)) && !empty($target)) {
                 $time_since_tcn_ticks = ($tcn_time_raw !== false) ? (int)trim(str_replace(['Timeticks: (', ')', 'INTEGER: '], '', $tcn_time_raw)) : 0;
                 $time_since_tcn_sec = (int)($time_since_tcn_ticks / 100);
 
-                $output .= "  • Total Topology Changes (TCN) : " . $tcn_count . " events\n";
+                // Format human-readable time since last TCN
+                $tcn_time_human = 'Unknown';
                 if ($time_since_tcn_sec > 0) {
-                    $output .= "  • Time Since Last TCN Event    : " . $time_since_tcn_sec . " seconds ago\n";
+                    $days = floor($time_since_tcn_sec / 86400);
+                    $hours = floor(($time_since_tcn_sec % 86400) / 3600);
+                    $mins = floor(($time_since_tcn_sec % 3600) / 60);
+                    $secs = $time_since_tcn_sec % 60;
+                    if ($days > 0) $tcn_time_human = "{$days}d {$hours}h {$mins}m ago";
+                    elseif ($hours > 0) $tcn_time_human = "{$hours}h {$mins}m {$secs}s ago";
+                    elseif ($mins > 0) $tcn_time_human = "{$mins}m {$secs}s ago";
+                    else $tcn_time_human = "{$secs}s ago";
                 }
 
+                $tcn_stability = 'HIGH (Stable)';
+                $tcn_indicator = 'Normal';
                 $is_unstable = false;
-                if ($time_since_tcn_sec > 0 && $time_since_tcn_sec < 60 && $tcn_count > 3) {
+
+                if ($time_since_tcn_sec > 0 && $time_since_tcn_sec < 60) {
                     $is_unstable = true;
-                    $output .= "  ⚠️ INSTABILITY DETECTED: Topology change occurred within the last minute!\n";
+                    $tcn_stability = 'CRITICAL / ACTIVE TCN';
+                    $tcn_indicator = "⚠️ Active recalculation occurred {$time_since_tcn_sec}s ago (< 1 min)! Spanning tree recalculating.";
+                } elseif ($time_since_tcn_sec > 0 && $time_since_tcn_sec < 300) {
+                    $tcn_stability = 'MODERATE';
+                    $tcn_indicator = "⚠️ Recent topology change {$tcn_time_human} (< 5 min). Monitor for link bounce.";
+                } else {
+                    $tcn_indicator = 'Quiet (Last change: ' . $tcn_time_human . ')';
                 }
+
+                $output .= "  • Total Topology Changes (TCN) : " . $tcn_count . " events\n";
+                $output .= "  • Time Since Last TCN Event    : " . $tcn_time_human . " (" . $time_since_tcn_sec . "s)\n";
+                $output .= "  • Recent TCN Activity          : " . $tcn_indicator . "\n";
+                $output .= "  • STP Topology Stability       : " . $tcn_stability . "\n";
                 $output .= "\n";
 
-                // Phase 5: FDB Table Cross-Port Check & DB Flapping Check
-                $output .= "[Phase 5] FDB MAC Distribution & Port Cross-Link Analysis\n";
+                // Phase 5: FDB CAM Table & MAC Flapping Detection
+                $output .= "[Phase 5] FDB CAM Table & MAC Flapping Detection\n";
+                $has_flapping = false;
+                $flapping_info = null;
+
                 if ($sw) {
-                    if (!empty($sw['loop_detected'])) {
-                        $output .= "  • Recorded Loop Flag: YES (⚠️ " . $sw['loop_details'] . ")\n";
+                    if (!empty($sw['loop_detected']) && stripos($sw['loop_details'], 'flapping') !== false) {
+                        $has_flapping = true;
+                        $flapping_info = $sw['loop_details'];
+                        $output .= "  • Recorded Flapping Status     : ⚠️ ACTIVE (" . $flapping_info . ")\n";
                     } else {
-                        $output .= "  • Recorded Loop Flag: None (Clean)\n";
+                        $output .= "  • Recorded Flapping Status     : Clean (No active thrashing flags)\n";
                     }
 
                     // Check if multiple active ports share duplicate MAC addresses
@@ -419,40 +555,98 @@ if ((!empty($_POST) || !empty($_GET)) && !empty($target)) {
                     $dups = $stmt_dups->fetchAll(PDO::FETCH_ASSOC);
 
                     if (!empty($dups)) {
-                        $output .= "  ⚠️ Multi-Port MAC Overlap:\n";
+                        $has_flapping = true;
+                        $output .= "  ⚠️ Multi-Port MAC Oscillation Detected:\n";
                         foreach ($dups as $d) {
-                            $output .= "     - MAC {$d['mac_addr']} appears on {$d['port_cnt']} ports ({$d['ports']})\n";
+                            $output .= "     - MAC {$d['mac_addr']} active on {$d['port_cnt']} ports: {$d['ports']}\n";
                         }
                     } else {
-                        $output .= "  • MAC table mapping is cleanly distributed across physical ports.\n";
+                        $output .= "  • CAM Table Distribution       : Clean (MACs are uniquely mapped to single physical ports)\n";
                     }
                 }
                 $output .= "\n";
 
-                // Phase 6: Verdict & Recommendations
+                // Phase 6: Evidence Checklist & Confidence Analysis
+                $output .= "[Phase 6] Evidence Checklist & Confidence Evaluation\n";
+                $loop_evidence = [];
+                $loop_confidence = 0;
+                $loop_risk = 0;
+
+                // 1. STP Protocol
+                if ($stp_name !== 'Not Supported / Disabled') {
+                    $loop_confidence += 30;
+                    $loop_evidence[] = "✓ Spanning Tree Protocol   : ENABLED ($stp_name)";
+                } else {
+                    $loop_risk += 30;
+                    $loop_evidence[] = "⚠ Spanning Tree Protocol   : DISABLED / UNRESPONSIVE (No BPDU loop protection)";
+                }
+
+                // 2. Blocked Ports
+                if (!empty($blocked_ports)) {
+                    $loop_risk += 60;
+                    $loop_confidence += 30;
+                    $loop_evidence[] = "✗ STP Loop Guard Action    : ⚠️ BLOCKING DETECTED (" . count($blocked_ports) . " ports quarantined)";
+                } else {
+                    $loop_confidence += 30;
+                    $loop_evidence[] = "✓ STP Loop Guard Action    : 0 blocked ports (No loops currently quarantined)";
+                }
+
+                // 3. TCN Stability
+                if ($is_unstable) {
+                    $loop_risk += 35;
+                    $loop_confidence += 20;
+                    $loop_evidence[] = "✗ Topology Change Rate     : ⚠️ UNSTABLE (TCN occurred {$time_since_tcn_sec} seconds ago)";
+                } else {
+                    $loop_confidence += 20;
+                    $loop_evidence[] = "✓ Topology Change Rate     : STABLE ($tcn_time_human since last TCN)";
+                }
+
+                // 4. MAC Flapping / Thrashing
+                if ($has_flapping) {
+                    $loop_risk += 40;
+                    $loop_confidence += 20;
+                    $loop_evidence[] = "✗ CAM Table Distribution   : ⚠️ MAC FLAPPING / OSCILLATION DETECTED";
+                } else {
+                    $loop_confidence += 20;
+                    $loop_evidence[] = "✓ CAM Table Distribution   : CLEAN (No MAC thrashing observed)";
+                }
+
+                $loop_conf_label = $loop_confidence >= 80 ? 'HIGH (' . $loop_confidence . '%)' : ($loop_confidence >= 50 ? 'MEDIUM (' . $loop_confidence . '%)' : 'LOW (' . $loop_confidence . '%)');
+
+                foreach ($loop_evidence as $lev) {
+                    $output .= "  $lev\n";
+                }
+                $output .= "  • Diagnostic Confidence   : " . $loop_conf_label . "\n";
+                $output .= "\n";
+
+                // Phase 7: Verdict & Recommendations
                 $output .= "==================== VERDICT ====================\n";
                 if (!empty($blocked_ports)) {
                     $output .= "🚨 STATUS: SWITCHING LOOP MITIGATED BY STP (ACTIVE BLOCKING)\n";
-                    $output .= "Risk Level: CRITICAL (Loop Broken by STP Guard)\n\n";
+                    $output .= "Risk Level: CRITICAL (Loop Broken by STP Guard) | Confidence: $loop_conf_label\n\n";
                     $output .= "Key Findings:\n";
-                    $output .= "  [!] STP blocked port(s): " . implode(', ', $blocked_ports) . " to protect the network from a broadcast storm.\n";
-                    $output .= "  [!] A physical or VLAN loop exists between the blocked port and an upstream/downstream link.\n\n";
+                    $output .= "  [!] STP blocked port(s): " . implode(', ', $blocked_ports) . " to isolate an active switching loop.\n";
+                    $output .= "  [!] A physical cable loop or unmanaged bridge exists between the blocked port and uplink.\n\n";
                     $output .= "Recommended Actions:\n";
                     $output .= "  1. Trace cables connected to " . implode(', ', $blocked_ports) . " — check for accidental cross-connects or patch loops.\n";
                     $output .= "  2. Look for unmanaged switches or access points plugged into multiple wall jacks.\n";
                     $output .= "  3. Ensure STP priority and root bridge settings are properly designated across the core.\n";
-                } elseif ($is_unstable || (!empty($sw['loop_detected']) && stripos($sw['loop_details'], 'MAC flapping') !== false)) {
-                    $output .= "⚠️ STATUS: TOPOLOGY INSTABILITY / POSSIBLE LOOP OR FLAPPING\n";
-                    $output .= "Risk Level: MODERATE TO HIGH\n\n";
+                } elseif ($has_flapping || $is_unstable) {
+                    $output .= "⚠️ STATUS: TOPOLOGY INSTABILITY / SUSPECTED MAC FLAPPING\n";
+                    $output .= "Risk Level: ELEVATED (Link Flap or Intermittent Loop) | Confidence: $loop_conf_label\n\n";
                     $output .= "Key Findings:\n";
-                    $output .= "  [!] Frequent topology change notifications (TCN) or MAC flapping between switch ports.\n";
-                    $output .= "  [!] Network links may be bouncing or an intermittent loop is forming.\n\n";
-                    $output .= "Recommended Actions:\n";
-                    $output .= "  1. Check switch port error counters (CRC errors, link flaps).\n";
+                    if ($has_flapping) {
+                        $output .= "  [!] Rapid MAC flapping observed: " . ($flapping_info ?: 'Multiple ports reporting identical MACs') . ".\n";
+                    }
+                    if ($is_unstable) {
+                        $output .= "  [!] Rapid Spanning Tree recalculation detected within the last 60 seconds ({$time_since_tcn_sec} seconds ago).\n";
+                    }
+                    $output .= "\nRecommended Actions:\n";
+                    $output .= "  1. Check switch port error counters (CRC errors, link flaps) on flapping interfaces.\n";
                     $output .= "  2. Verify if Edge ports (PC, printers) have 'STP Edge / PortFast' enabled to prevent TCN storms.\n";
                 } elseif ($stp_name === 'Not Supported / Disabled') {
                     $output .= "⚠️ STATUS: STP NOT DETECTED (NO LOOP PROTECTION)\n";
-                    $output .= "Risk Level: WARNING\n\n";
+                    $output .= "Risk Level: WARNING | Confidence: $loop_conf_label\n\n";
                     $output .= "Key Findings:\n";
                     $output .= "  [!] Spanning Tree Protocol (STP/RSTP) is not enabled or not reporting on this device.\n";
                     $output .= "  [!] Without STP, any accidental loop will cause a broadcast storm.\n\n";
@@ -460,9 +654,15 @@ if ((!empty($_POST) || !empty($_GET)) && !empty($target)) {
                     $output .= "  1. Enable RSTP (Rapid Spanning Tree Protocol) on this switch via console/web GUI.\n";
                     $output .= "  2. Enable BPDU Guard / Loop Protect on edge access ports.\n";
                 } else {
-                    $output .= "✅ STATUS: STABLE TOPOLOGY (NO LOOP DETECTED)\n";
-                    $output .= "Switch $sw_name has stable STP topology ($stp_name) with 0 blocked ports.\n";
-                    $output .= "MAC learning and frame forwarding operate normally.\n";
+                    $output .= "✅ STATUS: NO ACTIVE LOOP INDICATORS DETECTED ON TARGET SWITCH\n";
+                    $output .= "Risk Level: CLEAN (Stable Forwarding) | Confidence: $loop_conf_label\n\n";
+                    $output .= "Key Findings:\n";
+                    $output .= "  • Switch $sw_name has stable STP topology ($stp_name) with 0 blocked ports.\n";
+                    $output .= "  • MAC learning and frame forwarding operate normally without CAM thrashing.\n";
+                    $output .= "  • Topology change rate is quiet (no active TCN recalculations in the last 60 seconds).\n\n";
+                    $output .= "Scope & Reliability Note:\n";
+                    $output .= "  • Diagnostic scope covers the boundary of this switch and directly polled interfaces.\n";
+                    $output .= "  • Unmanaged downstream hubs without STP may not reflect upstream unless MAC thrashing occurs.\n";
                 }
             }
         }
