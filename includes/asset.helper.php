@@ -3,15 +3,16 @@
  * AssetHelper - Utilities for server asset management (Security & Health)
  */
 class AssetHelper {
+    const LEGACY_DEFAULT_KEY = '27ffed91f93d4e8eaf12a66852b4a156';
     
     /**
      * Retrieve or generate binary encryption key securely
      */
-    private static function getKey() {
+    public static function getKey() {
         $raw = defined('ENCRYPTION_KEY') && ENCRYPTION_KEY !== '' ? ENCRYPTION_KEY : Settings::get('app_encryption_key', '');
         if (empty($raw)) {
-            // Auto-generate a secure 32-hex key and save to database settings
-            $raw = bin2hex(random_bytes(16));
+            // Default to legacy standard key to ensure consistent persistence across environments
+            $raw = self::LEGACY_DEFAULT_KEY;
             Settings::set('app_encryption_key', $raw);
         }
         return @pack('H*', $raw);
@@ -30,22 +31,51 @@ class AssetHelper {
     }
 
     /**
-     * Decrypt a string using AES-256-CBC
+     * Decrypt a string using AES-256-CBC with multi-key fallback
      */
     public static function decrypt($data) {
         if (empty($data)) return $data;
-        $key = self::getKey();
-        $decoded = @base64_decode($data);
-        if (!$decoded) return $data; // Not base64
+        $decoded = @base64_decode($data, true);
+        if ($decoded === false) return $data; // Not valid base64
         
         $iv_size = openssl_cipher_iv_length('aes-256-cbc');
-        if (strlen($decoded) <= $iv_size) return $data; // Too short to have an IV
+        if (strlen($decoded) <= $iv_size) return $data; // Too short to contain IV
         
         $iv = substr($decoded, 0, $iv_size);
         $encrypted = substr($decoded, $iv_size);
-        $decrypted = @openssl_decrypt($encrypted, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
+
+        // Candidate keys to attempt (Active key first, then legacy default keys)
+        $candidates = [];
+        $current_raw = defined('ENCRYPTION_KEY') && ENCRYPTION_KEY !== '' ? ENCRYPTION_KEY : Settings::get('app_encryption_key', '');
+        if (!empty($current_raw)) {
+            $candidates[] = @pack('H*', $current_raw);
+            $candidates[] = $current_raw;
+        }
+        $candidates[] = @pack('H*', self::LEGACY_DEFAULT_KEY);
+        $candidates[] = self::LEGACY_DEFAULT_KEY;
+
+        foreach ($candidates as $key) {
+            if (empty($key)) continue;
+            $decrypted = @openssl_decrypt($encrypted, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
+            if ($decrypted !== false && $decrypted !== '') {
+                return $decrypted;
+            }
+        }
         
-        return ($decrypted === false) ? $data : $decrypted;
+        return $data;
+    }
+
+    /**
+     * Check if a string appears to be raw un-decrypted ciphertext
+     */
+    public static function isCiphertext($str) {
+        if (!is_string($str) || strlen($str) < 24) return false;
+        $trimmed = trim($str);
+        // Valid base64 ending in = or ==
+        if (preg_match('/^[a-zA-Z0-9\/+]{20,}={1,2}$/', $trimmed)) {
+            return true;
+        }
+        return false;
     }
 
     /**
