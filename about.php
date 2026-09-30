@@ -1,12 +1,13 @@
 <?php
 /**
- * IPManager Pro - About Page
- * Application info, developer details, and support links.
+ * NetScope Pro - System & Appliance Information
+ * Hardware, runtime environment, telemetry engine specifications, and engineering credits.
  */
 
 require_once 'includes/config.php';
 require_once 'includes/db.php';
 require_once 'includes/updater.php';
+require_once 'includes/version.php';
 
 session_start();
 if (!isset($_SESSION['user_id'])) {
@@ -17,18 +18,52 @@ if (!isset($_SESSION['user_id'])) {
 $db = get_db_connection();
 Updater::check(); // Check for updates (cached 24h)
 
-// Pull some live stats for display
-$total_subnets  = $db->query("SELECT COUNT(*) FROM subnets")->fetchColumn();
-$total_devices  = $db->query("SELECT COUNT(*) FROM ip_addresses")->fetchColumn();
-$total_switches = $db->query("SELECT COUNT(*) FROM switches")->fetchColumn();
-$total_users    = $db->query("SELECT COUNT(*) FROM users")->fetchColumn();
+// Query Managed Inventory Metrics
+$total_subnets  = (int) $db->query("SELECT COUNT(*) FROM subnets")->fetchColumn();
+$total_devices  = (int) $db->query("SELECT COUNT(*) FROM ip_addresses")->fetchColumn();
+$total_switches = (int) $db->query("SELECT COUNT(*) FROM switches")->fetchColumn();
+$total_users    = (int) $db->query("SELECT COUNT(*) FROM users")->fetchColumn();
 
-// Netwatch Stats
 try {
-    $total_netwatch = $db->query("SELECT COUNT(*) FROM netwatch")->fetchColumn() ?: 0;
+    $total_netwatch = (int) ($db->query("SELECT COUNT(*) FROM netwatch")->fetchColumn() ?: 0);
 } catch (Exception $e) {
     $total_netwatch = 0;
 }
+
+// Runtime Environment Telemetry
+$server_software = $_SERVER['SERVER_SOFTWARE'] ?? 'PHP CLI / Embedded';
+$php_version     = PHP_VERSION;
+$php_sapi        = php_sapi_name();
+$memory_limit    = ini_get('memory_limit') ?: 'N/A';
+$max_exec_time   = ini_get('max_execution_time') ?: '0';
+$os_family       = PHP_OS_FAMILY;
+$os_kernel       = php_uname('s') . ' ' . php_uname('r');
+$server_time     = date('Y-m-d H:i:s T');
+$server_tz       = date_default_timezone_get();
+
+// Database Telemetry
+try {
+    $db_version = $db->query("SELECT VERSION()")->fetchColumn() ?: 'Unknown';
+} catch (Exception $e) {
+    $db_version = 'Unknown';
+}
+
+try {
+    $db_size = $db->query("SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) FROM information_schema.tables WHERE table_schema = DATABASE()")->fetchColumn() ?: '0.00';
+} catch (Exception $e) {
+    $db_size = 'N/A';
+}
+
+// Subsystem Status Checks
+$telegram_active = false;
+try {
+    $tg_token = $db->query("SELECT setting_value FROM settings WHERE setting_key = 'telegram_bot_token'")->fetchColumn();
+    $telegram_active = !empty($tg_token);
+} catch (Exception $e) {
+    $telegram_active = false;
+}
+
+$snmp_engine = extension_loaded('snmp') ? 'PHP SNMP Extension' : 'Net-SNMP CLI / SNMPv2c';
 
 define('APP_AUTHOR', 'Habib Frambudi');
 define('APP_AUTHOR_EMAIL', 'habibframbudi@gmail.com');
@@ -42,262 +77,589 @@ include 'includes/header.php';
 ?>
 
 <style>
-    .about-main-grid {
+    .sys-header-box {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+    }
+    .sys-identity {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+    }
+    .sys-logo-badge {
+        width: 52px;
+        height: 52px;
+        background: var(--surface-light);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--primary);
+        flex-shrink: 0;
+    }
+    .sys-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    .sys-subtext {
+        color: var(--text-muted);
+        font-size: 0.875rem;
+        line-height: 1.4;
+    }
+    .sys-meta-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+    }
+    .sys-tag {
+        font-size: 0.75rem;
+        font-family: 'JetBrains Mono', monospace;
+        padding: 2px 8px;
+        background: var(--surface-light);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        color: var(--text-muted);
+    }
+    .sys-tag.tag-primary {
+        background: var(--brand-soft);
+        border-color: rgba(88, 166, 255, 0.3);
+        color: var(--primary);
+        font-weight: 600;
+    }
+    .sys-tag.tag-success {
+        background: var(--success-soft);
+        border-color: rgba(63, 185, 80, 0.3);
+        color: var(--success);
+        font-weight: 600;
+    }
+
+    /* Update Callout Box */
+    .sys-update-callout {
+        background: rgba(88, 166, 255, 0.08);
+        border: 1px solid rgba(88, 166, 255, 0.3);
+        border-radius: var(--radius);
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    /* Spec Grid & Table */
+    .sys-grid-2col {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 1.5rem;
         margin-bottom: 1.5rem;
     }
-    .about-stats-grid {
+    @media (max-width: 960px) {
+        .sys-grid-2col {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .spec-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8125rem;
+    }
+    .spec-table tr {
+        border-bottom: 1px solid var(--border);
+    }
+    .spec-table tr:last-child {
+        border-bottom: none;
+    }
+    .spec-table td {
+        padding: 0.625rem 0.5rem;
+        vertical-align: middle;
+    }
+    .spec-label {
+        color: var(--text-muted);
+        width: 38%;
+        font-weight: 500;
+    }
+    .spec-val {
+        color: var(--text);
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Subsystem Status List */
+    .subsystem-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .subsystem-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem;
+        background: var(--surface-light);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        gap: 1rem;
+    }
+    .subsystem-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-width: 0;
+    }
+    .subsystem-name {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text);
+    }
+    .subsystem-desc {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 1px;
+    }
+
+    /* Inventory KPI Row */
+    .inventory-kpi-row {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 1rem;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
     }
-    .support-btn-group {
+    .kpi-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1rem;
         display: flex;
+        align-items: center;
         gap: 1rem;
-        justify-content: center;
-        flex-wrap: wrap;
     }
+    .kpi-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: var(--radius-sm);
+        background: var(--surface-light);
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .kpi-num {
+        font-size: 1.375rem;
+        font-weight: 700;
+        color: var(--text);
+        font-family: 'JetBrains Mono', monospace;
+        line-height: 1.2;
+    }
+    .kpi-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 2px;
+    }
+
+    /* QRIS Modal */
     .qris-modal-backdrop {
         display: none;
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.78);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
         z-index: 9999;
         align-items: center;
         justify-content: center;
         padding: 1rem;
         opacity: 0;
-        transition: opacity 0.25s ease;
+        transition: opacity 0.2s ease;
     }
     .qris-modal-backdrop.active {
         display: flex;
         opacity: 1;
     }
     .qris-modal-content {
-        background: var(--surface, #1e293b);
-        border: 1px solid var(--border, rgba(255,255,255,0.1));
-        border-radius: 20px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
         width: 100%;
-        max-width: 420px;
-        padding: 1.75rem;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+        max-width: 400px;
+        padding: 1.5rem;
         position: relative;
         text-align: center;
-        transform: scale(0.94);
-        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .qris-modal-backdrop.active .qris-modal-content {
-        transform: scale(1);
     }
     .qris-img-wrapper {
         background: #ffffff;
         padding: 12px;
-        border-radius: 16px;
+        border-radius: var(--radius);
         display: inline-block;
         margin: 1rem 0;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+        border: 1px solid #e2e8f0;
     }
     .qris-img-wrapper img {
-        max-width: 250px;
+        max-width: 240px;
         width: 100%;
         height: auto;
         display: block;
-        border-radius: 8px;
     }
-    .changelog-item {
+
+    /* Changelog Timeline */
+    .changelog-row {
         display: flex;
         gap: 1.25rem;
-        padding: 1.25rem 0;
+        padding: 1rem 0;
         border-bottom: 1px solid var(--border);
     }
-    
-    @media (max-width: 900px) {
-        .about-main-grid {
-            grid-template-columns: 1fr;
-        }
+    .changelog-row:last-child {
+        border-bottom: none;
     }
     @media (max-width: 640px) {
-        .changelog-item {
+        .changelog-row {
             flex-direction: column;
-            gap: 0.75rem;
-        }
-        .changelog-meta {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .changelog-meta span[style*="block"] {
-            display: inline !important;
-            margin-top: 0 !important;
-            margin-left: 10px;
+            gap: 0.5rem;
         }
     }
 </style>
 
-<!-- Hero Section -->
-<div style="text-align: center; padding: 2rem 1rem 3rem; position: relative; overflow: hidden;">
-    <div style="position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.15) 0%, transparent 70%); pointer-events: none;"></div>
-    
-    <?php if (Updater::isUpdateAvailable()): ?>
-    <div style="max-width: 650px; margin: 0 auto 2.5rem; background: rgba(99,102,241,0.05); border: 1px solid rgba(99,102,241,0.3); border-radius: 16px; padding: 1.5rem; display: flex; align-items: center; gap: 1.5rem; text-align: left; animation: slideIn 0.5s ease-out; flex-wrap: wrap;">
-        <div style="background: var(--primary); color: white; width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-            <i data-lucide="cloud-download"></i>
+<!-- Update Notice Banner (if newer GitHub release exists) -->
+<?php if (Updater::isUpdateAvailable()): ?>
+<div class="sys-update-callout">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <i data-lucide="info" style="width: 20px; height: 20px; color: var(--primary); flex-shrink: 0;"></i>
+        <div>
+            <div style="font-size: 0.875rem; font-weight: 600; color: var(--text);">Software Update Available: v<?php echo htmlspecialchars(Updater::getLatestVersion()); ?></div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">A newer release is published on the upstream repository.</div>
         </div>
-        <div style="flex: 1; min-width: 200px;">
-            <div style="font-weight: 700; color: white;">v<?php echo Updater::getLatestVersion(); ?> Available</div>
-            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Improved stability and new dashboard widgets are ready.</div>
-        </div>
-        <a href="<?php echo Updater::getUpdateUrl(); ?>" target="_blank" class="btn btn-primary" style="font-size: 0.75rem; padding: 10px 18px;">
-            Update Now
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+        <a href="<?php echo APP_GITHUB; ?>/blob/main/CHANGELOG.md" target="_blank" class="btn" style="background: var(--surface-light); border: 1px solid var(--border); font-size: 0.75rem; padding: 6px 12px;">
+            Release Notes
+        </a>
+        <a href="<?php echo Updater::getUpdateUrl(); ?>" target="_blank" class="btn btn-primary" style="font-size: 0.75rem; padding: 6px 12px;">
+            <i data-lucide="download" style="width: 14px; height: 14px;"></i> Update Package
         </a>
     </div>
-    <style>@keyframes slideIn { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }</style>
-    <?php endif; ?>
+</div>
+<?php endif; ?>
 
-    <div style="display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; background: linear-gradient(135deg, var(--primary), #8b5cf6); border-radius: 24px; margin-bottom: 1.5rem; box-shadow: 0 8px 32px rgba(99,102,241,0.4);">
-        <i data-lucide="network" style="width: 40px; height: 40px; color: white;"></i>
+<!-- System Identity Box -->
+<div class="sys-header-box">
+    <div class="sys-identity">
+        <div class="sys-logo-badge">
+            <i data-lucide="network" style="width: 28px; height: 28px;"></i>
+        </div>
+        <div>
+            <div class="sys-title">
+                NetScope Pro
+                <span class="sys-tag tag-primary">v<?php echo APP_VERSION; ?></span>
+                <span class="sys-tag tag-success">STABLE</span>
+            </div>
+            <div class="sys-subtext">
+                Network Telemetry, IP Address Management (IPAM) & L2 Switching Diagnostics Appliance
+            </div>
+            <div class="sys-meta-tags">
+                <span class="sys-tag">Release: <?php echo APP_RELEASE_DATE; ?></span>
+                <span class="sys-tag">Branch: main</span>
+                <span class="sys-tag">License: MIT Open Source</span>
+                <span class="sys-tag">Timezone: <?php echo htmlspecialchars($server_tz); ?></span>
+            </div>
+        </div>
     </div>
-    <h1 style="font-size: 2.25rem; font-weight: 900; margin-bottom: 0.75rem; letter-spacing: -1px;">NetScope Pro</h1>
-    <p style="color: var(--text-muted); font-size: 1rem; margin-bottom: 2rem; max-width: 600px; margin-left: auto; margin-right: auto;">Premium Enterprise IP Address Management for Modern Networks.</p>
-    
-    <div style="display: inline-flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center;">
-        <span style="background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2); color: var(--primary); padding: 6px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;">v<?php echo APP_VERSION; ?></span>
-        <span style="background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-muted); padding: 6px 14px; border-radius: 20px; font-size: 0.75rem;">MIT License</span>
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <a href="<?php echo APP_GITHUB; ?>" target="_blank" class="btn" style="background: var(--surface-light); border: 1px solid var(--border); font-size: 0.8125rem;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+            GitHub Repo
+        </a>
+        <a href="<?php echo APP_GITHUB; ?>/blob/main/CHANGELOG.md" target="_blank" class="btn" style="background: var(--surface-light); border: 1px solid var(--border); font-size: 0.8125rem;">
+            <i data-lucide="file-text" style="width: 15px; height: 15px;"></i> Changelog
+        </a>
     </div>
 </div>
 
-<!-- Live Stats -->
-<div class="about-stats-grid">
-    <?php
-    $stats = [
-        ['icon' => 'layers',  'value' => $total_subnets,  'label' => 'Subnets',  'color' => 'var(--primary)'],
-        ['icon' => 'monitor', 'value' => $total_devices,  'label' => 'Devices',  'color' => 'var(--success)'],
-        ['icon' => 'server',  'value' => $total_switches, 'label' => 'Switches', 'color' => 'var(--warning)'],
-        ['icon' => 'eye',     'value' => $total_netwatch, 'label' => 'Netwatch', 'color' => '#f59e0b'],
-        ['icon' => 'users',   'value' => $total_users,    'label' => 'Users',    'color' => '#8b5cf6'],
-    ];
-    foreach ($stats as $s): ?>
-    <div class="card" style="text-align: center; padding: 1.5rem;">
-        <i data-lucide="<?php echo $s['icon']; ?>" style="width: 24px; height: 24px; color: <?php echo $s['color']; ?>; margin-bottom: 1rem;"></i>
-        <div style="font-size: 2rem; font-weight: 800; color: white;"><?php echo number_format((int)$s['value']); ?></div>
-        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; text-transform: uppercase; letter-spacing: 0.5px;"><?php echo $s['label']; ?></div>
+<!-- Managed Inventory Metric Strip -->
+<div class="inventory-kpi-row">
+    <div class="kpi-card">
+        <div class="kpi-icon" style="color: var(--primary);">
+            <i data-lucide="layers" style="width: 20px; height: 20px;"></i>
+        </div>
+        <div>
+            <div class="kpi-num"><?php echo number_format($total_subnets); ?></div>
+            <div class="kpi-label">Subnets</div>
+        </div>
     </div>
-    <?php endforeach; ?>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="color: var(--success);">
+            <i data-lucide="monitor" style="width: 20px; height: 20px;"></i>
+        </div>
+        <div>
+            <div class="kpi-num"><?php echo number_format($total_devices); ?></div>
+            <div class="kpi-label">Monitored IPs</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="color: var(--warning);">
+            <i data-lucide="server" style="width: 20px; height: 20px;"></i>
+        </div>
+        <div>
+            <div class="kpi-num"><?php echo number_format($total_switches); ?></div>
+            <div class="kpi-label">Managed Switches</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="color: #60a5fa;">
+            <i data-lucide="eye" style="width: 20px; height: 20px;"></i>
+        </div>
+        <div>
+            <div class="kpi-num"><?php echo number_format($total_netwatch); ?></div>
+            <div class="kpi-label">Netwatch Targets</div>
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="color: var(--text-muted);">
+            <i data-lucide="users" style="width: 20px; height: 20px;"></i>
+        </div>
+        <div>
+            <div class="kpi-num"><?php echo number_format($total_users); ?></div>
+            <div class="kpi-label">Operator Accounts</div>
+        </div>
+    </div>
 </div>
 
-<!-- Main Grid -->
-<div class="about-main-grid">
+<!-- Technical Specifications & Subsystems Grid -->
+<div class="sys-grid-2col">
 
-    <!-- Developer Card -->
+    <!-- Runtime Environment Spec Sheet -->
     <div class="card">
-        <h3 style="font-size: 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;">
-            <i data-lucide="code-2" style="width: 18px; color: var(--primary);"></i> Credits
-        </h3>
-        <div style="display: flex; align-items: center; gap: 1.25rem; margin-bottom: 2rem;">
+        <div style="font-size: 0.9375rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
+            <i data-lucide="terminal" style="width: 17px; height: 17px; color: var(--primary);"></i>
+            Host & Runtime Environment
+        </div>
+        <table class="spec-table">
+            <tbody>
+                <tr>
+                    <td class="spec-label">Operating System</td>
+                    <td class="spec-val"><?php echo htmlspecialchars($os_kernel); ?> (<?php echo htmlspecialchars($os_family); ?>)</td>
+                </tr>
+                <tr>
+                    <td class="spec-label">Web Server</td>
+                    <td class="spec-val"><?php echo htmlspecialchars($server_software); ?></td>
+                </tr>
+                <tr>
+                    <td class="spec-label">PHP Runtime</td>
+                    <td class="spec-val"><?php echo htmlspecialchars($php_version); ?> (SAPI: <?php echo htmlspecialchars($php_sapi); ?>)</td>
+                </tr>
+                <tr>
+                    <td class="spec-label">PHP Memory Limit</td>
+                    <td class="spec-val"><?php echo htmlspecialchars($memory_limit); ?> (Timeout: <?php echo htmlspecialchars($max_exec_time); ?>s)</td>
+                </tr>
+                <tr>
+                    <td class="spec-label">Database Server</td>
+                    <td class="spec-val"><?php echo htmlspecialchars($db_version); ?></td>
+                </tr>
+                <tr>
+                    <td class="spec-label">Database Footprint</td>
+                    <td class="spec-val"><?php echo htmlspecialchars($db_size); ?> MB</td>
+                </tr>
+                <tr>
+                    <td class="spec-label">SNMP Subsystem</td>
+                    <td class="spec-val"><?php echo htmlspecialchars($snmp_engine); ?></td>
+                </tr>
+                <tr>
+                    <td class="spec-label">Server Timestamp</td>
+                    <td class="spec-val"><?php echo htmlspecialchars($server_time); ?></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Core Telemetry Engines & Capabilities Matrix -->
+    <div class="card">
+        <div style="font-size: 0.9375rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
+            <i data-lucide="activity" style="width: 17px; height: 17px; color: var(--primary);"></i>
+            Core Telemetry Subsystems
+        </div>
+        <div class="subsystem-list">
+            <div class="subsystem-item">
+                <div class="subsystem-info">
+                    <i data-lucide="repeat" style="width: 18px; height: 18px; color: var(--primary); flex-shrink: 0;"></i>
+                    <div>
+                        <div class="subsystem-name">L2 Loop & STP Thrashing Monitor</div>
+                        <div class="subsystem-desc">dot1dStp MIB discovery & Port A &harr; Port B pair flapping analysis</div>
+                    </div>
+                </div>
+                <span class="sys-tag tag-success">ACTIVE</span>
+            </div>
+
+            <div class="subsystem-item">
+                <div class="subsystem-info">
+                    <i data-lucide="alert-triangle" style="width: 18px; height: 18px; color: var(--danger); flex-shrink: 0;"></i>
+                    <div>
+                        <div class="subsystem-name">IP Conflict & Collision Engine</div>
+                        <div class="subsystem-desc">Sequential 3-cycle ARP/MAC stability & multi-OS TTL fingerprinting</div>
+                    </div>
+                </div>
+                <span class="sys-tag tag-success">ACTIVE</span>
+            </div>
+
+            <div class="subsystem-item">
+                <div class="subsystem-info">
+                    <i data-lucide="gauge" style="width: 18px; height: 18px; color: var(--warning); flex-shrink: 0;"></i>
+                    <div>
+                        <div class="subsystem-name">Switch Poller & SFP DDM Transceiver</div>
+                        <div class="subsystem-desc">SNMP 64-bit HC counters, throughput calculation & optical power metrics</div>
+                    </div>
+                </div>
+                <span class="sys-tag tag-success">ACTIVE</span>
+            </div>
+
+            <div class="subsystem-item">
+                <div class="subsystem-info">
+                    <i data-lucide="radio" style="width: 18px; height: 18px; color: #60a5fa; flex-shrink: 0;"></i>
+                    <div>
+                        <div class="subsystem-name">Netwatch ICMP Ping Daemon</div>
+                        <div class="subsystem-desc">High-frequency host availability, micro-latency & state transitions</div>
+                    </div>
+                </div>
+                <span class="sys-tag tag-success">ACTIVE</span>
+            </div>
+
+            <div class="subsystem-item">
+                <div class="subsystem-info">
+                    <i data-lucide="send" style="width: 18px; height: 18px; color: var(--text-muted); flex-shrink: 0;"></i>
+                    <div>
+                        <div class="subsystem-name">Telegram NOC Alert Dispatcher</div>
+                        <div class="subsystem-desc">Real-time incident dispatches with anti-spam cooldown throttling</div>
+                    </div>
+                </div>
+                <?php if ($telegram_active): ?>
+                <span class="sys-tag tag-success">CONFIGURED</span>
+                <?php else: ?>
+                <span class="sys-tag">STANDBY</span>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Lower Grid: Maintainer & Changelog -->
+<div class="sys-grid-2col">
+
+    <!-- Maintainer & Community Support -->
+    <div class="card">
+        <div style="font-size: 0.9375rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
+            <i data-lucide="user-check" style="width: 17px; height: 17px; color: var(--primary);"></i>
+            Project Maintainer & Support
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem;">
             <img src="https://github.com/frambudi75.png" 
-                 style="width: 64px; height: 64px; border-radius: 16px; object-fit: cover; border: 2px solid var(--border); flex-shrink: 0;"
+                 style="width: 52px; height: 52px; border-radius: var(--radius); object-fit: cover; border: 1px solid var(--border); flex-shrink: 0;"
                  alt="Habib Frambudi">
             <div>
-                <div style="font-size: 1.125rem; font-weight: 700; color: white;"><?php echo APP_AUTHOR; ?></div>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">Lead Developer & UI Designer</div>
-                <div style="font-size: 0.8rem; margin-top: 4px;">
+                <div style="font-size: 1rem; font-weight: 700; color: var(--text);"><?php echo APP_AUTHOR; ?></div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Lead Developer & Network Systems Engineer</div>
+                <div style="font-size: 0.75rem; margin-top: 3px;">
                     <a href="mailto:<?php echo APP_AUTHOR_EMAIL; ?>" style="color: var(--primary); text-decoration: none;"><?php echo APP_AUTHOR_EMAIL; ?></a>
                 </div>
             </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1.5rem;">
-            <div style="background: var(--primary); padding: 8px; border-radius: 8px;">
-                <i data-lucide="network" style="color: white; width: 24px; height: 24px;"></i>
-            </div>
-            <div>
-                <div style="font-weight: 700; color: white; font-size: 0.9rem;">NetScope Pro</div>
-                <div style="font-size: 0.7rem; color: var(--text-muted);">Official Project</div>
-            </div>
+
+        <div style="font-size: 0.8125rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1.25rem; padding: 0.75rem; background: var(--surface-light); border: 1px solid var(--border); border-radius: var(--radius-sm);">
+            NetScope Pro is open-source software under the MIT License. If it assists your network operations, community contributions directly support hardware lab testing and continued development.
         </div>
-        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-            <a href="<?php echo APP_GITHUB; ?>" target="_blank" class="btn" style="background: var(--surface-light); justify-content: flex-start; border: 1px solid var(--border);">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg> Repository GitHub
+
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <a href="<?php echo APP_SAWERIA; ?>" target="_blank" class="btn" style="background: var(--surface-light); border: 1px solid var(--border); font-size: 0.8125rem;">
+                ☕ Saweria (IDR)
+            </a>
+            <a href="<?php echo APP_PAYPAL; ?>" target="_blank" class="btn" style="background: var(--surface-light); border: 1px solid var(--border); font-size: 0.8125rem;">
+                💳 PayPal (USD)
+            </a>
+            <button type="button" onclick="openQrisModal()" class="btn" style="background: var(--surface-light); border: 1px solid var(--border); font-size: 0.8125rem;">
+                <i data-lucide="qr-code" style="width: 14px; height: 14px; color: var(--success);"></i> QRIS / DANA
+            </button>
+        </div>
+    </div>
+
+    <!-- Kernel & Release History -->
+    <div class="card">
+        <div style="font-size: 0.9375rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="history" style="width: 17px; height: 17px; color: var(--primary);"></i>
+                Recent Release Log
+            </div>
+            <a href="<?php echo APP_GITHUB; ?>/blob/main/CHANGELOG.md" target="_blank" style="font-size: 0.75rem; color: var(--primary); text-decoration: none; font-weight: 500;">
+                Full Changelog &rarr;
             </a>
         </div>
-    </div>
 
-    <!-- Tech Stack Card -->
-    <div class="card">
-        <h3 style="font-size: 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;">
-            <i data-lucide="cpu" style="width: 18px; color: var(--primary);"></i> Technology
-        </h3>
-        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-            <?php
-            $stack = ['PHP 8.2', 'MariaDB 10.11', 'Redis 7', 'Apache 2.4', 'Chart.js 4', 'Mermaid.js', 'Lucide Icons', 'SNMP v2c', 'ICMP Ping', 'SSE', 'Docker'];
-            foreach ($stack as $t): ?>
-            <span style="padding: 6px 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">
-                <?php echo $t; ?>
-            </span>
+        <div>
+            <?php foreach (array_slice($versions, 0, 3) as $v): ?>
+            <div class="changelog-row">
+                <div style="min-width: 100px;">
+                    <span class="sys-tag tag-primary">v<?php echo htmlspecialchars($v['ver']); ?></span>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; font-family: 'JetBrains Mono', monospace;">
+                        <?php echo date('d M Y', strtotime($v['date'])); ?>
+                    </div>
+                </div>
+                <ul style="margin: 0; padding-left: 1.1rem; flex: 1; color: var(--text-muted); font-size: 0.8125rem; line-height: 1.5;">
+                    <?php foreach ($v['changes'] as $c): ?>
+                    <li style="margin-bottom: 3px;"><?php echo htmlspecialchars($c); ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
             <?php endforeach; ?>
         </div>
-        <p style="margin-top: 1.5rem; font-size: 0.8rem; color: var(--text-muted); line-height: 1.6;">
-            Built with modern standards, prioritizing performance and security. No heavy dependencies or legacy bloat.
-        </p>
     </div>
+
 </div>
 
-<!-- Support Section -->
-<div class="card" style="margin-bottom: 2rem; background: linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.05) 100%); border: 1px solid rgba(99,102,241,0.2); text-align: center; padding: 2.5rem 1.5rem;">
-    <div style="font-size: 2rem; margin-bottom: 1rem;">☕</div>
-    <h3 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 0.5rem;">Support the Developer</h3>
-    <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 2rem; max-width: 500px; margin-left: auto; margin-right: auto; line-height: 1.6;">
-        IPManager Pro is open source. If it saves you time, consider buying me a coffee to support future updates.
-    </p>
-    <div class="support-btn-group">
-        <a href="<?php echo APP_SAWERIA; ?>" target="_blank" class="btn btn-primary" style="padding: 12px 24px; font-weight: 700;">☕ Saweria (IDR)</a>
-        <a href="<?php echo APP_PAYPAL; ?>" target="_blank" class="btn btn-secondary" style="padding: 12px 24px; font-weight: 700;">💳 PayPal (USD)</a>
-        <button type="button" onclick="openQrisModal()" class="btn" style="padding: 12px 24px; font-weight: 700; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 15px rgba(16,185,129,0.35);">
-            <i data-lucide="qr-code" style="width: 18px; height: 18px;"></i> 📱 QRIS / DANA
-        </button>
-    </div>
-</div>
-
-<!-- QRIS DANA Modal -->
+<!-- QRIS DANA Modal Dialog -->
 <div id="qrisModal" class="qris-modal-backdrop" onclick="handleQrisBackdropClick(event)">
     <div class="qris-modal-content">
-        <button type="button" onclick="closeQrisModal()" style="position: absolute; top: 1.25rem; right: 1.25rem; background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--text-muted); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
-            <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+        <button type="button" onclick="closeQrisModal()" style="position: absolute; top: 1rem; right: 1rem; background: var(--surface-light); border: 1px solid var(--border); color: var(--text-muted); width: 30px; height: 30px; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+            <i data-lucide="x" style="width: 16px; height: 16px;"></i>
         </button>
         
-        <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); border-radius: 12px; margin-bottom: 0.75rem; color: #10b981;">
-            <i data-lucide="qr-code" style="width: 26px; height: 26px;"></i>
-        </div>
-        
-        <h3 style="font-size: 1.25rem; font-weight: 800; color: white; margin-bottom: 0.25rem;">QRIS / DANA</h3>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Dukung pengembangan NetScope Pro via QRIS</p>
+        <div style="font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem;">QRIS / DANA Community Support</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem;">Scan using any Indonesian banking or e-wallet application</div>
         
         <div class="qris-img-wrapper">
             <img src="<?php echo APP_QRIS_IMG; ?>" alt="QRIS DANA Habib Frambudi" loading="lazy">
         </div>
         
-        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem; margin-bottom: 1rem;">
-            <span style="font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.2);">QRIS Standar</span>
-            <span style="font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(59,130,246,0.1); color: #60a5fa; border: 1px solid rgba(59,130,246,0.2);">DANA</span>
-            <span style="font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border);">GoPay</span>
-            <span style="font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border);">OVO</span>
-            <span style="font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border);">Mobile Banking</span>
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 0.35rem; margin-bottom: 1rem;">
+            <span class="sys-tag tag-success">QRIS Standar</span>
+            <span class="sys-tag">DANA</span>
+            <span class="sys-tag">GoPay</span>
+            <span class="sys-tag">OVO</span>
+            <span class="sys-tag">BCA / Mandiri / BRI</span>
         </div>
         
-        <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1.25rem;">
-            Buka aplikasi e-wallet atau mobile banking Anda, lalu scan kode QR di atas untuk mengirim donasi / dukungan.
-        </p>
-        
-        <div style="display: flex; gap: 0.75rem; justify-content: center;">
-            <a href="<?php echo APP_QRIS_IMG; ?>" download="QRIS_DANA_HabibFrambudi.png" class="btn" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border); font-size: 0.8rem; padding: 8px 16px; color: white; display: inline-flex; align-items: center; gap: 0.4rem;">
-                <i data-lucide="download" style="width: 15px; height: 15px;"></i> Simpan Gambar
+        <div style="display: flex; gap: 0.5rem; justify-content: center;">
+            <a href="<?php echo APP_QRIS_IMG; ?>" download="QRIS_DANA_HabibFrambudi.png" class="btn" style="background: var(--surface-light); border: 1px solid var(--border); font-size: 0.75rem; padding: 6px 12px; color: var(--text);">
+                <i data-lucide="download" style="width: 14px; height: 14px;"></i> Download QR
             </a>
-            <button type="button" onclick="closeQrisModal()" class="btn" style="background: var(--surface-light); border: 1px solid var(--border); font-size: 0.8rem; padding: 8px 16px; color: var(--text-muted);">
-                Tutup
+            <button type="button" onclick="closeQrisModal()" class="btn" style="background: var(--surface); border: 1px solid var(--border); font-size: 0.75rem; padding: 6px 12px; color: var(--text-muted);">
+                Close
             </button>
         </div>
     </div>
@@ -315,7 +677,7 @@ function closeQrisModal() {
     const m = document.getElementById('qrisModal');
     if (!m) return;
     m.classList.remove('active');
-    setTimeout(() => m.style.display = 'none', 250);
+    setTimeout(() => m.style.display = 'none', 200);
 }
 function handleQrisBackdropClick(e) {
     if (e.target.id === 'qrisModal') {
@@ -326,32 +688,5 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') closeQrisModal();
 });
 </script>
-
-<!-- Changelog Preview -->
-<div class="card">
-    <h3 style="font-size: 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-        <i data-lucide="history" style="width: 18px; color: var(--primary);"></i> Recent Updates
-    </h3>
-    <div style="border-top: 1px solid var(--border);">
-    <?php
-    require_once 'includes/version.php';
-    foreach (array_slice($versions, 0, 3) as $v): ?>
-    <div class="changelog-item">
-        <div class="changelog-meta" style="min-width: 120px;">
-            <span style="display: block; background: rgba(99,102,241,0.1); color: var(--primary); font-weight: 800; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; width: fit-content;">v<?php echo $v['ver']; ?></span>
-            <span style="display: block; font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;"><?php echo date('d M Y', strtotime($v['date'])); ?></span>
-        </div>
-        <ul style="margin: 0; padding: 0 0 0 1rem; flex: 1; color: var(--text-muted); font-size: 0.875rem;">
-            <?php foreach ($v['changes'] as $c): ?>
-            <li style="margin-bottom: 4px;"><?php echo htmlspecialchars($c); ?></li>
-            <?php endforeach; ?>
-        </ul>
-    </div>
-    <?php endforeach; ?>
-    </div>
-    <div style="text-align: center; margin-top: 1.5rem;">
-        <a href="<?php echo APP_GITHUB; ?>/blob/main/CHANGELOG.md" target="_blank" style="font-size: 0.8rem; color: var(--primary); text-decoration: none; font-weight: 600;">View full release notes on GitHub →</a>
-    </div>
-</div>
 
 <?php include 'includes/footer.php'; ?>
