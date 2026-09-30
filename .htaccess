@@ -3,14 +3,13 @@ SetEnv MIBDIRS "D:/xampp/php/extras/mibs"
 <IfModule mod_rewrite.c>
     # Enable Rewrite Engine
     RewriteEngine On
+    RewriteBase /
 
     # 1. Externally redirect /file.php to /file (strip .php extension)
     # Exclude api directory to prevent issues with direct script calls
     RewriteCond %{REQUEST_URI} !/api/
-    RewriteCond %{ENV:REDIRECT_STATUS} ^$
-    RewriteCond %{REQUEST_FILENAME} -f
-    RewriteCond %{REQUEST_URI} \.php$
-    RewriteRule ^(.*)\.php$ $1 [R=301,L]
+    RewriteCond %{THE_REQUEST} \s/([^/.]+)\.php[\s?] [NC]
+    RewriteRule ^(.+)\.php$ /$1 [R=301,L]
 
     # 2. Internally rewrite /file to /file.php
     # This allows the app to load file.php when /file is requested.

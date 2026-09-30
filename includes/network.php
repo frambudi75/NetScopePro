@@ -684,7 +684,8 @@ function detect_host_signals($ip, &$arp_map) {
 
     // EXTRA SAFETY: If it's a broadcast address (.255) or network address (.0) in a /24,
     // it's likely a ghost response.
-    $last_octet = (int)end(explode('.', $ip));
+    $octets = explode('.', $ip);
+    $last_octet = (int)end($octets);
     if ($last_octet === 0 || $last_octet === 255) {
         $signals['active'] = false;
     }

@@ -763,7 +763,13 @@ foreach ($switches as $switch) {
             $speed = isset($if_speed_all[$ifidx]) ? format_speed($if_speed_all[$ifidx]) : null;
             $type = get_iftype_name($if_type_all[$ifidx]);
 
-            $sfp = $sfp_data_map[$ifidx] ?? ['vendor'=>null, 'part'=>null, 'serial'=>null, 'rx_power'=>null, 'tx_power'=>null];
+            $sfp = array_merge([
+                'vendor'   => null,
+                'part'     => null,
+                'serial'   => null,
+                'rx_power' => null,
+                'tx_power' => null,
+            ], $sfp_data_map[$ifidx] ?? []);
 
             $stmt_check = $db->prepare("SELECT id FROM switch_port_map WHERE switch_id = ? AND port_name = ? LIMIT 1");
             $stmt_check->execute([$switch['id'], $name]);
@@ -774,13 +780,13 @@ foreach ($switches as $switch) {
             if ($existing_port_id) {
                 // Update existing port (from FDB or previous run) with SFP, STP, and status data
                 $db->prepare("UPDATE switch_port_map SET port_status=?, stp_state=COALESCE(?, stp_state), port_type=?, port_speed=?, sfp_vendor=?, sfp_part=?, sfp_serial=?, sfp_rx_power=?, sfp_tx_power=? WHERE id=?")
-                   ->execute([$status, $port_stp, $type, $speed, $sfp['vendor'], $sfp['part'], $sfp['serial'], $sfp['rx_power'], $sfp['tx_power'], $existing_port_id]);
+                   ->execute([$status, $port_stp, $type, $speed, $sfp['vendor'] ?? null, $sfp['part'] ?? null, $sfp['serial'] ?? null, $sfp['rx_power'] ?? null, $sfp['tx_power'] ?? null, $existing_port_id]);
             } else {
                 // Insert placeholder entry for the port itself (without a real MAC)
                 // Use a dummy MAC to avoid unique constraint violations on empty strings
                 $dummy_mac = 'PORT:' . substr($name, 0, 12);
                 $db->prepare("INSERT IGNORE INTO switch_port_map (mac_addr, switch_id, port_name, port_status, stp_state, port_type, port_speed, sfp_vendor, sfp_part, sfp_serial, sfp_rx_power, sfp_tx_power) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                   ->execute([$dummy_mac, $switch['id'], $name, $status, $port_stp, $type, $speed, $sfp['vendor'], $sfp['part'], $sfp['serial'], $sfp['rx_power'], $sfp['tx_power']]);
+                   ->execute([$dummy_mac, $switch['id'], $name, $status, $port_stp, $type, $speed, $sfp['vendor'] ?? null, $sfp['part'] ?? null, $sfp['serial'] ?? null, $sfp['rx_power'] ?? null, $sfp['tx_power'] ?? null]);
             }
 
             // Check for critical optical power degradation on active SFP interfaces
@@ -924,7 +930,7 @@ if (!$is_cli) {
     
     <div style="text-align: center; margin-top: 2rem;">
         <p style="color: #64748b; font-size: 0.8rem;">Task finished. Redirecting to Management Console...</p>
-        <a href="switches.php" style="color: #38bdf8; text-decoration: none; font-weight: bold; border: 1px solid #38bdf8; padding: 10px 20px; border-radius: 8px; display: inline-block; margin-top: 10px;">Return Now</a>
+        <a href="switches?message=Poll%20completed" style="color: #38bdf8; text-decoration: none; font-weight: bold; border: 1px solid #38bdf8; padding: 10px 20px; border-radius: 8px; display: inline-block; margin-top: 10px;">Return Now</a>
     </div>
 
     <script>
@@ -934,7 +940,7 @@ if (!$is_cli) {
         
         // Immediate redirect if no errors
         setTimeout(() => {
-            window.location.href = 'switches.php?message=Poll completed';
+            window.location.href = 'switches?message=Poll completed';
         }, 1500);
     </script>
 </body>

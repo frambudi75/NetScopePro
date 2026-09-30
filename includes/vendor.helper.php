@@ -401,11 +401,14 @@ class VendorDetector {
 
             if ($vendors && is_array($vendors)) {
                 foreach ($vendors as $oid => $val) {
-                    $idx = end(explode('.', $oid));
+                    $oid_parts = explode('.', $oid);
+                    $idx = end($oid_parts);
                     $sfp_data[$idx] = [
-                        'vendor' => trim(str_replace(['STRING: ', '"'], '', $val)),
-                        'part'   => isset($parts[$oid]) ? trim(str_replace(['STRING: ', '"'], '', $parts[$oid])) : null,
-                        'serial' => isset($serials[$oid]) ? trim(str_replace(['STRING: ', '"'], '', $serials[$oid])) : null,
+                        'vendor'   => trim(str_replace(['STRING: ', '"'], '', $val)),
+                        'part'     => isset($parts[$oid]) ? trim(str_replace(['STRING: ', '"'], '', $parts[$oid])) : null,
+                        'serial'   => isset($serials[$oid]) ? trim(str_replace(['STRING: ', '"'], '', $serials[$oid])) : null,
+                        'rx_power' => null,
+                        'tx_power' => null,
                     ];
                     
                     if (isset($rx[$oid])) {
@@ -429,11 +432,12 @@ class VendorDetector {
             // If DOM table exists, map it
             if ($rx_power && is_array($rx_power)) {
                 foreach ($rx_power as $oid => $val) {
-                    $idx = end(explode('.', $oid));
+                    $oid_parts = explode('.', $oid);
+                    $idx = end($oid_parts);
                     $sfp_data[$idx] = [
-                        'vendor' => 'Juniper', // Vendor string is usually in ENTITY-MIB, simplified here
-                        'part' => null,
-                        'serial' => null,
+                        'vendor'   => 'Juniper', // Vendor string is usually in ENTITY-MIB, simplified here
+                        'part'     => null,
+                        'serial'   => null,
                         'rx_power' => trim(str_replace(['INTEGER: ', '"'], '', $val)) . ' 0.01dBm', // Juniper uses 0.01 dBm steps
                         'tx_power' => isset($tx_power[$oid]) ? trim(str_replace(['INTEGER: ', '"'], '', $tx_power[$oid])) . ' 0.01dBm' : null
                     ];
