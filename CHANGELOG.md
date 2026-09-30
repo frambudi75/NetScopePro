@@ -2,6 +2,17 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.29.1] - 2026-10-01
+### Fixed
+- **Server Assets Decryption Stability & Ciphertext Leak Fix**:
+  - Implemented multi-key fallback in `AssetHelper::decrypt()` (active database key &rarr; legacy standard key `'27ffed91f93d4e8eaf12a66852b4a156'`), preventing existing encrypted credentials and notes from becoming unreadable after container rebuilds or key regeneration.
+  - Added safety fallback in `server-assets.php` to prevent raw base64 ciphertext from being dumped onto dashboard cards.
+  - Fixed card checkbox positioning in `server-assets.php` to reside cleanly inside the card header rather than hanging outside card boundaries.
+- **Universal Live Server Metrics (`api/server-metrics.php`)**:
+  - Switched Linux metric collection to native kernel interfaces (`/proc/meminfo`, `/proc/stat`, `/proc/uptime`, `df -P /`, and `/proc/net/dev`) for reliable data across all distros (Debian, Ubuntu, CentOS, Alpine, Busybox, Docker).
+  - Added automatic detection and telemetry parsing for **MikroTik RouterOS** via `/system resource print`.
+  - Replaced silent fallback to 0% with transparent error reporting when target shell output cannot be parsed.
+
 ## [2.29.0] - 2026-09-30
 ### Added
 - **Evidence-Based IP Conflict Prober (`tools.php?action=conflict`)**:

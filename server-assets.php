@@ -169,16 +169,22 @@ include 'includes/header.php';
             $disp_installed = $asset['installed_apps'];
             $disp_missing = $asset['missing_apps'];
         }
+
+        // Safety fallback: if decryption could not recover plaintext, don't dump raw base64 string
+        if (AssetHelper::isCiphertext($disp_user)) $disp_user = '[Encrypted User]';
+        if (AssetHelper::isCiphertext($disp_installed)) $disp_installed = '[Encrypted Packages]';
+        if (AssetHelper::isCiphertext($disp_missing)) $disp_missing = '[Encrypted Packages]';
+        if (AssetHelper::isCiphertext($disp_notes)) $disp_notes = 'Encrypted technical notes (key mismatch).';
     ?>
     <div class="card asset-card" data-asset-id="<?php echo $asset['id']; ?>" style="position: relative; display: flex; flex-direction: column; padding: 1.5rem; border: 1px solid var(--border); transition: transform 0.2s, box-shadow 0.2s;">
-        <div class="checkbox-wrapper" style="position: absolute; top: -8px; left: -8px; z-index: 10;">
-            <input type="checkbox" class="asset-checkbox" value="<?php echo $asset['id']; ?>" onchange="updateBatchBar()" style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--primary);">
-        </div>
         
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; gap: 1rem;">
-            <h3 style="font-size: 1.25rem; font-weight: 800; color: white; overflow-wrap: break-word; word-break: break-word; margin: 0; line-height: 1.2; flex: 1;">
-                <?php echo htmlspecialchars($asset['hostname']); ?>
-            </h3>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; gap: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1;">
+                <input type="checkbox" class="asset-checkbox" value="<?php echo $asset['id']; ?>" onchange="updateBatchBar()" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary); flex-shrink: 0;">
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: white; overflow-wrap: break-word; word-break: break-word; margin: 0; line-height: 1.2;">
+                    <?php echo htmlspecialchars($asset['hostname']); ?>
+                </h3>
+            </div>
             <div class="asset-actions" style="display: flex; gap: 0.4rem; flex-shrink: 0;">
                 <button class="btn-icon" onclick="refreshStatus(<?php echo $asset['id']; ?>)" id="refresh-btn-<?php echo $asset['id']; ?>" title="Refresh Status">
                     <i data-lucide="refresh-cw" style="width: 14px;"></i>
