@@ -67,7 +67,7 @@
             </div>
 
             <!-- Content Grid -->
-            <div id="ipIntelBody" style="display: none; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 1.25rem;">
+            <div id="ipIntelBody" style="display: none; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem;">
                 
                 <!-- Card 1: L3 Network Context -->
                 <div style="background: var(--surface-light); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
