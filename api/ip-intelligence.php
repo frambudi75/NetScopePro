@@ -9,6 +9,7 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/network.php';
 require_once __DIR__ . '/../includes/audit.helper.php';
+require_once __DIR__ . '/../includes/conflict.helper.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -31,10 +32,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             exit;
         }
         $db = get_db_connection();
-        $stmt = $db->prepare("UPDATE ip_addresses SET conflict_detected = 0, conflict_mac = NULL, conflict_details = NULL WHERE ip_addr = ?");
-        $stmt->execute([$target_ip]);
-
-        AuditLogHelper::log('resolve_conflict', 'ip_address', null, "Resolved conflict for IP {$target_ip} via Intelligence Dossier");
+        $user = $_SESSION['username'] ?? 'User';
+        ConflictHelper::resolveConflict($db, $target_ip, $user);
 
         echo json_encode(['success' => true, 'message' => 'Conflict resolved successfully']);
         exit;

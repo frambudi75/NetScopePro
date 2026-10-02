@@ -4,6 +4,7 @@ require_once '../includes/db.php';
 require_once '../includes/network.php';
 require_once '../includes/snmp.php';
 require_once '../includes/notifications.php';
+require_once '../includes/conflict.helper.php';
 
 
 session_start();
@@ -189,6 +190,7 @@ try {
                 $conflict_mac = $current_data['mac_addr'];
                 $old_vendor = $current_data['vendor'] ?? 'Unknown';
                 $conflict_details = "MAC Flapping: " . $current_data['mac_addr'] . " (" . $old_vendor . ") vs " . $mac . " (" . $vendor . ")";
+                try { ConflictHelper::logEvent($db, $ip, $current_data['mac_addr'], $mac, $conflict_details, 'flapping'); } catch (Exception $e) {}
                 try { NotificationHelper::notifyConflict($ip, $current_data['mac_addr'], $mac, $subnet['subnet']); } catch (Exception $e) {}
             }
 
