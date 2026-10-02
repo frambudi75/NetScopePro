@@ -587,6 +587,37 @@ LOCK TABLES `vlans` WRITE;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
+--
+-- Table structure for table `ip_conflict_events`
+--
+
+CREATE TABLE IF NOT EXISTS `ip_conflict_events` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ip_id` int(11) NOT NULL,
+  `ip_address` varchar(45) NOT NULL,
+  `subnet_id` int(11) DEFAULT NULL,
+  `mac_old` varchar(20) DEFAULT NULL,
+  `mac_new` varchar(20) DEFAULT NULL,
+  `vendor_old` varchar(100) DEFAULT NULL,
+  `vendor_new` varchar(100) DEFAULT NULL,
+  `switch_id` int(11) DEFAULT NULL,
+  `port_name` varchar(64) DEFAULT NULL,
+  `vlan_id` int(11) DEFAULT NULL,
+  `hostname_snapshot` varchar(150) DEFAULT NULL,
+  `event_type` enum('mac_flap','arp_duplicate','subnet_mismatch') NOT NULL DEFAULT 'mac_flap',
+  `status` enum('active','resolved','ignored') NOT NULL DEFAULT 'active',
+  `flap_count` int(11) NOT NULL DEFAULT 1,
+  `first_detected` datetime NOT NULL,
+  `last_detected` datetime NOT NULL,
+  `resolved_at` datetime DEFAULT NULL,
+  `resolved_by` varchar(50) DEFAULT NULL,
+  `resolution_notes` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_ip_status` (`ip_id`,`status`),
+  KEY `idx_ip_addr` (`ip_address`),
+  KEY `idx_last_detected` (`last_detected`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
 /*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
