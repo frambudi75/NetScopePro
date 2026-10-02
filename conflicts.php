@@ -69,6 +69,79 @@ try {
 } catch (Exception $e) {}
 ?>
 
+<style>
+.conflict-header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.conflict-actions-bar {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.conflict-dual-grid {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 1.5rem;
+    align-items: stretch;
+    margin-top: 1.25rem;
+}
+.conflict-vs-divider {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+.conflict-vs-line {
+    width: 1px;
+    flex-grow: 1;
+    background: rgba(239,68,68,0.25);
+    min-height: 20px;
+}
+
+@media (max-width: 860px) {
+    .conflict-dual-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    .conflict-vs-divider {
+        flex-direction: row;
+        width: 100%;
+        margin: 0.5rem 0;
+    }
+    .conflict-vs-line {
+        height: 1px;
+        width: 100%;
+        min-height: auto;
+    }
+    .conflict-header-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .conflict-actions-bar {
+        width: 100%;
+    }
+    .conflict-actions-bar .btn {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .conflict-actions-bar .btn {
+        font-size: 0.7rem;
+        padding: 0.35rem 0.5rem;
+    }
+}
+</style>
+
 <div class="page-header animate-up">
     <div>
         <h1 style="font-size: 1.5rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.6rem;">
@@ -194,7 +267,7 @@ try {
                 ?>
                 <div class="card animate-up" style="border: 1px solid rgba(239,68,68,0.4); background: linear-gradient(180deg, var(--surface) 0%, rgba(239,68,68,0.02) 100%); padding: 1.5rem; border-radius: var(--radius); box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
                     <!-- Header Bar of Conflict Card -->
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                    <div class="conflict-header-bar">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
                             <div style="background: rgba(239,68,68,0.15); padding: 6px 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 1.15rem; font-weight: 700; color: #f87171; letter-spacing: 0.5px;">
                                 <?php echo htmlspecialchars($conflict['ip_addr']); ?>
@@ -212,7 +285,7 @@ try {
                         </div>
 
                         <!-- Card Action Buttons -->
-                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <div class="conflict-actions-bar">
                             <button type="button" class="btn btn-secondary" onclick="openIpIntelligence('<?php echo htmlspecialchars($conflict['ip_addr']); ?>')" style="font-size: 0.75rem; padding: 0.4rem 0.75rem; color: var(--primary); border-color: rgba(88,166,255,0.3);">
                                 <i data-lucide="scan" style="width: 13px;"></i> Dossier 360°
                             </button>
@@ -231,7 +304,7 @@ try {
                     </div>
 
                     <!-- Side-by-Side Dual Host Comparison -->
-                    <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 1.5rem; align-items: stretch; margin-top: 1.25rem;">
+                    <div class="conflict-dual-grid">
                         <!-- Host A (Primary / Registered) -->
                         <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -270,12 +343,12 @@ try {
                         </div>
 
                         <!-- VS Badge Divider -->
-                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem;">
-                            <div style="width: 1px; flex-grow: 1; background: rgba(239,68,68,0.25);"></div>
-                            <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(239,68,68,0.2); border: 2px solid rgba(239,68,68,0.5); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; color: #f87171; box-shadow: 0 0 10px rgba(239,68,68,0.3);">
+                        <div class="conflict-vs-divider">
+                            <div class="conflict-vs-line"></div>
+                            <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(239,68,68,0.2); border: 2px solid rgba(239,68,68,0.5); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; color: #f87171; box-shadow: 0 0 10px rgba(239,68,68,0.3); flex-shrink: 0;">
                                 VS
                             </div>
-                            <div style="width: 1px; flex-grow: 1; background: rgba(239,68,68,0.25);"></div>
+                            <div class="conflict-vs-line"></div>
                         </div>
 
                         <!-- Host B (Conflicting / Imposter) -->
