@@ -258,7 +258,17 @@ async function openIpIntelligence(ip, id = null) {
     try {
         const url = ip ? `api/ip-intelligence.php?ip=${encodeURIComponent(ip)}` : `api/ip-intelligence.php?id=${id}`;
         const res = await fetch(url);
-        const json = await res.json();
+        const text = await res.text();
+        let json;
+        try {
+            json = JSON.parse(text);
+        } catch (err) {
+            console.error('Invalid JSON response from intelligence engine:', text);
+            const cleanErr = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+            alert('Intelligence Engine Error: ' + (cleanErr.substring(0, 150) || 'Invalid server response'));
+            closeIpIntelligence();
+            return;
+        }
         
         if (!json.success || !json.data) {
             alert(json.error || 'Failed to fetch IP intelligence data.');
@@ -270,7 +280,7 @@ async function openIpIntelligence(ip, id = null) {
         populateIpIntelligence(json.data);
     } catch (e) {
         console.error('Error fetching IP intelligence:', e);
-        alert('Network error while communicating with intelligence engine.');
+        alert('Network error while communicating with intelligence engine: ' + e.message);
         closeIpIntelligence();
     }
 }
