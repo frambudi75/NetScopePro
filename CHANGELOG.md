@@ -2,6 +2,29 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.31.0] - 2026-10-02
+### Added
+- **IP Conflict & Flap Center (`conflicts.php` & `includes/conflict.helper.php`)**:
+  - Dedicated NOC-grade Conflict Center module for monitoring, investigating, and mitigating IP address conflicts and MAC thrashing.
+  - **Dual-Host Forensic Comparison**: Side-by-side card comparing Host A (Incumbent) vs Host B (New Intruder/Device) with MAC address, Vendor (OUI), Physical Switch & Port, VLAN, Hostname, Detection Timestamp, and Flap Counts.
+  - **1-Click Administrative Actions**:
+    - **Resolve Conflict**: Clears conflict flags and stores the resolution audit trail.
+    - **Accept New Host**: Adopts the new MAC address as the legitimate host, updating device history and clearing the flag.
+    - **Ignore / Acknowledge**: Suppresses active alerts for benign dual-NIC or bridge environments without deleting forensic logs.
+    - **Live 3-Cycle Sequential Prober**: Triggers real-time ARP and MAC stability verification directly from the event row.
+  - **Flapping History Timeline**: Complete historical log table of all detected conflict events with status badges, timestamps, and resolution summaries.
+  - **Navigation & Badges**: Added dedicated "Conflict Center" in sidebar navigation under *Monitoring & Tools* with a dynamic red badge counter showing active conflicts.
+  - **Automated Event Detection**: Integrated into `scanner_worker.php` and `api/scan.php` to automatically log new MAC flapping events into `ip_conflict_events` table during network sweeps.
+  - **Auto-Migration**: Idempotent table creation for `ip_conflict_events` in `includes/db.php` and `includes/db_upgrade.php`.
+
+### Fixed
+- **L2 Switching Loop & STP Stability Prober False Alarm Fix (`tools.php`)**:
+  - MikroTik RouterOS Bridge returns `dot1dStpPortState = 2 (blocking)` on disconnected/unplugged ports (`ifOperStatus != 1`).
+  - The live diagnostic prober now queries `dot1dBasePortIfIndex` and `ifOperStatus` (`.1.3.6.1.2.1.2.2.1.8`) to confirm physical link state before evaluating STP blocking states.
+  - Link-down ports are now classified into a separate **`Inactive / Down`** category (e.g. `ether3-to-Sw (Down)`) and will no longer trigger false-positive loop mitigation alarms or critical warnings.
+  - Enhanced interface naming to display friendly port labels instead of generic `Port #X` numbering.
+  - Hardened database fallback to verify `port_status = 'up'` before flagging blocked ports.
+
 ## [2.30.0] - 2026-10-02
 ### Added
 - **IP Intelligence Dossier (NetScope 360°)**:

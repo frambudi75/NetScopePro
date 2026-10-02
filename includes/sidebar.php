@@ -13,12 +13,14 @@
         <?php
         $current = basename($_SERVER['PHP_SELF']);
         
-        // Query for Netwatch Down Devices
+        // Query for Netwatch Down Devices & Conflict Count
         $netwatch_down_count = 0;
+        $conflict_count_badge = 0;
         try {
-            if (isset($pdo)) {
-                $stmt = $pdo->query("SELECT COUNT(*) FROM netwatch WHERE status = 'down'");
-                $netwatch_down_count = $stmt->fetchColumn();
+            $db_conn = isset($db) ? $db : (isset($pdo) ? $pdo : (function_exists('get_db_connection') ? get_db_connection() : null));
+            if ($db_conn) {
+                $netwatch_down_count = (int)$db_conn->query("SELECT COUNT(*) FROM netwatch WHERE status = 'down'")->fetchColumn();
+                $conflict_count_badge = (int)$db_conn->query("SELECT COUNT(*) FROM ip_addresses WHERE conflict_detected = 1")->fetchColumn();
             }
         } catch (Exception $e) {}
 
@@ -35,6 +37,7 @@
             ],
             'Monitoring & Tools' => [
                 ['netwatch', 'eye', 'Netwatch'],
+                ['conflicts', 'shield-alert', 'Conflict Center'],
                 ['topology', 'map', 'Network Map'],
                 ['topology-manager', 'settings-2', 'Manage Links'],
                 ['tools', 'wrench', 'Network Toolbox'],
@@ -55,6 +58,9 @@
                     <i data-lucide="<?php echo $item[1]; ?>" style="width: 15px;"></i> <?php echo $item[2]; ?>
                     <?php if ($item[0] === 'netwatch' && $netwatch_down_count > 0): ?>
                         <span style="margin-left: auto; background: var(--danger); color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; font-weight: 700;"><?php echo $netwatch_down_count; ?></span>
+                    <?php endif; ?>
+                    <?php if ($item[0] === 'conflicts' && $conflict_count_badge > 0): ?>
+                        <span style="margin-left: auto; background: #ef4444; color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; font-weight: 700;"><?php echo $conflict_count_badge; ?></span>
                     <?php endif; ?>
                 </a>
             </li>

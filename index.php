@@ -225,8 +225,8 @@ try {
                 </div>
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <a href="tools?tab=conflict" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 0.85rem; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5; display: inline-flex; align-items: center; gap: 0.4rem;">
-                    <i data-lucide="crosshair" style="width: 14px;"></i> Buka Conflict Prober
+                <a href="conflicts" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 0.85rem; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5; display: inline-flex; align-items: center; gap: 0.4rem;">
+                    <i data-lucide="shield-alert" style="width: 14px;"></i> Open Conflict Center &rarr;
                 </a>
             </div>
         </div>
@@ -586,8 +586,8 @@ try {
                 <a href="vlans" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 0.75rem; justify-content: center; background: var(--surface-light);">
                     <i data-lucide="network" style="width: 14px;"></i> VLANs
                 </a>
-                <a href="tools?tab=conflict" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 0.75rem; justify-content: center; background: var(--surface-light);">
-                    <i data-lucide="crosshair" style="width: 14px; color: #ef4444;"></i> Conflict Prober
+                <a href="conflicts" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 0.75rem; justify-content: center; background: var(--surface-light);">
+                    <i data-lucide="shield-alert" style="width: 14px; color: #ef4444;"></i> Conflict Center
                 </a>
                 <?php if (is_admin()): ?>
                 <a href="settings" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 0.75rem; justify-content: center; background: var(--surface-light);">

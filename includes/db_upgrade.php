@@ -176,8 +176,36 @@ try {
         echo "switch_port_map stp_state added.\n";
     }
 
+    // --- IP Conflict & MAC Flapping Events Table ---
+    $conflictEventsExists = $db->query("SHOW TABLES LIKE 'ip_conflict_events'")->rowCount() > 0;
+    if (!$conflictEventsExists) {
+        echo "Creating missing table: ip_conflict_events...\n";
+        $db->exec("CREATE TABLE IF NOT EXISTS `ip_conflict_events` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `ip_addr` VARCHAR(45) NOT NULL,
+            `mac_a` VARCHAR(20) NOT NULL,
+            `mac_b` VARCHAR(20) DEFAULT NULL,
+            `vendor_a` VARCHAR(100) DEFAULT NULL,
+            `vendor_b` VARCHAR(100) DEFAULT NULL,
+            `switch_port_a` VARCHAR(100) DEFAULT NULL,
+            `switch_port_b` VARCHAR(100) DEFAULT NULL,
+            `event_type` ENUM('conflict', 'flapping', 'rogue_gateway') DEFAULT 'conflict',
+            `details` TEXT DEFAULT NULL,
+            `flap_count` INT NOT NULL DEFAULT 1,
+            `status` ENUM('active', 'resolved', 'ignored') DEFAULT 'active',
+            `detected_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            `resolved_at` TIMESTAMP NULL DEFAULT NULL,
+            `resolved_by` VARCHAR(50) DEFAULT NULL,
+            INDEX (`ip_addr`),
+            INDEX (`status`),
+            INDEX (`detected_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        echo "Table 'ip_conflict_events' created successfully.\n";
+    }
+
     echo "Database schema is up to date.\n";
 
 } catch (Exception $e) {
     echo "Migration Error: " . $e->getMessage() . "\n";
 }
+

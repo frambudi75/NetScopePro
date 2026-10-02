@@ -12,6 +12,7 @@ if (php_sapi_name() !== 'cli') {
 require_once 'includes/config.php';
 require_once 'includes/db.php';
 require_once 'includes/network.php';
+require_once 'includes/conflict.helper.php';
 
 // Arguments: php scanner_worker.php [subnet_id] [start_ip_long] [end_ip_long]
 $subnet_id = (int)($argv[1] ?? 0);
@@ -127,6 +128,9 @@ for ($i = $start_long; $i <= $end_long; $i++) {
                 $conflict_mac = $existing['mac_addr'];
                 $old_vendor = $existing['vendor'] ?? 'Unknown';
                 $conflict_details = "MAC Flapping: " . $existing['mac_addr'] . " (" . $old_vendor . ") vs " . $new_mac . " (" . $vendor . ")";
+                try {
+                    ConflictHelper::logEvent($db, $ip, $existing['mac_addr'], $new_mac, $conflict_details, 'flapping');
+                } catch (Exception $e) {}
                 try {
                     NotificationHelper::notifyConflict($ip, $existing['mac_addr'], $new_mac, $subnet['subnet'] . '/' . $subnet['mask']);
                 } catch (Exception $e) {}

@@ -440,12 +440,51 @@ if ((!empty($_POST) || !empty($_GET)) && !empty($target)) {
                 $stp_port_states_raw = $has_snmp ? @snmprealwalk($sw_ip, $community, ".1.3.6.1.2.1.17.2.15.1.3") : false;
                 $blocked_ports = [];
                 $forwarding_ports = [];
+                $inactive_ports = [];
                 $other_ports = [];
 
                 if ($stp_port_states_raw && is_array($stp_port_states_raw)) {
+                    // Fetch bridge port to ifIndex mapping and physical link status
+                    $bport_to_ifindex = [];
+                    $b2if_raw = @snmprealwalk($sw_ip, $community, ".1.3.6.1.2.1.17.1.4.1.2");
+                    if ($b2if_raw && is_array($b2if_raw)) {
+                        foreach ($b2if_raw as $oid => $val) {
+                            $parts = explode('.', $oid);
+                            $bp = end($parts);
+                            $bport_to_ifindex[$bp] = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
+                        }
+                    }
+
+                    $oper_status_map = [];
+                    $oper_raw = @snmprealwalk($sw_ip, $community, ".1.3.6.1.2.1.2.2.1.8");
+                    if ($oper_raw && is_array($oper_raw)) {
+                        foreach ($oper_raw as $oid => $val) {
+                            $parts = explode('.', $oid);
+                            $ifidx = end($parts);
+                            $oper_status_map[$ifidx] = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
+                        }
+                    }
+
+                    // Fetch interface names for friendly display
+                    $ifname_map = [];
+                    $ifnames_raw = @snmprealwalk($sw_ip, $community, ".1.3.6.1.2.1.31.1.1.1.1");
+                    if (!$ifnames_raw || !is_array($ifnames_raw)) {
+                        $ifnames_raw = @snmprealwalk($sw_ip, $community, ".1.3.6.1.2.1.2.2.1.2");
+                    }
+                    if ($ifnames_raw && is_array($ifnames_raw)) {
+                        foreach ($ifnames_raw as $oid => $val) {
+                            $parts = explode('.', $oid);
+                            $ifidx = end($parts);
+                            $ifname_map[$ifidx] = trim(str_replace(['STRING: ', '"'], '', $val));
+                        }
+                    }
+
                     foreach ($stp_port_states_raw as $oid => $val) {
                         $parts = explode('.', $oid);
                         $bport = end($parts);
+                        $ifidx = $bport_to_ifindex[$bport] ?? $bport;
+                        $port_display = !empty($ifname_map[$ifidx]) ? $ifname_map[$ifidx] : "Port #$bport";
+
                         $s_int = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
                         $s_name = match($s_int) {
                             1 => 'disabled',
@@ -456,12 +495,20 @@ if ((!empty($_POST) || !empty($_GET)) && !empty($target)) {
                             6 => 'broken',
                             default => 'unknown'
                         };
-                        if ($s_name === 'blocking') {
-                            $blocked_ports[] = "Port #$bport";
+
+                        // Check physical link status: 1=up, 2=down
+                        // In bridge devices (MikroTik, HP, etc.), unplugged/down ports report STP state 2/blocking.
+                        // This is link-down dormancy, NOT an active STP loop block!
+                        $is_up = ($oper_status_map[$ifidx] ?? 1) === 1;
+
+                        if (!$is_up) {
+                            $inactive_ports[] = "$port_display (Down)";
+                        } elseif ($s_name === 'blocking') {
+                            $blocked_ports[] = $port_display;
                         } elseif ($s_name === 'forwarding') {
-                            $forwarding_ports[] = "Port #$bport";
+                            $forwarding_ports[] = $port_display;
                         } else {
-                            $other_ports[] = "Port #$bport ($s_name)";
+                            $other_ports[] = "$port_display ($s_name)";
                         }
                     }
                 } elseif ($sw) {
@@ -469,16 +516,24 @@ if ((!empty($_POST) || !empty($_GET)) && !empty($target)) {
                     $db_ports = $db->prepare("SELECT port_name, stp_state, port_status FROM switch_port_map WHERE switch_id = ?");
                     $db_ports->execute([$sw['id']]);
                     foreach ($db_ports->fetchAll(PDO::FETCH_ASSOC) as $dp) {
-                        if ($dp['stp_state'] === 'blocking') {
+                        $is_up = strtolower($dp['port_status'] ?? '') === 'up';
+                        if (!$is_up) {
+                            $inactive_ports[] = "{$dp['port_name']} (Down)";
+                        } elseif ($dp['stp_state'] === 'blocking') {
                             $blocked_ports[] = $dp['port_name'];
                         } elseif ($dp['stp_state'] === 'forwarding') {
                             $forwarding_ports[] = $dp['port_name'];
+                        } else {
+                            $other_ports[] = "{$dp['port_name']} ({$dp['stp_state']})";
                         }
                     }
                 }
 
                 $output .= "  • Forwarding Ports : " . count($forwarding_ports) . " active\n";
                 $output .= "  • Blocked Ports    : " . count($blocked_ports) . "\n";
+                if (!empty($inactive_ports)) {
+                    $output .= "  • Inactive / Down  : " . count($inactive_ports) . " (" . implode(', ', $inactive_ports) . ")\n";
+                }
                 if (!empty($blocked_ports)) {
                     $output .= "    ⚠️ WARNING: Blocked ports detected: " . implode(', ', $blocked_ports) . "\n";
                     $output .= "    (STP has disabled forwarding on these ports to break a detected network loop)\n";
