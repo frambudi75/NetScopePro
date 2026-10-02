@@ -35,6 +35,8 @@ if (!$is_cli) {
             die("Unauthorized. Run via CLI, log in as admin, or provide a valid key.");
         }
     }
+    // Release session lock immediately to prevent blocking other browser tabs
+    session_write_close();
 }
 
 if (!$is_cli) {
@@ -110,8 +112,8 @@ function format_uptime_ticks($ticks) {
  * Walk an SNMP OID and return a map of [index => value]
  * Cleans string prefixes that some devices return.
  */
-function snmp_walk_indexed($ip, $community, $oid) {
-    $result = @snmp2_real_walk($ip, $community, $oid);
+function snmp_walk_indexed($ip, $community, $oid, $timeout = 1500000, $retries = 1) {
+    $result = @snmp2_real_walk($ip, $community, $oid, $timeout, $retries);
     if (!$result || !is_array($result)) return [];
     
     $map = [];
@@ -192,6 +194,14 @@ foreach ($switches as $switch) {
         $ip = $switch['ip_addr'];
         $community = $switch['community'];
         
+        // Fast reachability check (1.0s timeout, 1 retry) to prevent freezing on dead switches
+        $sys_descr = @snmp2_get($ip, $community, ".1.3.6.1.2.1.1.1.0", 1000000, 1);
+        if ($sys_descr === false || $sys_descr === "") {
+            echo "  ⚠️ Switch is UNREACHABLE or SNMP timed out (1s). Skipping detailed walk.\n";
+            $db->prepare("UPDATE switches SET last_poll = NOW() WHERE id = ?")->execute([$switch['id']]);
+            continue;
+        }
+
         // Reset per-switch STP and Loop trackers to prevent cross-switch leakage
         $stp_blocked_ports = [];
 
@@ -199,9 +209,7 @@ foreach ($switches as $switch) {
         $db->prepare("DELETE FROM switch_port_vlans WHERE switch_id = ?")->execute([$switch['id']]);
 
         // --- Phase 0: System Info & Health ---
-
-        $sys_descr = @snmp2_get($ip, $community, ".1.3.6.1.2.1.1.1.0");
-        $sys_uptime = @snmp2_get($ip, $community, ".1.3.6.1.2.1.1.3.0");
+        $sys_uptime = @snmp2_get($ip, $community, ".1.3.6.1.2.1.1.3.0", 1000000, 1);
         
         $model = "Generic";
         $cpu = 0;
@@ -431,8 +439,16 @@ foreach ($switches as $switch) {
                 $b_ifindex = $ifindex_map[$bport] ?? $bport;
                 $b_raw = $name_map[$b_ifindex] ?? null;
                 $b_norm = normalize_port_name($b_raw, $bport, $b_ifindex, $system_info);
+
+                // Validate if interface is physically UP
+                // (In MikroTik and other bridge devices, unplugged ports report STP state 2/blocking, which is normal link-down behavior, not an active loop!)
+                $b_oper = (int)($oper_status_map[$b_ifindex] ?? 0);
+                if ($b_oper !== 1) {
+                    $s_name = 'disabled';
+                }
+
                 $stp_state_by_port_name[$b_norm] = $s_name;
-                if ($s_name === 'blocking') {
+                if ($s_name === 'blocking' && $b_oper === 1) {
                     $stp_blocked_ports[$b_norm] = $b_norm;
                 }
             }
@@ -579,12 +595,6 @@ foreach ($switches as $switch) {
                     ];
                 }
 
-                // Get STP state for this bridge port
-                $port_stp_state = $stp_port_states_by_bport[$bridge_port] ?? null;
-                if ($port_stp_state === 'blocking') {
-                    $stp_blocked_ports[$port_name] = $port_name;
-                }
-
                 // Get interface status for this port
                 $port_status = null;
                 if ($ifindex && isset($oper_status_map[$ifindex])) {
@@ -598,6 +608,14 @@ foreach ($switches as $switch) {
                         7 => 'lowerLayerDown',
                         default => 'unknown'
                     };
+                }
+
+                // Get STP state for this bridge port (only active if link is UP)
+                $port_stp_state = $stp_port_states_by_bport[$bridge_port] ?? null;
+                if ($port_status !== 'up') {
+                    $port_stp_state = 'disabled';
+                } elseif ($port_stp_state === 'blocking') {
+                    $stp_blocked_ports[$port_name] = $port_name;
                 }
                 
                 // Get interface type
@@ -776,6 +794,9 @@ foreach ($switches as $switch) {
             $existing_port_id = $stmt_check->fetchColumn();
 
             $port_stp = $stp_state_by_port_name[$name] ?? null;
+            if ($status !== 'up') {
+                $port_stp = 'disabled';
+            }
 
             if ($existing_port_id) {
                 // Update existing port (from FDB or previous run) with SFP, STP, and status data

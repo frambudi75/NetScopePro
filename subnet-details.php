@@ -320,11 +320,13 @@ include 'includes/header.php';
                 data-ip="<?php echo $ip; ?>"
                 <?php if (is_admin()): ?>
                 onclick="openEditModal('<?php echo $ip; ?>', '<?php echo $info['hostname'] ?? ''; ?>', '<?php echo $info['description'] ?? ''; ?>', '<?php echo $info['state'] ?? 'active'; ?>', '<?php echo $info['asset_tag'] ?? ''; ?>', '<?php echo $info['owner'] ?? ''; ?>', <?php echo (int)($info['conflict_detected'] ?? 0); ?>, '<?php echo $js_conflict_details; ?>')"
+                oncontextmenu="event.preventDefault(); openIpIntelligence('<?php echo $ip; ?>');"
                 style="aspect-ratio: 1; background: <?php echo $bg; ?>; border: 1px solid <?php echo $border; ?>; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: <?php echo $color; ?>; opacity: <?php echo $info ? '1' : '0.4'; ?>; position: relative;"
                 <?php else: ?>
-                style="aspect-ratio: 1; background: <?php echo $bg; ?>; border: 1px solid <?php echo $border; ?>; border-radius: 6px; cursor: default; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: <?php echo $color; ?>; opacity: <?php echo $info ? '1' : '0.4'; ?>; position: relative;"
+                onclick="openIpIntelligence('<?php echo $ip; ?>')"
+                style="aspect-ratio: 1; background: <?php echo $bg; ?>; border: 1px solid <?php echo $border; ?>; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: <?php echo $color; ?>; opacity: <?php echo $info ? '1' : '0.4'; ?>; position: relative;"
                 <?php endif; ?>
-                title="<?php echo htmlspecialchars($tooltip); ?>"
+                title="<?php echo htmlspecialchars($tooltip); ?> (Right-click for Dossier)"
             >
                 <?php echo $last_octet; ?>
                 <?php if ($is_new): ?>
@@ -408,7 +410,9 @@ include 'includes/header.php';
                 ?>
                     <tr class="ip-row" data-state="<?php echo $row_state; ?>" data-conflict="<?php echo (int)($info['conflict_detected'] ?? 0); ?>" data-search="<?php echo strtolower($ip . ' ' . ($info['hostname'] ?? '') . ' ' . ($info['mac_addr'] ?? '') . ' ' . ($info['vendor'] ?? '') . ' ' . ($info['asset_tag'] ?? '') . ' ' . ($info['owner'] ?? '')); ?>" style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 1rem; font-family: monospace; font-size: 0.9375rem; font-weight: 500; color: <?php echo $info ? 'var(--text)' : 'var(--text-muted)'; ?>;">
-                            <?php echo $ip; ?>
+                            <a href="javascript:void(0)" onclick="openIpIntelligence('<?php echo $ip; ?>')" style="color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.25); cursor: pointer;" title="Open IP Intelligence Dossier" onmouseover="this.style.color='var(--primary)'; this.style.borderBottomColor='var(--primary)';" onmouseout="this.style.color='inherit'; this.style.borderBottomColor='rgba(255,255,255,0.25)';">
+                                <?php echo $ip; ?>
+                            </a>
                         </td>
                         <td style="padding: 1rem;">
                             <?php if ($info): ?>
@@ -483,6 +487,9 @@ include 'includes/header.php';
                         </td>
                         <td class="no-print" style="padding: 1rem; text-align: right;">
                             <div style="display: inline-flex; gap: 4px;">
+                                <button type="button" class="btn" style="padding: 6px; background: var(--surface-light); color: var(--primary);" onclick="openIpIntelligence('<?php echo $ip; ?>')" title="Open IP Intelligence Dossier">
+                                    <i data-lucide="scan" style="width: 14px;"></i>
+                                </button>
                                 <a href="tools?action=conflict&target=<?php echo urlencode($ip); ?>" class="btn" style="padding: 6px; background: var(--surface-light); color: <?php echo (($info['conflict_detected'] ?? 0) == 1) ? 'var(--danger)' : 'var(--text-muted)'; ?>;" title="Cek Konflik IP (Conflict Prober)">
                                     <i data-lucide="shield-alert" style="width: 14px;"></i>
                                 </a>
@@ -542,7 +549,12 @@ include 'includes/header.php';
 <div id="editModal" class="modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); align-items: center; justify-content: center; z-index: 1000;">
     <div class="card" style="width: 100%; max-width: 450px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-            <h3 id="modalTitle">Manage IP</h3>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <h3 id="modalTitle" style="margin: 0;">Manage IP</h3>
+                <button type="button" class="btn" style="padding: 2px 8px; font-size: 0.7rem; background: var(--brand-soft); color: var(--primary); border: 1px solid rgba(88, 166, 255, 0.3); border-radius: 4px;" onclick="const tIp = document.getElementById('modalIp').value; document.getElementById('editModal').style.display='none'; openIpIntelligence(tIp);">
+                    <i data-lucide="scan" style="width: 12px; height: 12px; vertical-align: middle;"></i> Dossier
+                </button>
+            </div>
             <button onclick="document.getElementById('editModal').style.display='none'" style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><i data-lucide="x"></i></button>
         </div>
         <form method="POST" autocomplete="off">

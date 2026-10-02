@@ -34,5 +34,19 @@ $stmt = $db->prepare("SELECT id, hostname as title, ip_addr as subtitle, model a
 $stmt->execute(["%$q%", "%$q%", "%$q%"]);
 $results = array_merge($results, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
+// 4. Search IP Addresses (IP Intelligence Target)
+$stmt = $db->prepare("
+    SELECT id, ip_addr as title, 
+           CONCAT_WS(' • ', NULLIF(hostname, ''), NULLIF(mac_addr, ''), NULLIF(vendor, '')) as subtitle, 
+           state as category, 
+           'ip' as type,
+           ip_addr 
+    FROM ip_addresses 
+    WHERE ip_addr LIKE ? OR hostname LIKE ? OR mac_addr LIKE ? 
+    LIMIT 6
+");
+$stmt->execute(["%$q%", "%$q%", "%$q%"]);
+$results = array_merge($results, $stmt->fetchAll(PDO::FETCH_ASSOC));
+
 header('Content-Type: application/json');
 echo json_encode($results);

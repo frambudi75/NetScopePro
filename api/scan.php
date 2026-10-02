@@ -11,6 +11,7 @@ session_start();
 if (!isset($_SESSION['user_id'])) {
     json_response(['error' => 'Unauthorized'], 401);
 }
+session_write_close();
 
 $subnet_id = $_GET['id'] ?? 0;
 if (!$subnet_id) {
