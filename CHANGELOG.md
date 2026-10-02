@@ -2,6 +2,32 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.30.0] - 2026-10-02
+### Added
+- **IP Intelligence Dossier (NetScope 360°)**:
+  - Introduced unified single-pane dossier modal (`includes/ip-intelligence-modal.php` & `api/ip-intelligence.php`) accessible across the entire application.
+  - **L2 Physical Attachment**: Correlates IP &rarr; MAC &rarr; Switch Port (`etherX`), Switch Model, Port Speed, STP State, and SFP Optical telemetry.
+  - **L3 Network Context**: Subnet CIDR, Gateway, VLAN ID & Name, DNS resolvers.
+  - **Device Telemetry**: Hostname, Asset Tag, Owner, MAC Address, Vendor (OUI), OS fingerprint, and Discovery Confidence breakdown.
+  - **Conflict Watch & 1-Click Resolver**: Real-time IP conflict indicator with conflicting MAC details and one-click conflict resolution directly from the modal, logged to `audit_logs`.
+  - **Universal Search Integration**: Universal search (`Cmd+K` / `Ctrl+K`) now indexes `ip_addresses` and directly opens the Intelligence Dossier upon selection.
+  - **Clickable IP Triggers**: Wired across `subnet-details.php` (table and visual grid), `switch-details.php` (port list), and `index.php` (conflict alert banner and Needs Attention table).
+- **Executive NOC Dashboard Redesign (`index.php`)**:
+  - Restructured top section into a high-density **4-Pillars Executive Metric Bar**: IPAM Fleet, Switch Fabric & Port Capacity, Netwatch Infrastructure Monitor, and Discovery Quality & Confidence.
+  - Balanced telemetry layout: 7-Day Usage Trend Line Chart paired with Radial Allocation Progress, and Switch Port Distribution Donut Chart paired with Host State Distribution.
+  - Integrated rich **NOC Quick Actions** shortcuts (`+ New Subnet`, `Switches`, `Netwatch`, `VLANs`, `Conflict Prober`, `Settings`).
+  - Fixed HTML nesting defect where Needs Attention table was improperly enclosed within quick grid container.
+
+### Fixed
+- **SNMP Poller Anti-Freeze & PHP Session Lock Release**:
+  - Added `session_write_close()` across background-capable scripts (`cron_switch_poll.php`, `cron_scanner.php`, `cron_netwatch.php`, `api/scan.php`). Prevents exclusive PHP session file locking on Apache/Windows that caused the entire web application to freeze while polling unreachable switches.
+  - Implemented 1.0-second SNMP reachability pre-flight probe (`@snmp2_get`) on switch `sysDescr`. Skips dead or unreachable switches in 1 second instead of hanging for minutes.
+- **MikroTik & Multi-Brand Inactive Port STP Filter**:
+  - MikroTik RouterOS Bridge returns `dot1dStpPortState = 2 (blocking)` on disconnected/unplugged ports (`ifOperStatus != 1`).
+  - Added physical link status check (`ifOperStatus == 1`) before evaluating STP blocking states in `cron_switch_poll.php` and `switch-details.php`. Completely eliminates false-positive "L2 Switching Loop / Blocking" alarms on disconnected switch ports.
+- **Subdirectory Routing & 404 Fix (`.htaccess`)**:
+  - Removed rigid `RewriteBase /` and absolute leading slash redirect in `.htaccess` that broke subfolder installations (e.g. `/ipmanage/` in XAMPP) with 404 Not Found errors. Restored directory-relative rewrite rules compatible with both root domain (Docker) and subfolder deployments.
+
 ## [2.29.2] - 2026-10-01
 ### Fixed
 - **Subnet Usage Bar Synchronization & Accurate State Filter**:

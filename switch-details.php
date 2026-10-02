@@ -311,7 +311,7 @@ include 'includes/header.php';
                                     <?php else: ?>
                                         <span style="color: var(--text-muted); font-size: 0.75rem;">-</span>
                                     <?php endif; ?>
-                                    <?php if (!empty($port['stp_state'])): ?>
+                                    <?php if (!empty($port['stp_state']) && $status === 'up' && $port['stp_state'] !== 'disabled'): ?>
                                         <div style="margin-top: 4px;">
                                             <?php if ($port['stp_state'] === 'blocking'): ?>
                                                 <span style="display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 800; background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239,68,68,0.4);" title="STP Loop Prevention: Port is blocked to avoid switching loop">
@@ -373,7 +373,7 @@ include 'includes/header.php';
                                 </td>
                                 <td style="padding: 1rem; white-space: nowrap;">
                                     <?php if ($port['ip_addr']): ?>
-                                        <a href="devices?search=<?php echo urlencode($port['ip_addr']); ?>" style="color: var(--text); text-decoration: none; font-weight: 600; border-bottom: 1px dashed var(--primary);">
+                                        <a href="javascript:void(0)" onclick="openIpIntelligence('<?php echo $port['ip_addr']; ?>')" style="color: var(--text); text-decoration: none; font-weight: 600; border-bottom: 1px dashed var(--primary); cursor: pointer;" title="Open IP Intelligence Dossier">
                                             <?php echo $port['ip_addr']; ?>
                                         </a>
                                     <?php else: ?>

@@ -39,6 +39,9 @@
         </div>
     </div>
 
+    <!-- Global IP Intelligence Dossier Modal -->
+    <?php require_once __DIR__ . '/ip-intelligence-modal.php'; ?>
+
     <script>
         function openBugReportModal(e) {
             if (e) e.preventDefault();

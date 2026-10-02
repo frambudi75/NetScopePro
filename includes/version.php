@@ -3,12 +3,13 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.29.2');
-if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-01');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.30.0');
+if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-02');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.30.0', 'date' => '2026-10-02', 'changes' => ['IP Intelligence Dossier (360-degree single-pane L2/L3 hardware and security view)', 'Executive NOC Dashboard Redesign (4-pillar metric bar, balanced telemetry grids, enhanced quick actions)', 'Universal Search integration for IP Addresses (Instant dossier trigger)', '1-Click Conflict Resolution with real-time audit logging', 'SNMP Poller Anti-Freeze & PHP Session Lock Release (session_write_close & 1s fast reachability probe)', 'MikroTik & Multi-Brand Inactive Port STP Filter (Eliminating false-positive loop alarms on unplugged ports)', 'Clean URL Routing Fix in .htaccess (Subfolder and root domain compatibility)']],
     ['ver' => '2.29.2', 'date' => '2026-10-01', 'changes' => ['Subnet Usage Bar Synchronization (Accurate active/reserved/dhcp calculation across all views)', 'Subnet CIDR Bitwise Masking Fix in cidr_to_range()', 'Auto-heal & purge orphaned/ghost IP records across subnets', 'Added switch_port_vlans & missing columns to auto-migrations']],
     ['ver' => '2.29.1', 'date' => '2026-10-01', 'changes' => ['Server Assets Decryption Fix (Multi-key fallback preventing raw ciphertext leaks)', 'Universal Live Server Metrics (Reliable Linux /proc metrics & MikroTik RouterOS support)', 'Accurate Error Reporting in Metrics Modal (No more false 0% metrics on unsupported targets)', 'Aligned Server Asset Card Checkbox inside header boundary']],
     ['ver' => '2.29.0', 'date' => '2026-09-30', 'changes' => ['IP Conflict Multi-Probe Engine (3-cycle sequential ARP & MAC stability check)', 'Loop & STP Diagnostic Prober Enhancement (TCN operational analysis & CAM table thrashing detection)', 'Multi-Layer Evidence Checklist Summary across all diagnostic tools', 'Diagnostic Confidence Scoring (Confidence Grade & Risk Percentage)', 'Realistic Non-Absolute Verdicts with Diagnostic Scope Boundaries']],

@@ -149,6 +149,7 @@ function getIcon(type) {
         case 'subnet': return 'layers';
         case 'switch': return 'vibrate';
         case 'action': return 'zap';
+        case 'ip': return 'scan';
         default: return 'hash';
     }
 }
@@ -177,6 +178,17 @@ function updateSelection() {
 }
 
 function selectResult(item) {
+    if (item.type === 'ip') {
+        closeSearch();
+        const ip = item.title || item.ip_addr;
+        if (typeof openIpIntelligence === 'function') {
+            openIpIntelligence(ip, item.id);
+        } else {
+            window.location.href = `devices?search=${encodeURIComponent(ip)}`;
+        }
+        return;
+    }
+
     let url = '';
     switch(item.type) {
         case 'asset': url = 'server-assets'; break;

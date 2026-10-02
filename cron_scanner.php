@@ -32,6 +32,7 @@ if (php_sapi_name() !== 'cli') {
             die("Unauthorized. Run via CLI, log in as admin, or provide a valid key.");
         }
     }
+    session_write_close();
 }
 
 $db = get_db_connection();

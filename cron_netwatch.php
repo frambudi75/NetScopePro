@@ -23,6 +23,7 @@ if (!$is_cli) {
             die("Unauthorized. Run via CLI, log in as admin, or provide a valid key.");
         }
     }
+    session_write_close();
 }
 
 // Set execution time limit to 5 minutes to allow for multiple pings
