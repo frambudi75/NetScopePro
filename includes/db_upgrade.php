@@ -10,6 +10,7 @@ echo "[$(date)] Checking for Database Upgrades...\n";
 
 try {
     $db = get_db_connection();
+    echo "Database connected and core schema verified/auto-healed.\n";
     
     // Check if netwatch table exists
     $tableExists = $db->query("SHOW TABLES LIKE 'netwatch'")->rowCount() > 0;

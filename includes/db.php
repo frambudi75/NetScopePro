@@ -56,10 +56,175 @@ function get_redis_connection() {
  */
 if (!function_exists('run_auto_migrations')) {
 function run_auto_migrations($db) {
-    // Check if subnets table exists first
+    // 0. Base Tables Auto-Healing
+    // If core tables (users, subnets) are missing, automatically import schema or recreate them
+    $hasUsers = $db->query("SHOW TABLES LIKE 'users'")->rowCount() > 0;
+    $hasSubnets = $db->query("SHOW TABLES LIKE 'subnets'")->rowCount() > 0;
+
+    if (!$hasUsers || !$hasSubnets) {
+        $sqlFiles = [
+            __DIR__ . '/../sql/database.sql',
+            '/var/www/html/sql/database.sql',
+            dirname(__DIR__) . '/sql/database.sql'
+        ];
+        
+        $imported = false;
+        foreach ($sqlFiles as $file) {
+            if (file_exists($file)) {
+                try {
+                    $sql = file_get_contents($file);
+                    if ($sql) {
+                        $db->exec($sql);
+                        $imported = true;
+                        break;
+                    }
+                } catch (Exception $e) {
+                    error_log("[db_auto_heal] Error importing schema from {$file}: " . $e->getMessage());
+                }
+            }
+        }
+
+        // Hardened Fallback: Guarantee base tables exist even if SQL file was missing or partial
+        try {
+            $db->exec("CREATE TABLE IF NOT EXISTS `users` (
+                `id` int(11) NOT NULL AUTO_INCREMENT,
+                `username` varchar(50) NOT NULL,
+                `password` varchar(255) NOT NULL,
+                `email` varchar(100) DEFAULT NULL,
+                `role` enum('admin','user','viewer') NOT NULL DEFAULT 'viewer',
+                `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `username` (`username`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+            // Guarantee default admin exists if users table is empty
+            $userCount = (int)$db->query("SELECT COUNT(*) FROM users")->fetchColumn();
+            if ($userCount === 0) {
+                $defaultPass = '$2y$10$iC1CpjbPVLpFx1BcbSTUsOZ52qhELYqHrKyADN/z9DF2UArhZEnPK'; // default: admin
+                $stmt = $db->prepare("INSERT INTO users (username, password, role) VALUES ('admin', ?, 'admin')");
+                $stmt->execute([$defaultPass]);
+            }
+        } catch (Exception $e) {
+            error_log("[db_auto_heal] Fallback users error: " . $e->getMessage());
+        }
+
+        try {
+            $db->exec("CREATE TABLE IF NOT EXISTS `subnets` (
+                `id` int(11) NOT NULL AUTO_INCREMENT,
+                `name` varchar(100) NOT NULL,
+                `network` varchar(45) NOT NULL,
+                `cidr` int(11) NOT NULL,
+                `vlan` int(11) DEFAULT NULL,
+                `description` text DEFAULT NULL,
+                `scan_interval` int(11) DEFAULT 0,
+                `last_scan` timestamp NULL DEFAULT NULL,
+                `last_limit_alert` timestamp NULL DEFAULT NULL,
+                `utilization_threshold` int(11) DEFAULT NULL,
+                `parent_switch_id` int(11) DEFAULT NULL,
+                `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+                PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        try {
+            $db->exec("CREATE TABLE IF NOT EXISTS `ip_addresses` (
+                `id` int(11) NOT NULL AUTO_INCREMENT,
+                `subnet_id` int(11) NOT NULL,
+                `ip_address` varchar(45) NOT NULL,
+                `mac_address` varchar(17) DEFAULT NULL,
+                `hostname` varchar(255) DEFAULT NULL,
+                `status` enum('active','reserved','offline') NOT NULL DEFAULT 'offline',
+                `vendor` varchar(100) DEFAULT NULL,
+                `os` varchar(100) DEFAULT NULL,
+                `conflict_detected` tinyint(1) NOT NULL DEFAULT 0,
+                `conflict_mac` varchar(20) DEFAULT NULL,
+                `conflict_details` varchar(255) DEFAULT NULL,
+                `last_seen` timestamp NULL DEFAULT NULL,
+                `notes` text DEFAULT NULL,
+                `data_sources` varchar(255) DEFAULT NULL,
+                `fail_count` int(11) NOT NULL DEFAULT 0,
+                `asset_tag` varchar(100) DEFAULT NULL,
+                `owner` varchar(100) DEFAULT NULL,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `unique_ip` (`ip_address`),
+                KEY `subnet_id` (`subnet_id`),
+                KEY `idx_conflict` (`conflict_detected`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        try {
+            $db->exec("CREATE TABLE IF NOT EXISTS `switches` (
+                `id` int(11) NOT NULL AUTO_INCREMENT,
+                `name` varchar(100) NOT NULL,
+                `ip_addr` varchar(45) NOT NULL,
+                `community` varchar(100) NOT NULL DEFAULT 'public',
+                `snmp_version` enum('v1','v2c','v3') NOT NULL DEFAULT 'v2c',
+                `description` text DEFAULT NULL,
+                `last_poll` timestamp NULL DEFAULT NULL,
+                `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+                `model` varchar(100) DEFAULT NULL,
+                `uptime` varchar(100) DEFAULT NULL,
+                `cpu_usage` int(11) DEFAULT 0,
+                `memory_usage` int(11) DEFAULT 0,
+                `system_info` text DEFAULT NULL,
+                `total_ports` int(11) DEFAULT 0,
+                `active_ports` int(11) DEFAULT 0,
+                `parent_switch_id` int(11) DEFAULT NULL,
+                `stp_enabled` tinyint(1) DEFAULT 0,
+                `stp_protocol` varchar(50) DEFAULT NULL,
+                `loop_detected` tinyint(1) DEFAULT 0,
+                `loop_details` varchar(255) DEFAULT NULL,
+                `stp_topology_changes` int(11) DEFAULT 0,
+                PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        try {
+            $db->exec("CREATE TABLE IF NOT EXISTS `switch_port_map` (
+                `id` int(11) NOT NULL AUTO_INCREMENT,
+                `switch_id` int(11) NOT NULL,
+                `port_number` int(11) NOT NULL,
+                `port_name` varchar(50) NOT NULL,
+                `mac_address` varchar(17) DEFAULT NULL,
+                `ip_address` varchar(45) DEFAULT NULL,
+                `connected_device` varchar(255) DEFAULT NULL,
+                `last_seen` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                `vlan_id` int(11) DEFAULT NULL,
+                `port_status` varchar(20) DEFAULT NULL,
+                `stp_state` varchar(30) DEFAULT NULL,
+                `vlan_name` varchar(100) DEFAULT NULL,
+                `port_type` varchar(30) DEFAULT NULL,
+                `port_speed` varchar(10) DEFAULT NULL,
+                `port_alias` varchar(200) DEFAULT NULL,
+                `sfp_vendor` varchar(100) DEFAULT NULL,
+                `sfp_part` varchar(100) DEFAULT NULL,
+                `sfp_serial` varchar(100) DEFAULT NULL,
+                `sfp_rx_power` varchar(50) DEFAULT NULL,
+                `sfp_tx_power` varchar(50) DEFAULT NULL,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `unique_port_mac` (`switch_id`,`port_name`,`mac_address`),
+                KEY `idx_ip` (`ip_address`),
+                KEY `idx_mac` (`mac_address`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        try {
+            $db->exec("CREATE TABLE IF NOT EXISTS `vlans` (
+                `id` int(11) NOT NULL AUTO_INCREMENT,
+                `vlan_id` int(11) NOT NULL,
+                `name` varchar(100) NOT NULL,
+                `description` text DEFAULT NULL,
+                `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `vlan_id` (`vlan_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+    }
+
+    // Double check subnets exists before altering columns
     $tableExists = $db->query("SHOW TABLES LIKE 'subnets'")->rowCount() > 0;
     if (!$tableExists) {
-        return; // Skip migrations if table hasn't been imported yet
+        return;
     }
 
     // 1. Check Subnets table for new columns

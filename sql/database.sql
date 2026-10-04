@@ -500,7 +500,7 @@ CREATE TABLE `switches` (
 
 LOCK TABLES `switches` WRITE;
 /*!40000 ALTER TABLE `switches` DISABLE KEYS */;
-INSERT INTO `switches` VALUES (3,'router utama','192.168.5.1','public','2c',NULL,'2026-05-09 10:36:23','2026-05-09 10:28:13','MikroTik','17d 23h 56m',0,7,'RouterOS RB450Gx4',5,4,NULL),(5,'cisco-sw','192.168.2.5','habib','2c',NULL,NULL,'2026-05-09 10:36:14',NULL,NULL,0,0,NULL,0,0,NULL);
+INSERT INTO `switches` (`id`, `name`, `ip_addr`, `community`, `snmp_version`, `description`, `last_poll`, `created_at`, `model`, `uptime`, `cpu_usage`, `memory_usage`, `system_info`, `total_ports`, `active_ports`, `parent_switch_id`) VALUES (3,'router utama','192.168.5.1','public','2c',NULL,'2026-05-09 10:36:23','2026-05-09 10:28:13','MikroTik','17d 23h 56m',0,7,'RouterOS RB450Gx4',5,4,NULL),(5,'cisco-sw','192.168.2.5','habib','2c',NULL,NULL,'2026-05-09 10:36:14',NULL,NULL,0,0,NULL,0,0,NULL);
 /*!40000 ALTER TABLE `switches` ENABLE KEYS */;
 UNLOCK TABLES;
 
