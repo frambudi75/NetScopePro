@@ -193,5 +193,9 @@ EOF;
     ], 502);
 
 } catch (\Throwable $e) {
-    json_response(['error' => 'SSH Error: ' . $e->getMessage()], 500);
+    $msg = $e->getMessage();
+    if (strpos($msg, 'integer was expected') !== false || strpos($msg, 'Connection closed') !== false) {
+        $msg = "Connection timed out or dropped by {$host}:{$port}. Check that the SSH daemon is running and allows connections from this container.";
+    }
+    json_response(['error' => 'SSH Error: ' . $msg], 500);
 }
