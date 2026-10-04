@@ -45,8 +45,8 @@ if (!class_exists('phpseclib3\Net\SSH2')) {
 }
 
 try {
-    $ssh = new SSH2($host, $port, 5);
-    $ssh->setTimeout(6);
+    $ssh = new SSH2($host, $port, 6);
+    $ssh->setTimeout(8);
 
     if (!$ssh->login($username, $password)) {
         json_response([
@@ -54,39 +54,50 @@ try {
         ], 401);
     }
     
-    // Command for Linux/Unix systems (Universal: Debian, Ubuntu, CentOS, RHEL, Alpine, BusyBox, OpenWrt)
+    // Command for Linux/Unix systems (Robust, non-crashing POSIX script with multi-tier fallbacks)
     $linux_cmd = <<<'EOF'
-# 1. RAM Percentage via /proc/meminfo or free
-RAM_PCT=$(awk '/MemTotal:/ {t=$2} /MemAvailable:/ {a=$2} /MemFree:/ {f=$2} /Buffers:/ {b=$2} /^Cached:/ {c=$2} END {if(a) {u=t-a} else {u=t-f-b-c}; if(t>0) printf "%.1f", (u/t)*100; else echo "0"}' /proc/meminfo 2>/dev/null)
+# 1. RAM Percentage
+RAM_PCT=""
+if [ -r /proc/meminfo ]; then
+    RAM_PCT=$(awk '/MemTotal:/ {t=$2} /MemAvailable:/ {a=$2} /MemFree:/ {f=$2} /Buffers:/ {b=$2} /^Cached:/ {c=$2} END {if(a) {u=t-a} else {u=t-f-b-c}; if(t>0) printf "%.1f", (u/t)*100; else print "0"}' /proc/meminfo 2>/dev/null)
+fi
 if [ -z "$RAM_PCT" ]; then
     RAM_PCT=$(free 2>/dev/null | awk '/Mem:/ {if($2>0) printf "%.1f", $3/$2 * 100}')
 fi
+if [ -z "$RAM_PCT" ]; then RAM_PCT=0; fi
 
-# 2. CPU Usage Percentage via fast /proc/stat delta (100ms) or loadavg
+# 2. CPU Usage Percentage (top -> proc/stat -> proc/loadavg)
 CPU_PCT=""
-if [ -r /proc/stat ]; then
-    read -r _ u1 n1 s1 i1 w1 x1 y1 z1 < /proc/stat 2>/dev/null
-    t1=$((u1+n1+s1+i1+w1+x1+y1+z1))
-    sleep 0.1
-    read -r _ u2 n2 s2 i2 w2 x2 y2 z2 < /proc/stat 2>/dev/null
-    t2=$((u2+n2+s2+i2+w2+x2+y2+z2))
-    dt=$((t2-t1))
-    di=$((i2-i1))
-    if [ "$dt" -gt 0 ]; then
-        CPU_PCT=$(awk "BEGIN {printf \"%.1f\", (1 - $di/$dt)*100}" 2>/dev/null)
+if command -v top >/dev/null 2>&1; then
+    CPU_IDLE=$(top -b -n 1 2>/dev/null | grep -i "cpu" | grep -o '[0-9.]*[% ]*id' | head -n1 | grep -o '[0-9.]*')
+    if [ ! -z "$CPU_IDLE" ]; then
+        CPU_PCT=$(awk "BEGIN {printf \"%.1f\", 100 - $CPU_IDLE}" 2>/dev/null)
     fi
 fi
-if [ -z "$CPU_PCT" ]; then
-    CPU_PCT=$(awk '{print int($1 * 10)}' /proc/loadavg 2>/dev/null || echo "0")
+if [ -z "$CPU_PCT" ] && [ -r /proc/stat ]; then
+    CPU_PCT=$( (head -n1 /proc/stat 2>/dev/null; sleep 0.2; head -n1 /proc/stat 2>/dev/null) | awk '
+        /^cpu / {
+            idle = $5;
+            tot = 0;
+            for(i=2; i<=NF; i++) tot += $i;
+            if(NR==1) { i1=idle; t1=tot; }
+            else { dt=tot-t1; di=idle-i1; if(dt>0) printf "%.1f", ((dt-di)/dt)*100; else print "0"; exit; }
+        }
+    ' 2>/dev/null)
 fi
+if [ -z "$CPU_PCT" ] && [ -r /proc/loadavg ]; then
+    CPU_PCT=$(awk '{print int($1 * 10)}' /proc/loadavg 2>/dev/null)
+fi
+if [ -z "$CPU_PCT" ]; then CPU_PCT=0; fi
 
-# 3. Disk Percentage via POSIX df -P
+# 3. Disk Percentage
 DISK_PCT=$(df -P / 2>/dev/null | awk 'NR==2 {gsub(/%/, "", $5); print $5}')
+if [ -z "$DISK_PCT" ]; then DISK_PCT=0; fi
 
-# 4. Temperature via thermal zone or hwmon
+# 4. Temperature
 TEMP=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || cat /sys/class/hwmon/hwmon0/temp1_input 2>/dev/null || echo 0)
 
-# 5. Power (instantaneous sensor check only)
+# 5. Power
 POWER_W=0
 if command -v sensors >/dev/null 2>&1; then
     PWR=$(sensors 2>/dev/null | awk '/power[0-9]/ {print $2; exit}' | grep -o '[0-9.]*')
@@ -94,21 +105,24 @@ if command -v sensors >/dev/null 2>&1; then
 fi
 
 # 6. Uptime
-UPTIME_STR=$(awk '{s=int($1); d=int(s/86400); h=int((s%86400)/3600); m=int((s%3600)/60); if(d>0) printf "%dd ", d; if(h>0) printf "%dh ", h; printf "%dm", m}' /proc/uptime 2>/dev/null)
-if [ -z "$UPTIME_STR" ]; then
-    UPTIME_STR=$(uptime 2>/dev/null | sed -e 's/.*up //' -e 's/,.*//')
+UPTIME_STR=$(uptime 2>/dev/null | sed -e 's/.*up //' -e 's/,.*//')
+if [ -z "$UPTIME_STR" ] && [ -r /proc/uptime ]; then
+    UPTIME_STR=$(awk '{s=int($1); d=int(s/86400); h=int((s%86400)/3600); m=int((s%3600)/60); if(d>0) printf "%dd ", d; if(h>0) printf "%dh ", h; printf "%dm", m}' /proc/uptime 2>/dev/null)
 fi
+if [ -z "$UPTIME_STR" ]; then UPTIME_STR="N/A"; fi
 
-# 7. Network bytes (sum of physical interfaces)
-NET_BYTES=$(awk '$1 ~ /^(eth|en|wl|bond|br|wlan)/ {rx+=$2; tx+=$10} END {print (rx+0) "|" (tx+0)}' /proc/net/dev 2>/dev/null)
-if [ -z "$NET_BYTES" ]; then
-    NET_BYTES="0|0"
+# 7. Network bytes
+NET_BYTES="0|0"
+if [ -r /proc/net/dev ]; then
+    NET_BYTES=$(awk '$1 ~ /^(eth|en|wl|bond|br|wlan)/ {rx+=$2; tx+=$10} END {print (rx+0) "|" (tx+0)}' /proc/net/dev 2>/dev/null)
 fi
+if [ -z "$NET_BYTES" ]; then NET_BYTES="0|0"; fi
 
 echo "NETSCOPE_METRICS|$RAM_PCT|$CPU_PCT|$DISK_PCT|$TEMP|$POWER_W|$UPTIME_STR|$NET_BYTES"
 EOF;
 
     $output = trim((string)$ssh->exec($linux_cmd));
+    $stderr = trim((string)$ssh->getStdError());
 
     // Case 1: Standard Linux parsing matched
     if (strpos($output, 'NETSCOPE_METRICS|') !== false) {
@@ -196,7 +210,11 @@ EOF;
     }
 
     // Case 3: Output could not be parsed - report honest error rather than fake zeroes
-    $err_snippet = substr(trim(strip_tags($output)), 0, 150);
+    $err_detail = $output ?: $stderr;
+    if ($ssh->isTimeout()) {
+        $err_detail = "Command execution timed out on {$host}:{$port}.";
+    }
+    $err_snippet = substr(trim(strip_tags((string)$err_detail)), 0, 150);
     json_response([
         'error' => 'Connected via SSH, but could not collect telemetry. Target shell response: ' . ($err_snippet ?: 'Empty response')
     ], 502);
