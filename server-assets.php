@@ -456,7 +456,7 @@ async function fetchMetrics(id) {
         if (data.error) {
             consecutiveErrors++;
             const hasData = cpuChart && cpuChart.data.labels.length > 0;
-            if (!hasData || consecutiveErrors >= 3) {
+            if ((!hasData && consecutiveErrors >= 2) || (hasData && consecutiveErrors >= 3)) {
                 if (metricsInterval) {
                     clearInterval(metricsInterval);
                     metricsInterval = null;
@@ -465,7 +465,7 @@ async function fetchMetrics(id) {
                 document.getElementById('metricsError').innerText = data.error;
                 document.getElementById('metricsError').style.display = 'block';
             } else {
-                console.warn('Transient metrics error (' + consecutiveErrors + '/3): ' + data.error);
+                console.warn('Transient metrics error (' + consecutiveErrors + '): ' + data.error);
             }
             return;
         }
@@ -517,7 +517,7 @@ async function fetchMetrics(id) {
     } catch (e) {
         consecutiveErrors++;
         const hasData = cpuChart && cpuChart.data.labels.length > 0;
-        if (!hasData || consecutiveErrors >= 3) {
+        if ((!hasData && consecutiveErrors >= 2) || (hasData && consecutiveErrors >= 3)) {
             if (metricsInterval) {
                 clearInterval(metricsInterval);
                 metricsInterval = null;
@@ -527,7 +527,7 @@ async function fetchMetrics(id) {
             document.getElementById('metricsError').style.display = 'block';
             console.error(e);
         } else {
-            console.warn('Transient polling error (' + consecutiveErrors + '/3):', e);
+            console.warn('Transient polling error (' + consecutiveErrors + '):', e);
         }
     } finally {
         isFetchingMetrics = false;
