@@ -2,6 +2,20 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.31.2] - 2026-10-04
+### Fixed & Hardened
+- **Server Assets Live Metrics Modal Fix (`server-assets.php` & `api/server-metrics.php`)**:
+  - Fixed `SyntaxError: Unexpected token '<'` when opening Live Metrics modal.
+  - Replaced `catch (\Exception $e)` with `catch (\Throwable $e)` to guarantee any runtime errors return valid JSON rather than raw HTML error pages.
+  - Added proactive check `class_exists('phpseclib3\Net\SSH2')` to prevent fatal class not found crashes when dependencies are missing.
+  - Enhanced frontend `fetchMetrics()` to parse text responses safely, cleanly extract error messages from non-JSON responses, and terminate the loading spinner immediately on failure.
+  - Added `session_write_close()` before long SSH polling operations to release PHP session locks and prevent freezing the web application.
+- **Docker Vendor Dependency Auto-Restoration (`Dockerfile` & `entrypoint.sh`)**:
+  - Added Composer and build-time dependency caching into `/opt/vendor-backup` during image creation.
+  - `entrypoint.sh` now automatically restores `/opt/vendor-backup` into `/var/www/html/vendor` when host volume mounts mask the container's vendor directory.
+- **Absolute Path Resolution in Server Asset APIs**:
+  - Standardized `__DIR__` inclusion across `api/server-metrics.php`, `api/asset-health.php`, and `api/get-asset-password.php`.
+
 ## [2.31.1] - 2026-10-04
 ### Fixed & Enhanced
 - **Zero-Touch Database Auto-Healing (`includes/db.php`)**:

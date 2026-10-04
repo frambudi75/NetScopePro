@@ -8,6 +8,18 @@ if [ "${DOCKER_ENV:-}" = "1" ] && [ -f /var/www/html/.htaccess.docker ]; then
   echo "[entrypoint] Applied Docker .htaccess (RewriteBase /)"
 fi
 
+# Ensure composer vendor packages exist when mounted from host volume
+if [ ! -f /var/www/html/vendor/autoload.php ]; then
+  if [ -d /opt/vendor-backup ] && [ "$(ls -A /opt/vendor-backup 2>/dev/null)" ]; then
+    echo "[entrypoint] Restoring pre-built vendor packages into mounted volume..."
+    mkdir -p /var/www/html/vendor
+    cp -a /opt/vendor-backup/. /var/www/html/vendor/
+  elif [ -f /var/www/html/composer.json ] && command -v composer >/dev/null 2>&1; then
+    echo "[entrypoint] Installing composer dependencies..."
+    composer install --no-dev --optimize-autoloader --no-interaction --working-dir=/var/www/html || true
+  fi
+fi
+
 # Run database auto-upgrade/migration with auto-healing and error tolerance
 php /var/www/html/includes/db_upgrade.php || echo "[entrypoint] Warning: Initial db_upgrade check encountered issues. App will continue auto-healing on request."
 

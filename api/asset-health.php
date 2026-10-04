@@ -2,9 +2,9 @@
 /**
  * API - Asset Health Check
  */
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/asset.helper.php';
+require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/asset.helper.php';
 
 session_start();
 if (!isset($_SESSION['user_id'])) {

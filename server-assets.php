@@ -427,7 +427,14 @@ function closeMetricsModal() {
 async function fetchMetrics(id) {
     try {
         const res = await fetch('api/server-metrics.php?id=' + id);
-        const data = await res.json();
+        let data;
+        const text = await res.text();
+        try {
+            data = JSON.parse(text);
+        } catch (jsonErr) {
+            const cleanErr = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+            throw new Error(cleanErr.substring(0, 250) || 'Server returned invalid response');
+        }
         
         if (data.error) {
             if (metricsInterval) clearInterval(metricsInterval);
@@ -438,6 +445,7 @@ async function fetchMetrics(id) {
         }
         
         document.getElementById('metricsLoading').style.display = 'none';
+        document.getElementById('metricsError').style.display = 'none';
         document.getElementById('metricsContent').style.display = 'block';
         
         document.getElementById('metric-cpu-text').innerText = data.cpu + '%';
@@ -480,6 +488,10 @@ async function fetchMetrics(id) {
         prevTxBytes = data.tx_bytes;
         
     } catch (e) {
+        if (metricsInterval) clearInterval(metricsInterval);
+        document.getElementById('metricsLoading').style.display = 'none';
+        document.getElementById('metricsError').innerText = e.message || 'Error communicating with server';
+        document.getElementById('metricsError').style.display = 'block';
         console.error(e);
     }
 }

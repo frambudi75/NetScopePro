@@ -1,17 +1,22 @@
 <?php
-require_once '../includes/config.php';
-require_once '../includes/db.php';
-require_once '../includes/asset.helper.php';
+require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/asset.helper.php';
 
 use phpseclib3\Net\SSH2;
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 if (!isset($_SESSION['user_id'])) {
     json_response(['error' => 'Unauthorized'], 401);
 }
 if (!is_admin()) {
     json_response(['error' => 'Forbidden'], 403);
 }
+
+// Release session lock to prevent blocking concurrent browser requests
+session_write_close();
 
 $id = $_GET['id'] ?? null;
 if (!$id) {
@@ -31,6 +36,13 @@ $username = $asset['is_encrypted'] ? AssetHelper::decrypt($asset['username']) : 
 $password = $asset['is_encrypted'] ? AssetHelper::decrypt($asset['password']) : $asset['password'];
 $host = $asset['ip_address'];
 $port = (int)$asset['port'] ?: 22;
+
+// Check if SSH library is available
+if (!class_exists('phpseclib3\Net\SSH2')) {
+    json_response([
+        'error' => 'SSH library (phpseclib3) is not installed in vendor directory. Run "composer install" or restart the Docker container.'
+    ], 500);
+}
 
 try {
     $ssh = new SSH2($host, $port, 5);
@@ -180,6 +192,6 @@ EOF;
         'error' => 'Connected via SSH, but could not collect telemetry. Target shell response: ' . ($err_snippet ?: 'Empty response')
     ], 502);
 
-} catch (\Exception $e) {
+} catch (\Throwable $e) {
     json_response(['error' => 'SSH Error: ' . $e->getMessage()], 500);
 }
