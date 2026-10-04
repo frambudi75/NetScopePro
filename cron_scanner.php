@@ -48,13 +48,13 @@ if ($use_masscan) {
 }
 echo "\n";
 
-// Find subnets that need scanning (limit to 3 subnets per run to avoid timeout)
+// Find subnets that need scanning (scan 1 subnet per cycle to keep CPU usage low)
 $stmt = $db->query("
     SELECT * FROM subnets 
     WHERE scan_interval > 0 
     AND (last_scan IS NULL OR last_scan < DATE_SUB(NOW(), INTERVAL scan_interval MINUTE))
     ORDER BY last_scan ASC 
-    LIMIT 3
+    LIMIT 1
 ");
 
 $subnets = $stmt->fetchAll();
@@ -89,10 +89,10 @@ if (!empty($subnets)) {
             preseed_arp_batch($start_long, $scan_end, 200);
             echo "  Phase 1 complete: ARP cache populated\n";
 
-            $chunk_size = 16;
+            $chunk_size = 32;
         }
 
-        $max_workers = 10;
+        $max_workers = 4;
         $current_batch = [];
 
         $is_windows = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN');

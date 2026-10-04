@@ -11,17 +11,21 @@ fi
 # Run database auto-upgrade/migration with auto-healing and error tolerance
 php /var/www/html/includes/db_upgrade.php || echo "[entrypoint] Warning: Initial db_upgrade check encountered issues. App will continue auto-healing on request."
 
-# Start a background loop for automated tasks
+# Start a background loop for automated tasks with startup grace period
 (
+  # Wait 60s after container boot so Apache can serve requests smoothly without background contention
+  sleep 60
   while true; do
-    echo "[$(date)] Running Parallel Discovery..."
-    php /var/www/html/cron_scanner.php
-    
-    echo "[$(date)] Polling Manageable Switches..."
-    php /var/www/html/cron_switch_poll.php
-
     echo "[$(date)] Running Netwatch Monitor..."
-    php /var/www/html/cron_netwatch.php
+    php /var/www/html/cron_netwatch.php || true
+    sleep 10
+
+    echo "[$(date)] Polling Manageable Switches..."
+    php /var/www/html/cron_switch_poll.php || true
+    sleep 10
+
+    echo "[$(date)] Running Discovery Scanner..."
+    php /var/www/html/cron_scanner.php || true
     
     sleep 300
   done

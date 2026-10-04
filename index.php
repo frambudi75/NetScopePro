@@ -9,6 +9,8 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: login');
     exit;
 }
+// Release session lock to prevent blocking parallel requests
+session_write_close();
 
 $page_title = 'Dashboard';
 include 'includes/header.php';
