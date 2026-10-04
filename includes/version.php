@@ -3,12 +3,18 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.31.0');
-if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-02');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.31.1');
+if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-04');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.31.1', 'date' => '2026-10-04', 'changes' => [
+        'Zero-Touch Database Auto-Healing (Automatic schema restoration on empty or partial databases)',
+        'Fresh Docker Boot Self-Recovery (Resolved MariaDB seed crash due to column mismatch on switches table)',
+        'Proactive Schema Synchronization on Login Load (Guarantees users table & admin account before authentication)',
+        'Resilient Multi-Query Fallback Migrations in includes/db.php & includes/db_upgrade.php'
+    ]],
     ['ver' => '2.31.0', 'date' => '2026-10-02', 'changes' => ['IP Conflict & Flap Center (Dedicated NOC investigation module with dual-host forensic comparison)', '1-Click Conflict Mitigation (Resolve, Accept New Host, Ignore/Suppress, Live Prober)', 'Automated Conflict & MAC Flapping Event Logger (Scanner worker & API integration)', 'L2 Switching Loop Prober Accuracy Fix (ifOperStatus correlation eliminating false alarms on inactive ports)', 'Friendly Switch Port Labeling in Live STP Diagnostics (e.g. ether3-to-Sw)', 'Dynamic Conflict Counter Badge in Navigation Sidebar']],
     ['ver' => '2.30.0', 'date' => '2026-10-02', 'changes' => ['IP Intelligence Dossier (360-degree single-pane L2/L3 hardware and security view)', 'Executive NOC Dashboard Redesign (4-pillar metric bar, balanced telemetry grids, enhanced quick actions)', 'Universal Search integration for IP Addresses (Instant dossier trigger)', '1-Click Conflict Resolution with real-time audit logging', 'SNMP Poller Anti-Freeze & PHP Session Lock Release (session_write_close & 1s fast reachability probe)', 'MikroTik & Multi-Brand Inactive Port STP Filter (Eliminating false-positive loop alarms on unplugged ports)', 'Clean URL Routing Fix in .htaccess (Subfolder and root domain compatibility)']],
     ['ver' => '2.29.2', 'date' => '2026-10-01', 'changes' => ['Subnet Usage Bar Synchronization (Accurate active/reserved/dhcp calculation across all views)', 'Subnet CIDR Bitwise Masking Fix in cidr_to_range()', 'Auto-heal & purge orphaned/ghost IP records across subnets', 'Added switch_port_vlans & missing columns to auto-migrations']],

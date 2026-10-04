@@ -4,6 +4,9 @@ require_once 'includes/db.php';
 
 session_start();
 
+// Ensure DB connection and auto-healing run on page load
+$db = get_db_connection();
+
 // If already logged in, redirect to dashboard
 if (isset($_SESSION['user_id'])) {
     header('Location: index');
@@ -27,10 +30,22 @@ if ($is_locked) {
     $password = $_POST['password'] ?? '';
 
     if ($username && $password) {
-        $db = get_db_connection();
-        $stmt = $db->prepare("SELECT id, username, password, role FROM users WHERE username = ?");
-        $stmt->execute([$username]);
-        $user = $stmt->fetch();
+        $user = null;
+        try {
+            $stmt = $db->prepare("SELECT id, username, password, role FROM users WHERE username = ?");
+            $stmt->execute([$username]);
+            $user = $stmt->fetch();
+        } catch (\PDOException $e) {
+            // Self-heal database schema and retry once
+            run_auto_migrations($db);
+            try {
+                $stmt = $db->prepare("SELECT id, username, password, role FROM users WHERE username = ?");
+                $stmt->execute([$username]);
+                $user = $stmt->fetch();
+            } catch (\Exception $ex) {
+                error_log("[login_auto_heal] Failed to query users after auto-heal: " . $ex->getMessage());
+            }
+        }
 
         if ($user && password_verify($password, $user['password'])) {
             unset($_SESSION['login_failed_attempts']);

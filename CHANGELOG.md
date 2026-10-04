@@ -2,6 +2,21 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.31.1] - 2026-10-04
+### Fixed & Enhanced
+- **Zero-Touch Database Auto-Healing (`includes/db.php`)**:
+  - Automatically detects missing core tables (`users`, `subnets`, `switches`, `ip_addresses`, `vlans`, `switch_port_map`).
+  - If tables are missing (e.g. fresh installation or interrupted initial load), automatically imports `sql/database.sql` directly via PDO.
+  - Implements a hardened fallback mechanism to guarantee table creation and seeds default `admin` (`admin123`) credentials even if the SQL file is inaccessible.
+- **Fresh Docker Container Boot Fix (`sql/database.sql`)**:
+  - Fixed syntax/column mismatch in `sql/database.sql` (Line 503) where `switches` table had 21 columns but `INSERT INTO switches VALUES` only supplied 16 values, causing MariaDB's entrypoint script to abort halfway through.
+  - With explicit column definitions, fresh Docker seed now imports 100% of all 20 tables without errors.
+- **Proactive Initialization on Login (`login.php`)**:
+  - Connects to the database and runs auto-healing on initial page visit (GET) rather than deferring to POST submission.
+  - Wrapped authentication queries in resilient try-catch logic with automatic schema recovery retry, completely preventing `Table 'ipmanage.users' doesn't exist` crashes.
+- **Container Startup Upgrade (`includes/db_upgrade.php`)**:
+  - Integrated schema verification logging during container entrypoint execution.
+
 ## [2.31.0] - 2026-10-02
 ### Added
 - **IP Conflict & Flap Center (`conflicts.php` & `includes/conflict.helper.php`)**:
