@@ -2,7 +2,6 @@
 php.ini
 *.log
 tmp/
-vendor/
 composer.phar
 
 # OS files
