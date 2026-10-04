@@ -9,7 +9,7 @@ require_once __DIR__ . '/db.php';
 echo "[$(date)] Checking for Database Upgrades...\n";
 
 try {
-    $db = get_db_connection();
+    $db = get_db_connection(15, 2);
     echo "Database connected and core schema verified/auto-healed.\n";
     
     // Check if netwatch table exists

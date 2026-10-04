@@ -4,7 +4,7 @@
  */
 
 if (!function_exists('get_db_connection')) {
-function get_db_connection() {
+function get_db_connection($maxRetries = 1, $retryDelaySeconds = 2) {
     require_once __DIR__ . '/config.php';
     $port = defined('DB_PORT') ? DB_PORT : '3306';
     $dsn = "mysql:host=" . DB_HOST . ";port=" . $port . ";dbname=" . DB_NAME . ";charset=utf8mb4";
@@ -14,13 +14,45 @@ function get_db_connection() {
         PDO::ATTR_EMULATE_PREPARES   => false,
     ];
 
-    try {
-        $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
-        $pdo->exec("SET time_zone = '+07:00'");
-        run_auto_migrations($pdo);
-        return $pdo;
-    } catch (\PDOException $e) {
-        die("Connection failed: " . $e->getMessage());
+    $attempt = 0;
+    while ($attempt < $maxRetries) {
+        $attempt++;
+        try {
+            $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+            $pdo->exec("SET time_zone = '+07:00'");
+            run_auto_migrations($pdo);
+            return $pdo;
+        } catch (\PDOException $e) {
+            // Check if error is 1049 (Unknown database)
+            $isUnknownDb = ($e->getCode() == 1049) || (stripos($e->getMessage(), 'Unknown database') !== false);
+            if ($isUnknownDb) {
+                try {
+                    $rawDsn = "mysql:host=" . DB_HOST . ";port=" . $port . ";charset=utf8mb4";
+                    $rawPdo = new PDO($rawDsn, DB_USER, DB_PASS, $options);
+                    $rawPdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                    $rawPdo = null;
+
+                    $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+                    $pdo->exec("SET time_zone = '+07:00'");
+                    run_auto_migrations($pdo);
+                    return $pdo;
+                } catch (\Exception $createEx) {
+                    error_log("[db_auto_heal] Auto-create DB failed: " . $createEx->getMessage());
+                }
+            }
+
+            if ($attempt >= $maxRetries) {
+                if (php_sapi_name() === 'cli') {
+                    throw $e;
+                }
+                die("Connection failed: " . $e->getMessage());
+            }
+
+            if (php_sapi_name() === 'cli') {
+                echo "[db_connect] Database not ready (attempt {$attempt}/{$maxRetries}). Retrying in {$retryDelaySeconds}s...\n";
+            }
+            sleep($retryDelaySeconds);
+        }
     }
 }
 }
@@ -57,11 +89,17 @@ function get_redis_connection() {
 if (!function_exists('run_auto_migrations')) {
 function run_auto_migrations($db) {
     // 0. Base Tables Auto-Healing
-    // If core tables (users, subnets) are missing, automatically import schema or recreate them
-    $hasUsers = $db->query("SHOW TABLES LIKE 'users'")->rowCount() > 0;
-    $hasSubnets = $db->query("SHOW TABLES LIKE 'subnets'")->rowCount() > 0;
+    // If any core table is missing, automatically import schema or recreate them
+    $coreTables = ['users', 'subnets', 'ip_addresses', 'switches', 'switch_port_map', 'vlans', 'settings', 'sections', 'stats_history'];
+    $needsHeal = false;
+    foreach ($coreTables as $ct) {
+        if ($db->query("SHOW TABLES LIKE '{$ct}'")->rowCount() === 0) {
+            $needsHeal = true;
+            break;
+        }
+    }
 
-    if (!$hasUsers || !$hasSubnets) {
+    if ($needsHeal) {
         $sqlFiles = [
             __DIR__ . '/../sql/database.sql',
             '/var/www/html/sql/database.sql',
@@ -217,6 +255,31 @@ function run_auto_migrations($db) {
                 `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
                 PRIMARY KEY (`id`),
                 UNIQUE KEY `vlan_id` (`vlan_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        try {
+            $db->exec("CREATE TABLE IF NOT EXISTS `sections` (
+                `id` int(11) NOT NULL AUTO_INCREMENT,
+                `name` varchar(100) NOT NULL,
+                `description` text DEFAULT NULL,
+                `master_section` int(11) DEFAULT 0,
+                `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+                PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        try {
+            $db->exec("CREATE TABLE IF NOT EXISTS `stats_history` (
+                `id` int(11) NOT NULL AUTO_INCREMENT,
+                `total_subnets` int(11) NOT NULL DEFAULT 0,
+                `total_ips` int(11) NOT NULL DEFAULT 0,
+                `active_ips` int(11) NOT NULL DEFAULT 0,
+                `reserved_ips` int(11) NOT NULL DEFAULT 0,
+                `offline_ips` int(11) NOT NULL DEFAULT 0,
+                `recorded_at` timestamp NOT NULL DEFAULT current_timestamp(),
+                PRIMARY KEY (`id`),
+                KEY `idx_recorded_at` (`recorded_at`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
         } catch (Exception $e) {}
     }

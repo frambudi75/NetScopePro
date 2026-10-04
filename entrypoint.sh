@@ -8,8 +8,8 @@ if [ "${DOCKER_ENV:-}" = "1" ] && [ -f /var/www/html/.htaccess.docker ]; then
   echo "[entrypoint] Applied Docker .htaccess (RewriteBase /)"
 fi
 
-# Run database auto-upgrade/migration
-php /var/www/html/includes/db_upgrade.php
+# Run database auto-upgrade/migration with auto-healing and error tolerance
+php /var/www/html/includes/db_upgrade.php || echo "[entrypoint] Warning: Initial db_upgrade check encountered issues. App will continue auto-healing on request."
 
 # Start a background loop for automated tasks
 (
