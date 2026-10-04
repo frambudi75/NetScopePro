@@ -88,6 +88,10 @@ function get_redis_connection() {
  */
 if (!function_exists('run_auto_migrations')) {
 function run_auto_migrations($db) {
+    static $migrations_done = false;
+    if ($migrations_done) return;
+    $migrations_done = true;
+
     // 0. Base Tables Auto-Healing & Data Protection Guard
     // CRITICAL: Only import full database.sql if the database is 100% EMPTY (brand new install).
     // If ANY tables exist, NEVER run full SQL file to strictly protect existing user data.
