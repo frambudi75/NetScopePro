@@ -1,155 +1,139 @@
-# 🚀 NetScope Pro: Enterprise IPAM & Active Network Monitoring
+# NetScope Pro
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/frambudi75/NetScopePro/main/screenshots/dashboard.png" alt="NetScope Pro Dashboard" width="800">
-  <p><i>Premium Enterprise IP Address Management & Active NMS for Modern Networks.</i></p>
-</div>
+> IPAM & Network Intelligence for Infrastructure Teams
 
----
+[![Release](https://img.shields.io/badge/release-v2.31.1-blue.svg)](https://github.com/frambudi75/NetScopePro/releases)
+[![PHP](https://img.shields.io/badge/php-8.1%20%7C%208.2-777bb4.svg)](https://www.php.net/)
+[![Database](https://img.shields.io/badge/database-MariaDB%20%7C%20MySQL-orange.svg)](https://mariadb.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-NetScope Pro is a modern, high-speed **IP Address Management (IPAM)** and **Infrastructure Monitoring** platform. It provides real-time visibility into your network subnets, device health, and physical connectivity with a stunning dark-mode interface.
+NetScope Pro is an **IP Address Management (IPAM)** platform with built-in network intelligence. It combines core subnet tracking and IP lifecycle allocation with live Layer-2 physical switch port mapping, automated IP conflict forensics, and Spanning Tree loop diagnostics.
 
 ---
 
 ## 🏗️ System Architecture
 
-How NetScope Pro maintains its high-accuracy network map:
-
 ```mermaid
 graph TD
-    A[Scanner Engine] -->|Parallel Workers| B(Ping / Nmap / ARP / Port Probe)
-    C[Health Poller] -->|SNMP| D(CPU / RAM / Uptime)
-    E[Switch Poller] -->|L3 ARP Cache| F(MAC-Port-IP Mapping)
-    NW[Netwatch Engine] -->|ICMP| NW_ALERT(Telegram / Email)
-    G[(Central Intelligence DB)]
-    R[(Redis Caching)]
-    B -->|Found Hosts| G
-    D -->|Health Stats| G
-    F -->|Port Locations| G
-    NW -->|Down Events| G
-    G <--> R
-    R --> H[Premium Dashboard]
+    A[Scanner Engine] -->|ARP / ICMP / Nmap| E[Worker Pool]
+    B[Health Poller] -->|SNMP CPU / RAM / Uptime| E
+    C[Switch Poller] -->|SNMP FDB / Bridge / STP| E
+    D[Netwatch Engine] -->|ICMP Availability| E
+    E -->|State & Telemetry| DB[(MariaDB / MySQL)]
+    DB <--> Cache[(Redis Cache)]
+    DB --> UI[NetScope Pro Web Console]
+    E -->|Triggers & Events| Alert[Alert Dispatcher: Telegram / Webhooks / SMTP]
 ```
 
 ---
 
-## ✨ Key Features
+## 🔎 Network Diagnostics & Root Cause Analysis
 
-### 📡 Active Netwatch Monitoring (New in v2.18.0)
+NetScope Pro does not just alert you when an anomaly occurs; it correlates L2/L3 evidence to identify where and why:
 
-- **Proactive Uptime Tracking**: Inspired by MikroTik Netwatch, monitor any host availability via highly configurable ICMP pings.
-- **Multi-Channel Alerts**: Instant notifications via **Telegram Bot** and **Email** when a host goes DOWN or comes back UP.
-- **Smart Thresholds**: Set failure counts before triggering an alert to avoid false positives on unstable links.
-- **State-Change Logging**: Automated audit trail for every status change, integrated with the central logging system.
+### 1. IP Conflict & MAC Flap Center
+- **Dual-Host Forensic Comparison**: Side-by-side card comparing incumbent host vs new claimant (MAC, OUI Vendor, physical switch port, VLAN, hostname, and ping responsiveness).
+- **Trunk-Aware Flapping Analysis**: Distinguishes normal multi-switch uplink propagation from true IP/MAC collision and ARP thrashing.
+- **1-Click Resolution**: Direct administrative actions from the alert row (Resolve, Accept New Host, or Acknowledge) with audit logging.
 
-### 🔍 Advanced Discovery & IPAM (v2.23.0 Enhanced)
-
-- **Enterprise OS Fingerprinting**: High-accuracy detection via **Nmap** (Windows, Linux, IoT).
-- **Anti-Ghost Engine**: Strict ARP/MAC validation to prevent false positives in subnet discovery.
-- **Parallel Subnet Scanning**: High-speed discovery with multiple background workers for large-scale networks.
-- **Physical Port Mapping & SFP/DOM**: Trace MAC addresses directly to physical switch ports, VLANs, and monitor transceiver details (vendor, serial number, RX/TX optical power).
-
-### 🔄 L2 Switching Loop & STP Discovery Engine (New in v2.27.0)
-
-- **Spanning Tree (STP/RSTP) State Polling**: Real-time SNMP polling of `dot1dStp` MIB to identify Root Bridge, root path cost, and per-port STP operational states (`forwarding`, `blocking`, `learning`, `disabled`).
-- **Loop Mitigation Guard Detection**: Automatically flags ports placed in `BLOCKING` state by switch STP to isolate physical loops and prevent broadcast storms.
-- **FDB MAC Thrashing / Flapping**: Detects rapid MAC alternating between ports on the same switch to identify loops on unmanaged switches or ports without STP.
-- **Topology Change Monitoring**: Tracks Spanning Tree Topology Change Notifications (TCN) and time elapsed since last topology change to alert on link instability.
-- **Interactive L2 Loop Prober**: 6-phase live diagnostic tool in `tools.php` to verify switch bridge architecture, STP configuration, and port loop status.
-
-### 🛡️ Enterprise IP Conflict Detection Engine (New in v2.26.0 / v2.27.0)
-
-- **Collision & Flapping Identification**: Real-time identification of duplicate IP assignments and MAC flapping across subnets.
-- **Smart OS Family Classifier**: Classifies OS fingerprints into broad families (Windows, Linux, BSD, Cisco, MikroTik) to eliminate false positives on multi-guess Nmap detections.
-- **Trunk-Aware L2 Mapping**: Intelligent switch port analysis that distinguishes normal multi-switch uplink/trunk propagation from true IP/MAC conflicts.
-- **Interactive Conflict Prober**: Multi-probe ICMP TTL variance analysis, ARP integrity verification, and physical switch port cross-referencing in `tools.php`.
-- **NOC Alert Banners**: Prominent, real-time alert banners on the main dashboard for immediate visibility into IP collisions and L2 loops.
-
-### 📲 Multi-Channel Alert Engine (New in v2.28.0)
-
-- **Real-Time Telegram Alerts**: Instant dispatch for critical events: L2 Switching Loops, STP Blocked Ports, Netwatch Host Down/Recovery, IP Collisions, and SFP Optical Degradation.
-- **Granular Event Toggles**: Independent settings to toggle specific alert categories (Loops, Netwatch, Conflicts, SFP, New Devices).
-- **Anti-Spam & Intelligent Cooldown**: Lock-based throttling prevents notification storms during persistent network flapping.
-- **Multi-Platform Support**: Unified dispatcher with support for Telegram Bot API, Discord Webhooks, Slack Webhooks, and Authenticated SMTP Email.
-
-### 📈 Live Port Bandwidth & Traffic Graph (New in v2.28.0)
-
-- **SNMP 64-bit Throughput Counters**: Live and historical Inbound/Outbound traffic monitoring (Mbps) polled from standard `ifHCInOctets` / `ifHCOutOctets`.
-- **Interactive Visual Throughput**: Dual-tone gradient Chart.js area graphs with responsive time range selectors (1h, 6h, 24h, 48h).
-- **Instant Port Action Pills**: Direct 1-click access to traffic analysis for any physical switch interface with smooth viewport centering.
-- **Live KPI Metrics**: Real-time aggregation of Current, Peak, and Average bandwidth per port.
-
-### 📊 Real-time Visualization
-
-- **Live SNMP Tracking**: Streaming CPU, Memory, & Uptime data via _Server-Sent Events (SSE)_.
-- **Interactive Analytics**: Chart.js integration for historical performance trends (1h to 48h).
-- **Premium UI**: Sleek dark-mode interface with glassmorphism effects, powered by Lucide Icons.
+### 2. Layer-2 Loop & STP Diagnostics
+- **Spanning Tree Protocol (STP/RSTP) State Polling**: Queries `dot1dStp` MIB tables to identify Root Bridge, root path cost, and per-port operational states (`forwarding`, `blocking`, `learning`).
+- **Loop Mitigation Guard**: Identifies ports blocked by switch STP to isolate loops before broadcast storms escalate.
+- **Inactive Link Filtering**: Automatically checks operational link status (`ifOperStatus`) to prevent false-positive alarms on unplugged ports.
+- **Interactive L2 Loop Prober**: 6-phase diagnostic tool verifying bridge architecture, STP configuration, and topology change notifications (TCN).
 
 ---
 
 ## 📸 Screenshots
 
-<div align="center">
-  <table style="width:100%">
-    <tr>
-      <td width="50%"><img src="screenshots/dashboard.png" alt="Main Dashboard"/></td>
-      <td width="50%"><img src="screenshots/netwatch.png" alt="Netwatch Module"/></td>
-    </tr>
-  </table>
-</div>
+| NOC Operations Dashboard | IPAM Subnet Management |
+| :---: | :---: |
+| ![NOC Operations Dashboard](screenshots/dashboard.png) | ![IPAM Subnet Management](screenshots/subnets.png) |
+
+| IP Conflict & Flap Center | L2 Loop & STP Diagnostics |
+| :---: | :---: |
+| ![IP Conflict & Flap Center](screenshots/conflicts.png) | ![L2 Loop & STP Diagnostics](screenshots/tools.png) |
+
+| Netwatch Host Monitoring | Layer-2 Topology Map |
+| :---: | :---: |
+| ![Netwatch Host Monitoring](screenshots/netwatch.png) | ![Layer-2 Topology Map](screenshots/topology.png) |
 
 ---
 
-## ⚙️ Minimum Requirements
+## ✨ Core Features
 
-For smooth real-time monitoring and high-speed parallel scanning:
+### 📋 IP Address Management (IPAM)
+- **Subnet Allocation & CIDR Hierarchy**: Visual utilization progress bars, address status tracking (Allocated, Reserved, Dynamic, Offline), and gateway/DNS management.
+- **IP Intelligence Dossier (360° View)**: Single-click modal correlating IP &rarr; MAC &rarr; Switch Port &rarr; Vendor &rarr; SFP Optical telemetry.
+- **Universal Search (`Ctrl+K` / `Cmd+K`)**: Rapid indexed search across subnets, switches, hosts, and IP records.
+- **VLAN Management**: Track 802.1Q VLAN IDs, subnet bindings, and descriptions.
+
+### 🔌 Switch Fabric & Physical Port Mapping
+- **MAC-to-Port Correlation**: Tracks which physical port (`etherX`, `GigabitEthernetX`) each device is plugged into via SNMP FDB bridge tables.
+- **SFP / Optical DOM Monitoring**: Displays transceiver vendor, part numbers, RX/TX optical signal levels, and temperatures.
+- **Bandwidth & Port Telemetry**: Live and historical throughput counters (`ifHCInOctets` / `ifHCOutOctets`) with time-range charts.
+
+### 📡 Proactive Netwatch Monitoring
+- **Availability Tracking**: High-frequency ICMP polling with configurable failure count thresholds.
+- **Multi-Channel Dispatcher**: Real-time notifications via **Telegram Bot**, Discord, Slack webhooks, and SMTP email.
+- **State Change Audit**: Automated logging of every host status transition.
+
+---
+
+## ⚡ Quick Start
+
+### Docker (Recommended)
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/frambudi75/NetScopePro.git
+   cd NetScopePro
+   ```
+
+2. Start the stack:
+   ```bash
+   docker compose up -d
+   ```
+
+3. Open your browser:
+   ```text
+   http://localhost:2025
+   ```
+
+### Default Credentials
+- **Username**: `admin`
+- **Password**: `admin123`  
+*(Change default credentials in Settings immediately after first login)*
+
+---
+
+## 📚 Documentation
+
+- [Docker Deployment Guide](DOCKER_INSTALL.md)
+- [Docker with SSL / Reverse Proxy](DOCKER_SSL.md)
+- [Bare-Metal / Standalone (XAMPP & Linux) Installation](STANDALONE_INSTALL.md)
+- [Release History & Detailed Changelog](CHANGELOG.md)
+
+---
+
+## ⚙️ System Requirements
 
 ### Hardware
+- **CPU**: 1 vCPU (2.0 GHz) minimum | 2 vCPU+ recommended for large subnets
+- **RAM**: 1 GB free RAM | 2 GB+ recommended
+- **Network**: 100 Mbps minimum | 1 Gbps recommended for low-latency SNMP sweeps
 
-- **CPU**: 1 vCPU (2.0GHz) Minimum | 2 vCPU+ Recommended.
-- **RAM**: 1 GB Free RAM | 2 GB+ Recommended.
-- **Network**: 100 Mbps | 1 Gbps (Low latency SNMP).
-
-### Software (detailed in requirements.txt)
-
+### Software
 - **PHP**: 8.1 or 8.2+
-- **Database**: MariaDB 10.6+ / MySQL 8.0+
-- **Tools**: `nmap` (required for OS detection), `traceroute`, `iputils-ping`
+- **Database**: MariaDB 10.6+ or MySQL 8.0+
+- **Dependencies**: `nmap`, `fping` / `iputils-ping`, `net-snmp`
 
 ---
 
-## ⚡ Installation
-
-### Option 1: Docker (Recommended)
-
-1. Refer to [Docker Install Guide](DOCKER_INSTALL.md).
-2. Run: `docker-compose up -d`
-3. Access: `http://localhost:2025`
-
-### Option 2: XAMPP / Linux (Manual)
-
-1. Refer to [Standalone Install Guide](STANDALONE_INSTALL.md).
-2. Import `sql/database.sql` to your database.
-3. Access: `http://localhost/NetScopePro`
-
----
-
-## 🔐 Default Credentials
-
-- **Username**: `admin`
-- **Password**: `admin123`
-  _(Please change your password immediately after first login)_
-
----
-
-## 👨‍💻 Author & Support
+## 👨‍💻 Author & License
 
 **Habib Frambudi**  
-If this project saves you time, consider supporting the developer:
+- GitHub: [@frambudi75](https://github.com/frambudi75)
+- Support: [saweria.co/Habibframbudi](https://saweria.co/Habibframbudi) | PayPal: `habibframbudi@gmail.com`
 
-- **Saweria (IDR)**: [saweria.co/Habibframbudi](https://saweria.co/Habibframbudi)
-- **PayPal (USD)**: `habibframbudi@gmail.com`
-
----
-
-_Powered by **Vanilla CSS**, **Lucide Icons**, and **Chart.js**._
+Distributed under the [MIT License](LICENSE).
