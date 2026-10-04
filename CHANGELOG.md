@@ -2,6 +2,19 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.31.3] - 2026-10-04
+### Fixed & Hardened
+- **SSH Channel 1 Collision Fix (`api/server-metrics.php`)**:
+  - Eliminated `RuntimeException: Please close the channel (1) before trying to open it again` by ensuring secondary device probes (e.g. RouterOS) run on a clean, isolated connection rather than reusing an open channel.
+  - Replaced blocking commands (`top -b -n 1`, `sudo ipmitool`) with non-blocking instant telemetry via `/proc/stat` and `/proc/loadavg` (100ms delta), guaranteeing fast execution.
+- **SSH Connection Leak & MaxStartups Exhaustion Fix (`api/server-metrics.php`)**:
+  - Added explicit `$ssh->disconnect()` across all execution paths (success, fallback, and error handlers) to terminate SSH sessions immediately after reading metrics.
+  - Prevents target server OpenSSH daemons from hitting `MaxStartups` limits during extended live monitoring sessions.
+- **Resilient Frontend Polling & Concurrency Guard (`server-assets.php`)**:
+  - Added `isFetchingMetrics` mutex flag to prevent overlapping concurrent HTTP/SSH requests if network latency fluctuates.
+  - Added consecutive error tolerance threshold (`consecutiveErrors`) to prevent single transient network blips from killing live charts or aborting polling.
+  - Adjusted polling cadence to a stable 6-second interval with proper timer cleanup on modal close.
+
 ## [2.31.2] - 2026-10-04
 ### Fixed & Hardened
 - **Server Assets Live Metrics Modal Fix (`server-assets.php` & `api/server-metrics.php`)**:
