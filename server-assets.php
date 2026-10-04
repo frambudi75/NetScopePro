@@ -371,6 +371,8 @@ let ramChart = null;
 let netChart = null;
 let prevRxBytes = null;
 let prevTxBytes = null;
+let isFetchingMetrics = false;
+let consecutiveErrors = 0;
 
 function initCharts() {
     if (cpuChart) cpuChart.destroy();
@@ -414,17 +416,32 @@ function openMetricsModal(id, hostname) {
     document.getElementById('metricsError').style.display = 'none';
     document.getElementById('metricsLoading').style.display = 'block';
     
+    if (metricsInterval) {
+        clearInterval(metricsInterval);
+        metricsInterval = null;
+    }
+    isFetchingMetrics = false;
+    consecutiveErrors = 0;
+    
     initCharts();
     fetchMetrics(id);
-    metricsInterval = setInterval(() => fetchMetrics(id), 5000);
+    metricsInterval = setInterval(() => fetchMetrics(id), 6000);
 }
 
 function closeMetricsModal() {
     document.getElementById('metricsModal').style.display = 'none';
-    if (metricsInterval) clearInterval(metricsInterval);
+    if (metricsInterval) {
+        clearInterval(metricsInterval);
+        metricsInterval = null;
+    }
+    isFetchingMetrics = false;
+    consecutiveErrors = 0;
 }
 
 async function fetchMetrics(id) {
+    if (isFetchingMetrics) return;
+    isFetchingMetrics = true;
+
     try {
         const res = await fetch('api/server-metrics.php?id=' + id);
         let data;
@@ -437,13 +454,23 @@ async function fetchMetrics(id) {
         }
         
         if (data.error) {
-            if (metricsInterval) clearInterval(metricsInterval);
-            document.getElementById('metricsLoading').style.display = 'none';
-            document.getElementById('metricsError').innerText = data.error;
-            document.getElementById('metricsError').style.display = 'block';
+            consecutiveErrors++;
+            const hasData = cpuChart && cpuChart.data.labels.length > 0;
+            if (!hasData || consecutiveErrors >= 3) {
+                if (metricsInterval) {
+                    clearInterval(metricsInterval);
+                    metricsInterval = null;
+                }
+                document.getElementById('metricsLoading').style.display = 'none';
+                document.getElementById('metricsError').innerText = data.error;
+                document.getElementById('metricsError').style.display = 'block';
+            } else {
+                console.warn('Transient metrics error (' + consecutiveErrors + '/3): ' + data.error);
+            }
             return;
         }
-        
+
+        consecutiveErrors = 0;
         document.getElementById('metricsLoading').style.display = 'none';
         document.getElementById('metricsError').style.display = 'none';
         document.getElementById('metricsContent').style.display = 'block';
@@ -467,12 +494,12 @@ async function fetchMetrics(id) {
         if (ramChart.data.labels.length > 10) { ramChart.data.labels.shift(); ramChart.data.datasets[0].data.shift(); }
         ramChart.update();
 
-        // Network traffic: calculate Mbps from bytes delta over 5 seconds
+        // Network traffic: calculate Mbps from bytes delta over 6 seconds
         if (prevRxBytes !== null && prevTxBytes !== null) {
             const rxDelta = data.rx_bytes - prevRxBytes;
             const txDelta = data.tx_bytes - prevTxBytes;
-            const rxMbps = Math.max(0, (rxDelta * 8) / (5 * 1000000)).toFixed(2);
-            const txMbps = Math.max(0, (txDelta * 8) / (5 * 1000000)).toFixed(2);
+            const rxMbps = Math.max(0, (rxDelta * 8) / (6 * 1000000)).toFixed(2);
+            const txMbps = Math.max(0, (txDelta * 8) / (6 * 1000000)).toFixed(2);
             
             netChart.data.labels.push(now);
             netChart.data.datasets[0].data.push(parseFloat(rxMbps));
@@ -488,11 +515,22 @@ async function fetchMetrics(id) {
         prevTxBytes = data.tx_bytes;
         
     } catch (e) {
-        if (metricsInterval) clearInterval(metricsInterval);
-        document.getElementById('metricsLoading').style.display = 'none';
-        document.getElementById('metricsError').innerText = e.message || 'Error communicating with server';
-        document.getElementById('metricsError').style.display = 'block';
-        console.error(e);
+        consecutiveErrors++;
+        const hasData = cpuChart && cpuChart.data.labels.length > 0;
+        if (!hasData || consecutiveErrors >= 3) {
+            if (metricsInterval) {
+                clearInterval(metricsInterval);
+                metricsInterval = null;
+            }
+            document.getElementById('metricsLoading').style.display = 'none';
+            document.getElementById('metricsError').innerText = e.message || 'Error communicating with server';
+            document.getElementById('metricsError').style.display = 'block';
+            console.error(e);
+        } else {
+            console.warn('Transient polling error (' + consecutiveErrors + '/3):', e);
+        }
+    } finally {
+        isFetchingMetrics = false;
     }
 }
 

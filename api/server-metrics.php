@@ -62,12 +62,12 @@ if [ -z "$RAM_PCT" ]; then
     RAM_PCT=$(free 2>/dev/null | awk '/Mem:/ {if($2>0) printf "%.1f", $3/$2 * 100}')
 fi
 
-# 2. CPU Usage Percentage via /proc/stat delta or top
+# 2. CPU Usage Percentage via fast /proc/stat delta (100ms) or loadavg
 CPU_PCT=""
 if [ -r /proc/stat ]; then
     read -r _ u1 n1 s1 i1 w1 x1 y1 z1 < /proc/stat 2>/dev/null
     t1=$((u1+n1+s1+i1+w1+x1+y1+z1))
-    sleep 0.2
+    sleep 0.1
     read -r _ u2 n2 s2 i2 w2 x2 y2 z2 < /proc/stat 2>/dev/null
     t2=$((u2+n2+s2+i2+w2+x2+y2+z2))
     dt=$((t2-t1))
@@ -77,12 +77,7 @@ if [ -r /proc/stat ]; then
     fi
 fi
 if [ -z "$CPU_PCT" ]; then
-    CPU_IDLE=$(top -b -n 1 2>/dev/null | grep -i "cpu" | grep -o '[0-9.]*[% ]*id' | head -n1 | grep -o '[0-9.]*')
-    if [ ! -z "$CPU_IDLE" ]; then
-        CPU_PCT=$(awk "BEGIN {printf \"%.1f\", 100 - $CPU_IDLE}" 2>/dev/null)
-    else
-        CPU_PCT=$(cat /proc/loadavg 2>/dev/null | awk '{print $1 * 10}')
-    fi
+    CPU_PCT=$(awk '{print int($1 * 10)}' /proc/loadavg 2>/dev/null || echo "0")
 fi
 
 # 3. Disk Percentage via POSIX df -P
@@ -91,12 +86,9 @@ DISK_PCT=$(df -P / 2>/dev/null | awk 'NR==2 {gsub(/%/, "", $5); print $5}')
 # 4. Temperature via thermal zone or hwmon
 TEMP=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || cat /sys/class/hwmon/hwmon0/temp1_input 2>/dev/null || echo 0)
 
-# 5. Power
+# 5. Power (instantaneous sensor check only)
 POWER_W=0
-if command -v ipmitool >/dev/null 2>&1; then
-    PWR=$(sudo -n ipmitool dcmi power reading 2>/dev/null | grep -i "Instantaneous power" | awk '{print $4}')
-    if [ ! -z "$PWR" ]; then POWER_W=$PWR; fi
-elif command -v sensors >/dev/null 2>&1; then
+if command -v sensors >/dev/null 2>&1; then
     PWR=$(sensors 2>/dev/null | awk '/power[0-9]/ {print $2; exit}' | grep -o '[0-9.]*')
     if [ ! -z "$PWR" ]; then POWER_W=$PWR; fi
 fi
@@ -116,10 +108,11 @@ fi
 echo "NETSCOPE_METRICS|$RAM_PCT|$CPU_PCT|$DISK_PCT|$TEMP|$POWER_W|$UPTIME_STR|$NET_BYTES"
 EOF;
 
-    $output = trim($ssh->exec($linux_cmd));
+    $output = trim((string)$ssh->exec($linux_cmd));
 
     // Case 1: Standard Linux parsing matched
     if (strpos($output, 'NETSCOPE_METRICS|') !== false) {
+        try { $ssh->disconnect(); } catch (\Throwable $t) {}
         $clean_line = substr($output, strpos($output, 'NETSCOPE_METRICS|') + strlen('NETSCOPE_METRICS|'));
         $parts = explode('|', $clean_line);
         
@@ -147,43 +140,59 @@ EOF;
         ]);
     }
 
-    // Case 2: Target is MikroTik RouterOS
-    $ros_test = $ssh->exec('/system resource print');
-    if (strpos($ros_test, 'cpu-load') !== false || strpos($ros_test, 'uptime') !== false) {
-        preg_match('/cpu-load:\s*([0-9]+)%/i', $ros_test, $m_cpu);
-        preg_match('/uptime:\s*([^\r\n]+)/i', $ros_test, $m_uptime);
-        preg_match('/total-memory:\s*([0-9.]+)\s*([KMG]i?B)/i', $ros_test, $m_tot_mem);
-        preg_match('/free-memory:\s*([0-9.]+)\s*([KMG]i?B)/i', $ros_test, $m_free_mem);
-        preg_match('/total-hdd-space:\s*([0-9.]+)\s*([KMG]i?B)/i', $ros_test, $m_tot_hdd);
-        preg_match('/free-hdd-space:\s*([0-9.]+)\s*([KMG]i?B)/i', $ros_test, $m_free_hdd);
+    // Always disconnect first session before attempting any secondary probe
+    try { $ssh->disconnect(); } catch (\Throwable $t) {}
 
-        $cpu = isset($m_cpu[1]) ? (float)$m_cpu[1] : 0;
-        $uptime = isset($m_uptime[1]) ? trim($m_uptime[1]) : 'N/A';
+    // Case 2: Target is MikroTik RouterOS (only attempt if target output or asset hints at RouterOS)
+    $cat = $asset['category'] ?? '';
+    $is_likely_ros = (stripos($cat, 'mikrotik') !== false || stripos($cat, 'routeros') !== false || stripos($output, 'bad command') !== false);
+    
+    if ($is_likely_ros) {
+        try {
+            $ros_ssh = new SSH2($host, $port, 5);
+            $ros_ssh->setTimeout(5);
+            if ($ros_ssh->login($username, $password)) {
+                $ros_test = (string)$ros_ssh->exec('/system resource print');
+                try { $ros_ssh->disconnect(); } catch (\Throwable $t) {}
 
-        $ram = 0;
-        if (!empty($m_tot_mem[1]) && !empty($m_free_mem[1])) {
-            $tot = (float)$m_tot_mem[1];
-            $free = (float)$m_free_mem[1];
-            if ($tot > 0) $ram = round((1 - ($free / $tot)) * 100, 1);
-        }
+                if (strpos($ros_test, 'cpu-load') !== false || strpos($ros_test, 'uptime') !== false) {
+                    preg_match('/cpu-load:\s*([0-9]+)%/i', $ros_test, $m_cpu);
+                    preg_match('/uptime:\s*([^\r\n]+)/i', $ros_test, $m_uptime);
+                    preg_match('/total-memory:\s*([0-9.]+)\s*([KMG]i?B)/i', $ros_test, $m_tot_mem);
+                    preg_match('/free-memory:\s*([0-9.]+)\s*([KMG]i?B)/i', $ros_test, $m_free_mem);
+                    preg_match('/total-hdd-space:\s*([0-9.]+)\s*([KMG]i?B)/i', $ros_test, $m_tot_hdd);
+                    preg_match('/free-hdd-space:\s*([0-9.]+)\s*([KMG]i?B)/i', $ros_test, $m_free_hdd);
 
-        $disk = 0;
-        if (!empty($m_tot_hdd[1]) && !empty($m_free_hdd[1])) {
-            $tot_d = (float)$m_tot_hdd[1];
-            $free_d = (float)$m_free_hdd[1];
-            if ($tot_d > 0) $disk = round((1 - ($free_d / $tot_d)) * 100, 1);
-        }
+                    $cpu = isset($m_cpu[1]) ? (float)$m_cpu[1] : 0;
+                    $uptime = isset($m_uptime[1]) ? trim($m_uptime[1]) : 'N/A';
 
-        json_response([
-            'ram' => $ram,
-            'cpu' => $cpu,
-            'disk' => $disk,
-            'temp' => 0,
-            'power' => 0,
-            'uptime' => $uptime,
-            'rx_bytes' => 0,
-            'tx_bytes' => 0
-        ]);
+                    $ram = 0;
+                    if (!empty($m_tot_mem[1]) && !empty($m_free_mem[1])) {
+                        $tot = (float)$m_tot_mem[1];
+                        $free = (float)$m_free_mem[1];
+                        if ($tot > 0) $ram = round((1 - ($free / $tot)) * 100, 1);
+                    }
+
+                    $disk = 0;
+                    if (!empty($m_tot_hdd[1]) && !empty($m_free_hdd[1])) {
+                        $tot_d = (float)$m_tot_hdd[1];
+                        $free_d = (float)$m_free_hdd[1];
+                        if ($tot_d > 0) $disk = round((1 - ($free_d / $tot_d)) * 100, 1);
+                    }
+
+                    json_response([
+                        'ram' => $ram,
+                        'cpu' => $cpu,
+                        'disk' => $disk,
+                        'temp' => 0,
+                        'power' => 0,
+                        'uptime' => $uptime,
+                        'rx_bytes' => 0,
+                        'tx_bytes' => 0
+                    ]);
+                }
+            }
+        } catch (\Throwable $t) {}
     }
 
     // Case 3: Output could not be parsed - report honest error rather than fake zeroes
@@ -193,6 +202,9 @@ EOF;
     ], 502);
 
 } catch (\Throwable $e) {
+    if (isset($ssh)) {
+        try { $ssh->disconnect(); } catch (\Throwable $t) {}
+    }
     $msg = $e->getMessage();
     if (strpos($msg, 'integer was expected') !== false || strpos($msg, 'Connection closed') !== false) {
         $msg = "Connection timed out or dropped by {$host}:{$port}. Check that the SSH daemon is running and allows connections from this container.";

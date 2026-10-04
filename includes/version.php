@@ -3,12 +3,18 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.31.2');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.31.3');
 if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-04');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.31.3', 'date' => '2026-10-04', 'changes' => [
+        'SSH Channel 1 Collision Fix (Eliminated "Please close the channel (1)" runtime exception)',
+        'Target Server SSH Session Leak Prevention (Explicit $ssh->disconnect() prevents OpenSSH MaxStartups exhaustion)',
+        'Client-side Polling Mutex Guard (isFetchingMetrics prevents concurrent request pileup)',
+        'Resilient Telemetry Poller (Transient error tolerance keeping live charts stable during momentary spikes)'
+    ]],
     ['ver' => '2.31.2', 'date' => '2026-10-04', 'changes' => [
         'Server Assets Metrics Modal Fix (Eliminated SyntaxError JSON parse crash & stuck spinner)',
         'Docker Pre-Built Vendor Package Restoration in entrypoint.sh (Guarantees phpseclib3 on volume mounts)',
