@@ -185,6 +185,11 @@ abstract class Strings
                     $result .= $element ? "\1" : "\0";
                     break;
                 case 'Q':
+                    if (is_numeric($element)) {
+                        $element = (float) $element;
+                    } elseif ($element === null || $element === false) {
+                        $element = 0;
+                    }
                     if (!is_int($element) && !is_float($element)) {
                         throw new \InvalidArgumentException('An integer was expected.');
                     }
@@ -192,8 +197,10 @@ abstract class Strings
                     $result .= pack('NN', $element / 4294967296, $element);
                     break;
                 case 'N':
-                    if (is_float($element)) {
+                    if (is_numeric($element)) {
                         $element = (int) $element;
+                    } elseif ($element === null || $element === false) {
+                        $element = 0;
                     }
                     if (!is_int($element)) {
                         throw new \InvalidArgumentException('An integer was expected.');
