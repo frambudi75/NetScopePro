@@ -19,10 +19,10 @@
 -- Table structure for table `audit_logs`
 --
 
-DROP TABLE IF EXISTS `audit_logs`;
+-- DROP TABLE IF EXISTS `audit_logs`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `audit_logs` (
+CREATE TABLE IF NOT EXISTS `audit_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) DEFAULT NULL,
   `action` varchar(100) NOT NULL,
@@ -41,7 +41,7 @@ CREATE TABLE `audit_logs` (
 
 LOCK TABLES `audit_logs` WRITE;
 /*!40000 ALTER TABLE `audit_logs` DISABLE KEYS */;
-INSERT INTO `audit_logs` VALUES (41,1,'add_switch','switch',3,'Added switch router utama (192.168.5.1)','2026-05-09 10:28:13'),(42,NULL,'poll_switch','switch',3,'Discovered 11 mappings on router utama','2026-05-09 10:33:33'),(43,1,'add_switch','switch',4,'Added switch cisco-sw (192.168.2.6)','2026-05-09 10:34:11'),(44,1,'delete_switch','switch',4,'Deleted switch ID 4','2026-05-09 10:35:58'),(45,1,'add_switch','switch',5,'Added switch cisco-sw (192.168.2.5)','2026-05-09 10:36:14'),(46,NULL,'poll_switch','switch',3,'Discovered 11 mappings on router utama','2026-05-09 10:36:23');
+INSERT IGNORE INTO `audit_logs` VALUES (41,1,'add_switch','switch',3,'Added switch router utama (192.168.5.1)','2026-05-09 10:28:13'),(42,NULL,'poll_switch','switch',3,'Discovered 11 mappings on router utama','2026-05-09 10:33:33'),(43,1,'add_switch','switch',4,'Added switch cisco-sw (192.168.2.6)','2026-05-09 10:34:11'),(44,1,'delete_switch','switch',4,'Deleted switch ID 4','2026-05-09 10:35:58'),(45,1,'add_switch','switch',5,'Added switch cisco-sw (192.168.2.5)','2026-05-09 10:36:14'),(46,NULL,'poll_switch','switch',3,'Discovered 11 mappings on router utama','2026-05-09 10:36:23');
 /*!40000 ALTER TABLE `audit_logs` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -49,10 +49,10 @@ UNLOCK TABLES;
 -- Table structure for table `bug_reports`
 --
 
-DROP TABLE IF EXISTS `bug_reports`;
+-- DROP TABLE IF EXISTS `bug_reports`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `bug_reports` (
+CREATE TABLE IF NOT EXISTS `bug_reports` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) DEFAULT NULL,
   `title` varchar(255) NOT NULL,
@@ -77,10 +77,10 @@ UNLOCK TABLES;
 -- Table structure for table `ip_addresses`
 --
 
-DROP TABLE IF EXISTS `ip_addresses`;
+-- DROP TABLE IF EXISTS `ip_addresses`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `ip_addresses` (
+CREATE TABLE IF NOT EXISTS `ip_addresses` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `subnet_id` int(11) NOT NULL,
   `ip_addr` varchar(45) NOT NULL,
@@ -123,10 +123,10 @@ UNLOCK TABLES;
 -- Table structure for table `netwatch`
 --
 
-DROP TABLE IF EXISTS `netwatch`;
+-- DROP TABLE IF EXISTS `netwatch`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `netwatch` (
+CREATE TABLE IF NOT EXISTS `netwatch` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(100) NOT NULL,
   `host` varchar(100) NOT NULL,
@@ -157,10 +157,10 @@ UNLOCK TABLES;
 -- Table structure for table `netwatch_history`
 --
 
-DROP TABLE IF EXISTS `netwatch_history`;
+-- DROP TABLE IF EXISTS `netwatch_history`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `netwatch_history` (
+CREATE TABLE IF NOT EXISTS `netwatch_history` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `netwatch_id` int(11) NOT NULL,
   `latency` float DEFAULT 0,
@@ -185,10 +185,10 @@ UNLOCK TABLES;
 -- Table structure for table `sections`
 --
 
-DROP TABLE IF EXISTS `sections`;
+-- DROP TABLE IF EXISTS `sections`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `sections` (
+CREATE TABLE IF NOT EXISTS `sections` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(100) NOT NULL,
   `description` text DEFAULT NULL,
@@ -202,7 +202,7 @@ CREATE TABLE `sections` (
 
 LOCK TABLES `sections` WRITE;
 /*!40000 ALTER TABLE `sections` DISABLE KEYS */;
-INSERT INTO `sections` VALUES (1,'Default Section','Automatically created default section');
+INSERT IGNORE INTO `sections` VALUES (1,'Default Section','Automatically created default section');
 /*!40000 ALTER TABLE `sections` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -210,10 +210,10 @@ UNLOCK TABLES;
 -- Table structure for table `server_assets`
 --
 
-DROP TABLE IF EXISTS `server_assets`;
+-- DROP TABLE IF EXISTS `server_assets`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `server_assets` (
+CREATE TABLE IF NOT EXISTS `server_assets` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `hostname` varchar(100) NOT NULL,
   `ip_address` varchar(45) NOT NULL,
@@ -246,10 +246,10 @@ UNLOCK TABLES;
 -- Table structure for table `settings`
 --
 
-DROP TABLE IF EXISTS `settings`;
+-- DROP TABLE IF EXISTS `settings`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `settings` (
+CREATE TABLE IF NOT EXISTS `settings` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `key` varchar(50) NOT NULL,
   `value` text DEFAULT NULL,
@@ -265,7 +265,7 @@ CREATE TABLE `settings` (
 
 LOCK TABLES `settings` WRITE;
 /*!40000 ALTER TABLE `settings` DISABLE KEYS */;
-INSERT INTO `settings` VALUES (1,'telegram_enabled','0','2026-03-29 06:00:00'),(2,'telegram_bot_token','','2026-03-29 06:00:00'),(3,'telegram_chat_id','','2026-03-29 06:00:00'),(4,'email_enabled','0','2026-03-29 06:00:00'),(5,'admin_email','','2026-03-29 06:00:00'),(6,'nmap_enabled','0','2026-03-29 06:00:00'),(7,'discovery_aggressive','1','2026-03-31 07:30:00'),(52,'masscan_enabled','0','2026-06-23 00:00:00'),(53,'masscan_rate','1000','2026-06-23 00:00:00'),(41,'subnet_limit_threshold','80','2026-03-31 07:30:00'),(42,'offline_fail_threshold','3','2026-03-31 07:30:00'),(43,'discord_enabled','0','2026-05-09 10:27:34'),(44,'slack_enabled','0','2026-05-09 10:27:34'),(45,'custom_netwatch_template','','2026-05-09 10:27:34'),(46,'retention_port_history','30','2026-05-10 12:00:00'),(47,'retention_health_history','30','2026-05-10 12:00:00'),(48,'retention_netwatch_history','30','2026-05-10 12:00:00'),(49,'retention_audit_logs','90','2026-05-10 12:00:00'),(50,'retention_auto_cleanup','1','2026-05-10 12:00:00'),(51,'last_db_cleanup','0','2026-05-10 12:00:00');
+INSERT IGNORE INTO `settings` VALUES (1,'telegram_enabled','0','2026-03-29 06:00:00'),(2,'telegram_bot_token','','2026-03-29 06:00:00'),(3,'telegram_chat_id','','2026-03-29 06:00:00'),(4,'email_enabled','0','2026-03-29 06:00:00'),(5,'admin_email','','2026-03-29 06:00:00'),(6,'nmap_enabled','0','2026-03-29 06:00:00'),(7,'discovery_aggressive','1','2026-03-31 07:30:00'),(52,'masscan_enabled','0','2026-06-23 00:00:00'),(53,'masscan_rate','1000','2026-06-23 00:00:00'),(41,'subnet_limit_threshold','80','2026-03-31 07:30:00'),(42,'offline_fail_threshold','3','2026-03-31 07:30:00'),(43,'discord_enabled','0','2026-05-09 10:27:34'),(44,'slack_enabled','0','2026-05-09 10:27:34'),(45,'custom_netwatch_template','','2026-05-09 10:27:34'),(46,'retention_port_history','30','2026-05-10 12:00:00'),(47,'retention_health_history','30','2026-05-10 12:00:00'),(48,'retention_netwatch_history','30','2026-05-10 12:00:00'),(49,'retention_audit_logs','90','2026-05-10 12:00:00'),(50,'retention_auto_cleanup','1','2026-05-10 12:00:00'),(51,'last_db_cleanup','0','2026-05-10 12:00:00');
 /*!40000 ALTER TABLE `settings` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -273,10 +273,10 @@ UNLOCK TABLES;
 -- Table structure for table `stats_history`1
 --
 
-DROP TABLE IF EXISTS `stats_history`;
+-- DROP TABLE IF EXISTS `stats_history`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `stats_history` (
+CREATE TABLE IF NOT EXISTS `stats_history` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `snapshot_date` date NOT NULL,
   `total_active` int(11) NOT NULL,
@@ -298,10 +298,10 @@ UNLOCK TABLES;
 -- Table structure for table `subnets`
 --
 
-DROP TABLE IF EXISTS `subnets`;
+-- DROP TABLE IF EXISTS `subnets`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `subnets` (
+CREATE TABLE IF NOT EXISTS `subnets` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `subnet` varchar(45) NOT NULL,
   `mask` int(11) NOT NULL,
@@ -336,10 +336,10 @@ UNLOCK TABLES;
 -- Table structure for table `switch_health_history`
 --
 
-DROP TABLE IF EXISTS `switch_health_history`;
+-- DROP TABLE IF EXISTS `switch_health_history`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `switch_health_history` (
+CREATE TABLE IF NOT EXISTS `switch_health_history` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `switch_id` int(11) NOT NULL,
   `cpu_usage` int(11) NOT NULL DEFAULT 0,
@@ -357,7 +357,7 @@ CREATE TABLE `switch_health_history` (
 
 LOCK TABLES `switch_health_history` WRITE;
 /*!40000 ALTER TABLE `switch_health_history` DISABLE KEYS */;
-INSERT INTO `switch_health_history` VALUES (1,3,0,7,'2026-05-09 10:30:48'),(2,3,0,7,'2026-05-09 10:33:33'),(4,3,0,7,'2026-05-09 10:36:23');
+INSERT IGNORE INTO `switch_health_history` VALUES (1,3,0,7,'2026-05-09 10:30:48'),(2,3,0,7,'2026-05-09 10:33:33'),(4,3,0,7,'2026-05-09 10:36:23');
 /*!40000 ALTER TABLE `switch_health_history` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -365,10 +365,10 @@ UNLOCK TABLES;
 -- Table structure for table `switch_port_history`
 --
 
-DROP TABLE IF EXISTS `switch_port_history`;
+-- DROP TABLE IF EXISTS `switch_port_history`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `switch_port_history` (
+CREATE TABLE IF NOT EXISTS `switch_port_history` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `switch_id` int(11) DEFAULT NULL,
   `port_name` varchar(100) DEFAULT NULL,
@@ -387,7 +387,7 @@ CREATE TABLE `switch_port_history` (
 
 LOCK TABLES `switch_port_history` WRITE;
 /*!40000 ALTER TABLE `switch_port_history` DISABLE KEYS */;
-INSERT INTO `switch_port_history` VALUES (1,3,'ether1-inet',602749,41583,'2026-05-09 10:36:23'),(2,3,'ether2-pc',0,0,'2026-05-09 10:36:23'),(3,3,'ether3-to-Sw',391616,37576,'2026-05-09 10:36:23'),(4,3,'ether4-to-cctv',499,872,'2026-05-09 10:36:23'),(5,3,'ether5-backup',78364,998157,'2026-05-09 10:36:23');
+INSERT IGNORE INTO `switch_port_history` VALUES (1,3,'ether1-inet',602749,41583,'2026-05-09 10:36:23'),(2,3,'ether2-pc',0,0,'2026-05-09 10:36:23'),(3,3,'ether3-to-Sw',391616,37576,'2026-05-09 10:36:23'),(4,3,'ether4-to-cctv',499,872,'2026-05-09 10:36:23'),(5,3,'ether5-backup',78364,998157,'2026-05-09 10:36:23');
 /*!40000 ALTER TABLE `switch_port_history` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -395,10 +395,10 @@ UNLOCK TABLES;
 -- Table structure for table `switch_port_latest_counters`
 --
 
-DROP TABLE IF EXISTS `switch_port_latest_counters`;
+-- DROP TABLE IF EXISTS `switch_port_latest_counters`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `switch_port_latest_counters` (
+CREATE TABLE IF NOT EXISTS `switch_port_latest_counters` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `switch_id` int(11) DEFAULT NULL,
   `port_name` varchar(100) DEFAULT NULL,
@@ -416,7 +416,7 @@ CREATE TABLE `switch_port_latest_counters` (
 
 LOCK TABLES `switch_port_latest_counters` WRITE;
 /*!40000 ALTER TABLE `switch_port_latest_counters` DISABLE KEYS */;
-INSERT INTO `switch_port_latest_counters` VALUES (1,3,'ether1-inet',25244689831,3738811799,'2026-05-09 10:36:23'),(2,3,'ether2-pc',2065667251,5911166319,'2026-05-09 10:36:23'),(3,3,'ether3-to-Sw',8431292,1321935,'2026-05-09 10:36:23'),(4,3,'ether4-to-cctv',695989650,2463212145,'2026-05-09 10:36:23'),(5,3,'ether5-backup',1575426370,17462571739,'2026-05-09 10:36:23');
+INSERT IGNORE INTO `switch_port_latest_counters` VALUES (1,3,'ether1-inet',25244689831,3738811799,'2026-05-09 10:36:23'),(2,3,'ether2-pc',2065667251,5911166319,'2026-05-09 10:36:23'),(3,3,'ether3-to-Sw',8431292,1321935,'2026-05-09 10:36:23'),(4,3,'ether4-to-cctv',695989650,2463212145,'2026-05-09 10:36:23'),(5,3,'ether5-backup',1575426370,17462571739,'2026-05-09 10:36:23');
 /*!40000 ALTER TABLE `switch_port_latest_counters` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -424,10 +424,10 @@ UNLOCK TABLES;
 -- Table structure for table `switch_port_map`
 --
 
-DROP TABLE IF EXISTS `switch_port_map`;
+-- DROP TABLE IF EXISTS `switch_port_map`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `switch_port_map` (
+CREATE TABLE IF NOT EXISTS `switch_port_map` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `mac_addr` varchar(100) NOT NULL,
   `switch_id` int(11) NOT NULL,
@@ -465,10 +465,10 @@ UNLOCK TABLES;
 -- Table structure for table `switches`
 --
 
-DROP TABLE IF EXISTS `switches`;
+-- DROP TABLE IF EXISTS `switches`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `switches` (
+CREATE TABLE IF NOT EXISTS `switches` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(100) NOT NULL,
   `ip_addr` varchar(45) NOT NULL,
@@ -500,7 +500,7 @@ CREATE TABLE `switches` (
 
 LOCK TABLES `switches` WRITE;
 /*!40000 ALTER TABLE `switches` DISABLE KEYS */;
-INSERT INTO `switches` (`id`, `name`, `ip_addr`, `community`, `snmp_version`, `description`, `last_poll`, `created_at`, `model`, `uptime`, `cpu_usage`, `memory_usage`, `system_info`, `total_ports`, `active_ports`, `parent_switch_id`) VALUES (3,'router utama','192.168.5.1','public','2c',NULL,'2026-05-09 10:36:23','2026-05-09 10:28:13','MikroTik','17d 23h 56m',0,7,'RouterOS RB450Gx4',5,4,NULL),(5,'cisco-sw','192.168.2.5','habib','2c',NULL,NULL,'2026-05-09 10:36:14',NULL,NULL,0,0,NULL,0,0,NULL);
+INSERT IGNORE INTO `switches` (`id`, `name`, `ip_addr`, `community`, `snmp_version`, `description`, `last_poll`, `created_at`, `model`, `uptime`, `cpu_usage`, `memory_usage`, `system_info`, `total_ports`, `active_ports`, `parent_switch_id`) VALUES (3,'router utama','192.168.5.1','public','2c',NULL,'2026-05-09 10:36:23','2026-05-09 10:28:13','MikroTik','17d 23h 56m',0,7,'RouterOS RB450Gx4',5,4,NULL),(5,'cisco-sw','192.168.2.5','habib','2c',NULL,NULL,'2026-05-09 10:36:14',NULL,NULL,0,0,NULL,0,0,NULL);
 /*!40000 ALTER TABLE `switches` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -508,10 +508,10 @@ UNLOCK TABLES;
 -- Table structure for table `topology_links`
 --
 
-DROP TABLE IF EXISTS `topology_links`;
+-- DROP TABLE IF EXISTS `topology_links`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `topology_links` (
+CREATE TABLE IF NOT EXISTS `topology_links` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `parent_switch_id` int(11) NOT NULL,
   `target_type` enum('switch','subnet') NOT NULL,
@@ -535,10 +535,10 @@ UNLOCK TABLES;
 -- Table structure for table `users`
 --
 
-DROP TABLE IF EXISTS `users`;
+-- DROP TABLE IF EXISTS `users`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `users` (
+CREATE TABLE IF NOT EXISTS `users` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `username` varchar(50) NOT NULL,
   `password` varchar(255) NOT NULL,
@@ -556,7 +556,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'admin','$2y$10$iC1CpjbPVLpFx1BcbSTUsOZ52qhELYqHrKyADN/z9DF2UArhZEnPK',NULL,'admin','2026-03-27 04:17:59');
+INSERT IGNORE INTO `users` VALUES (1,'admin','$2y$10$iC1CpjbPVLpFx1BcbSTUsOZ52qhELYqHrKyADN/z9DF2UArhZEnPK',NULL,'admin','2026-03-27 04:17:59');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -564,10 +564,10 @@ UNLOCK TABLES;
 -- Table structure for table `vlans`
 --
 
-DROP TABLE IF EXISTS `vlans`;
+-- DROP TABLE IF EXISTS `vlans`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `vlans` (
+CREATE TABLE IF NOT EXISTS `vlans` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `number` int(11) NOT NULL,
   `name` varchar(100) NOT NULL,

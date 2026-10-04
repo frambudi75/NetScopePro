@@ -88,18 +88,12 @@ function get_redis_connection() {
  */
 if (!function_exists('run_auto_migrations')) {
 function run_auto_migrations($db) {
-    // 0. Base Tables Auto-Healing
-    // If any core table is missing, automatically import schema or recreate them
-    $coreTables = ['users', 'subnets', 'ip_addresses', 'switches', 'switch_port_map', 'vlans', 'settings', 'sections', 'stats_history'];
-    $needsHeal = false;
-    foreach ($coreTables as $ct) {
-        if ($db->query("SHOW TABLES LIKE '{$ct}'")->rowCount() === 0) {
-            $needsHeal = true;
-            break;
-        }
-    }
+    // 0. Base Tables Auto-Healing & Data Protection Guard
+    // CRITICAL: Only import full database.sql if the database is 100% EMPTY (brand new install).
+    // If ANY tables exist, NEVER run full SQL file to strictly protect existing user data.
+    $totalExistingTables = (int)$db->query("SHOW TABLES")->rowCount();
 
-    if ($needsHeal) {
+    if ($totalExistingTables === 0) {
         $sqlFiles = [
             __DIR__ . '/../sql/database.sql',
             '/var/www/html/sql/database.sql',
@@ -121,10 +115,11 @@ function run_auto_migrations($db) {
                 }
             }
         }
+    }
 
-        // Hardened Fallback: Guarantee base tables exist even if SQL file was missing or partial
-        try {
-            $db->exec("CREATE TABLE IF NOT EXISTS `users` (
+    // Guarantee all essential base tables exist (non-destructive: CREATE TABLE IF NOT EXISTS)
+    try {
+        $db->exec("CREATE TABLE IF NOT EXISTS `users` (
                 `id` int(11) NOT NULL AUTO_INCREMENT,
                 `username` varchar(50) NOT NULL,
                 `password` varchar(255) NOT NULL,
@@ -282,7 +277,6 @@ function run_auto_migrations($db) {
                 KEY `idx_recorded_at` (`recorded_at`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
         } catch (Exception $e) {}
-    }
 
     // Double check subnets exists before altering columns
     $tableExists = $db->query("SHOW TABLES LIKE 'subnets'")->rowCount() > 0;
@@ -456,26 +450,48 @@ function run_auto_migrations($db) {
     } catch (Exception $e) {}
 
     // 14. Bug Reports Table
-    $db->exec("CREATE TABLE IF NOT EXISTS bug_reports (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT DEFAULT NULL,
-        title VARCHAR(255) NOT NULL,
-        description TEXT NOT NULL,
-        system_info TEXT DEFAULT NULL,
-        status ENUM('pending', 'resolved') DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8;");
+    try {
+        $db->exec("CREATE TABLE IF NOT EXISTS bug_reports (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT DEFAULT NULL,
+            title VARCHAR(255) NOT NULL,
+            description TEXT NOT NULL,
+            system_info TEXT DEFAULT NULL,
+            status ENUM('pending', 'resolved') DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8;");
+    } catch (Exception $e) {}
 
-    // 15. Netwatch History Table (Latency Tracking)
-    $db->exec("CREATE TABLE IF NOT EXISTS netwatch_history (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        netwatch_id INT NOT NULL,
-        latency FLOAT DEFAULT 0,
-        status ENUM('up', 'down', 'intermittent', 'unknown') DEFAULT 'unknown',
-        recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_netwatch_time (netwatch_id, recorded_at),
-        FOREIGN KEY (netwatch_id) REFERENCES netwatch(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8;");
+    // 15. Netwatch & Netwatch History Tables
+    try {
+        $db->exec("CREATE TABLE IF NOT EXISTS `netwatch` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `name` varchar(100) NOT NULL,
+            `host` varchar(100) NOT NULL,
+            `ping_interval` int(11) NOT NULL DEFAULT 60,
+            `timeout` int(11) NOT NULL DEFAULT 2,
+            `status` enum('up','down','intermittent','unknown') NOT NULL DEFAULT 'unknown',
+            `fail_count` int(11) NOT NULL DEFAULT 0,
+            `fail_threshold` int(11) NOT NULL DEFAULT 3,
+            `last_up` timestamp NULL DEFAULT NULL,
+            `last_down` timestamp NULL DEFAULT NULL,
+            `last_check` timestamp NULL DEFAULT NULL,
+            `notify` tinyint(1) NOT NULL DEFAULT 0,
+            `maintenance_until` datetime DEFAULT NULL,
+            `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+            PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $db->exec("CREATE TABLE IF NOT EXISTS netwatch_history (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            netwatch_id INT NOT NULL,
+            latency FLOAT DEFAULT 0,
+            status ENUM('up', 'down', 'intermittent', 'unknown') DEFAULT 'unknown',
+            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_netwatch_time (netwatch_id, recorded_at),
+            FOREIGN KEY (netwatch_id) REFERENCES netwatch(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8;");
+    } catch (Exception $e) {}
 
     // 16. Add maintenance column if not exists
     try {
