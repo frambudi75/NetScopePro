@@ -3,12 +3,18 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.31.1');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.31.2');
 if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-04');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.31.2', 'date' => '2026-10-04', 'changes' => [
+        'Server Assets Metrics Modal Fix (Eliminated SyntaxError JSON parse crash & stuck spinner)',
+        'Docker Pre-Built Vendor Package Restoration in entrypoint.sh (Guarantees phpseclib3 on volume mounts)',
+        'Resilient API Error Handling (Throwable catch blocks & graceful phpseclib availability checks)',
+        'Directory Path Hardening (__DIR__ resolution across all server-assets API endpoints)'
+    ]],
     ['ver' => '2.31.1', 'date' => '2026-10-04', 'changes' => [
         'Zero-Touch Database Auto-Healing (Automatic schema restoration on empty or partial databases)',
         'Fresh Docker Boot Self-Recovery (Resolved MariaDB seed crash due to column mismatch on switches table)',

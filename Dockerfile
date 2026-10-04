@@ -10,9 +10,15 @@ RUN apt-get update && apt-get install -y \
     nmap \
     traceroute \
     iputils-ping \
+    openssh-client \
+    git \
+    unzip \
     && docker-php-ext-install mysqli pdo pdo_mysql gettext snmp curl opcache \
     && pecl install redis && docker-php-ext-enable redis \
     && a2enmod rewrite
+
+# Copy Composer binary from official image
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 # Optimize Opcache configuration
 RUN echo "opcache.memory_consumption=128" >> /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini && \
@@ -26,6 +32,13 @@ WORKDIR /var/www/html
 
 # Copy project files
 COPY . .
+
+# Install PHP dependencies if composer.json is present and keep an image-level backup
+RUN if [ -f composer.json ]; then \
+        composer install --no-dev --optimize-autoloader --no-interaction && \
+        mkdir -p /opt/vendor-backup && \
+        cp -a /var/www/html/vendor/. /opt/vendor-backup/; \
+    fi
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html && \
