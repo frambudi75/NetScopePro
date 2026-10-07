@@ -1,10 +1,17 @@
 SetEnv MIBDIRS "D:/xampp/php/extras/mibs"
 
+<IfModule mod_dir.c>
+    DirectorySlash Off
+</IfModule>
+
 <IfModule mod_rewrite.c>
     # Enable Rewrite Engine
     RewriteEngine On
 
-    # 0. Strip trailing slash for file routes (e.g. /tools/ -> /tools)
+    # Direct route for tools (handles both /tools and /tools/)
+    RewriteRule ^tools/?$ tools.php [L]
+
+    # Strip trailing slash for file routes (e.g. /switches/ -> /switches)
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)/$ $1 [R=301,L]
 
