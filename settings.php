@@ -80,6 +80,40 @@ if (isset($_POST['test_telegram'])) {
     }
 }
 
+// Handle Test Discord
+if (isset($_POST['test_discord'])) {
+    if (!empty($_POST['discord_webhook_url'])) {
+        Settings::set('discord_webhook_url', trim($_POST['discord_webhook_url']));
+        $settings['discord_webhook_url'] = trim($_POST['discord_webhook_url']);
+    }
+    if (isset($_POST['discord_enabled'])) {
+        Settings::set('discord_enabled', '1');
+        $settings['discord_enabled'] = '1';
+    }
+    if (NotificationHelper::testDiscord()) {
+        $message = '🚀 Test Discord Rich Embed berhasil dikirim! Silakan periksa channel Discord Anda.';
+    } else {
+        $message = '❌ Gagal mengirim webhook Discord. Pastikan URL Webhook valid dan bot memiliki izin kirim pesan.';
+    }
+}
+
+// Handle Test Slack
+if (isset($_POST['test_slack'])) {
+    if (!empty($_POST['slack_webhook_url'])) {
+        Settings::set('slack_webhook_url', trim($_POST['slack_webhook_url']));
+        $settings['slack_webhook_url'] = trim($_POST['slack_webhook_url']);
+    }
+    if (isset($_POST['slack_enabled'])) {
+        Settings::set('slack_enabled', '1');
+        $settings['slack_enabled'] = '1';
+    }
+    if (NotificationHelper::testSlack()) {
+        $message = 'Test Slack message berhasil dikirim! Silakan periksa channel Slack Anda.';
+    } else {
+        $message = '❌ Gagal mengirim webhook Slack. Pastikan URL Webhook valid.';
+    }
+}
+
 // Handle Test Email
 if (isset($_POST['test_email'])) {
     if (NotificationHelper::testEmail()) {
@@ -298,12 +332,18 @@ include 'includes/header.php';
                         <input type="checkbox" name="discord_enabled" value="1" <?php echo ($settings['discord_enabled'] ?? '0') == '1' ? 'checked' : ''; ?>> Discord
                     </label>
                     <input type="text" name="discord_webhook_url" class="input-control" value="<?php echo htmlspecialchars($settings['discord_webhook_url'] ?? ''); ?>" placeholder="https://discord.com/api/webhooks/...">
+                    <button type="submit" name="test_discord" class="btn btn-secondary" style="width: 100%; margin-top: 0.75rem; justify-content: center; font-size: 0.82rem; gap: 6px;">
+                        <i data-lucide="send" style="width: 14px;"></i> Test Discord Webhook
+                    </button>
                 </div>
                 <div>
                     <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; color: var(--text); margin-bottom: 1rem;">
                         <input type="checkbox" name="slack_enabled" value="1" <?php echo ($settings['slack_enabled'] ?? '0') == '1' ? 'checked' : ''; ?>> Slack
                     </label>
                     <input type="text" name="slack_webhook_url" class="input-control" value="<?php echo htmlspecialchars($settings['slack_webhook_url'] ?? ''); ?>" placeholder="https://hooks.slack.com/services/...">
+                    <button type="submit" name="test_slack" class="btn btn-secondary" style="width: 100%; margin-top: 0.75rem; justify-content: center; font-size: 0.82rem; gap: 6px;">
+                        <i data-lucide="send" style="width: 14px;"></i> Test Slack Webhook
+                    </button>
                 </div>
             </div>
         </div>

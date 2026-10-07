@@ -36,6 +36,14 @@ All major functional changes, enhancements, and critical fixes are documented he
 - **Apache URL Routing & Trailing-Slash Sanitizer (`.htaccess`)**:
   - Added trailing-slash rewrite rule preventing 403 Forbidden / 500 Internal Server Error loops on route names.
 
+- **Enterprise Discord Rich Embeds & Webhook Sentinels (`includes/notifications.php` & `settings.php`)**:
+  - Upgraded Discord notifications from plain markdown text to interactive **Discord Rich Embed Cards**:
+    - Dynamic sidebar accent colors (🔴 Red for DOWN/Loop, 🟢 Green for UP/Resolved, 🟡 Amber for Warning/Conflict, 🔵 Blue for New Device).
+    - Structured 2-column inline grid fields (Device, IP, Status, Latency, Downtime Duration, Timestamps).
+    - Native ISO8601 Discord live relative timestamps (`<t:time:R>`).
+    - Automated username override (`NetScopePro Sentinel`) with branded NOC footer.
+  - Added one-click **Test Discord Webhook** and **Test Slack Webhook** buttons in System Settings with immediate diagnostic feedback.
+
 ## [2.31.3] - 2026-10-04
 ### Fixed & Hardened
 - **SSH Channel 1 Collision Fix (`api/server-metrics.php`)**:
