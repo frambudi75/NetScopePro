@@ -11,6 +11,32 @@ require_once __DIR__ . '/network.php';
 class LoopDetectiveHelper {
 
     /**
+     * Determine if a port is likely an Uplink/Trunk/Backbone link vs an Access/Edge port
+     */
+    /**
+     * Determine if a port is an Uplink/Trunk link vs an Access/Edge port
+     */
+    public static function isUplinkPort(string $port_name, string $port_alias = '', int $mac_count = 0, array $tagged_ports = []): bool {
+        // Strip switch name prefix if formatted as "Switch Name (Port Name)"
+        if (preg_match('/\(([^)]+)\)/', $port_name, $m)) {
+            $port_name = $m[1];
+        }
+        $port_name = trim($port_name);
+
+        // A port carrying multiple MACs is a trunk/uplink link, never a single-host access port
+        if ($mac_count > 3) return true;
+
+        // A port carrying 802.1Q tagged VLANs is a trunk link
+        if (!empty($tagged_ports) && in_array($port_name, $tagged_ports, true)) return true;
+
+        // Standard enterprise uplink/trunk port naming conventions across vendors (Alcatel, Cisco, MikroTik, HP, Huawei)
+        if (preg_match('/(-to-|-sw|uplink|trunk|core|dist|po\d+|bond|ae\d+|sfp|\/48|\/49|\/50|\/51|\/52|\/24|\/25|\/26)/i', $port_name)) return true;
+        if (!empty($port_alias) && preg_match('/(uplink|trunk|core|dist|switch|to\s)/i', $port_alias)) return true;
+
+        return false;
+    }
+
+    /**
      * Get all managed switches with basic loop & STP summary
      */
     public static function getSwitches(PDO $db): array {
@@ -39,6 +65,39 @@ class LoopDetectiveHelper {
             return null;
         }
 
+        // Cache port MAC counts on this switch to differentiate Access vs Uplink
+        $port_mac_counts = [];
+        try {
+            $pmStmt = $db->prepare("
+                SELECT port_name, COUNT(*) as cnt 
+                FROM switch_port_map 
+                WHERE switch_id = ? AND mac_addr NOT LIKE 'PORT:%' 
+                GROUP BY port_name
+            ");
+            $pmStmt->execute([$switch_id]);
+            $port_mac_counts = $pmStmt->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+        } catch (Exception $e) {}
+
+        // Cache tagged VLAN ports on this switch
+        $tagged_ports = [];
+        try {
+            $tagStmt = $db->prepare("SELECT DISTINCT port_name FROM switch_port_vlans WHERE switch_id = ? AND is_tagged = 1");
+            $tagStmt->execute([$switch_id]);
+            $tagged_ports = $tagStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        } catch (Exception $e) {}
+
+        // Helper to validate host MAC (exclude dummy, broadcast, multicast, VRRP)
+        $isValidHostMac = function($mac) {
+            if (empty($mac) || strlen($mac) !== 17) return false;
+            $m = strtoupper($mac);
+            if (str_starts_with($m, '00:00:00:00:00')) return false;
+            if ($m === 'FF:FF:FF:FF:FF:FF') return false;
+            $firstOctet = hexdec(substr($m, 0, 2));
+            if ($firstOctet & 1) return false; // Multicast
+            if (str_starts_with($m, '00:00:5E:') || str_starts_with($m, '00:00:0C:')) return false; // VRRP/HSRP
+            return true;
+        };
+
         // 1. Fetch port STP operational states
         $pStmt = $db->prepare("
             SELECT port_name, mac_addr, vlan_name, port_status, stp_state, port_speed
@@ -64,17 +123,170 @@ class LoopDetectiveHelper {
             }
         }
 
-        // 2. Detect MAC Thrashing / Flapping across multiple ports on this same switch
-        $fStmt = $db->prepare("
-            SELECT mac_addr, COUNT(DISTINCT port_name) as port_cnt, GROUP_CONCAT(DISTINCT port_name ORDER BY port_name ASC SEPARATOR ' ↔ ') as port_pair
-            FROM switch_port_map
-            WHERE switch_id = ? AND mac_addr IS NOT NULL AND mac_addr != '' AND mac_addr NOT LIKE 'PORT:%'
-            GROUP BY mac_addr
-            HAVING port_cnt > 1
-            LIMIT 10
-        ");
-        $fStmt->execute([$switch_id]);
-        $flapping_macs = $fStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        // 2. Detect MAC Thrashing / Flapping across ports
+        $flapping_macs = [];
+
+        // Strategy A: Directly check switches.loop_details from recent poller telemetry
+        if (!empty($switch['loop_details'])) {
+            if (preg_match('/([0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2})/', $switch['loop_details'], $m)) {
+                $parsed_mac = strtoupper(str_replace('-', ':', $m[1]));
+                if ($isValidHostMac($parsed_mac)) {
+                    $port_match = '';
+                    if (preg_match('/(?:Access port|port|Port)\s+([a-zA-Z0-9_\-\.\/]+)/i', $switch['loop_details'], $pm)) {
+                        $port_match = $pm[1];
+                    }
+
+                    // Resolve candidate uplink port on this switch
+                    $candidate_uplink = !empty($blocked_ports) ? $blocked_ports[0] : null;
+                    if (!$candidate_uplink) {
+                        foreach ($all_ports as $ap) {
+                            $ap_name = $ap['port_name'];
+                            if ($port_match && $ap_name === $port_match) continue;
+                            $cnt = $port_mac_counts[$ap_name] ?? 0;
+                            if (self::isUplinkPort($ap_name, '', $cnt, $tagged_ports)) {
+                                $candidate_uplink = $ap_name;
+                                break;
+                            }
+                        }
+                    }
+
+                    $uplink_label = $candidate_uplink ? "{$candidate_uplink} (Uplink)" : "Uplink";
+                    $flapping_macs[] = [
+                        'mac_addr'            => $parsed_mac,
+                        'port_cnt'            => 2,
+                        'port_pair'           => $port_match ? "{$port_match} ↔ {$uplink_label}" : "Access ↔ {$uplink_label}",
+                        'origin_port'         => $port_match ?: null,
+                        'origin_switch_name'  => $switch['name'],
+                        'transit_port'        => $candidate_uplink ?: 'Uplink'
+                    ];
+                }
+            }
+        }
+
+        // Strategy B: Active flapping events logged in ip_conflict_events
+        if (empty($flapping_macs)) {
+            try {
+                $ceStmt = $db->prepare("
+                    SELECT mac_a as mac_addr, flap_count as port_cnt,
+                           switch_port_a, switch_port_b,
+                           CONCAT(switch_port_a, ' ↔ ', switch_port_b) as port_pair
+                    FROM ip_conflict_events
+                    WHERE event_type = 'flapping'
+                      AND (status = 'active' OR detected_at > DATE_SUB(NOW(), INTERVAL 24 HOUR))
+                      AND (switch_port_a IS NOT NULL OR switch_port_b IS NOT NULL)
+                    ORDER BY detected_at DESC
+                    LIMIT 5
+                ");
+                $ceStmt->execute();
+                $ce_rows = $ceStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                foreach ($ce_rows as $row) {
+                    if ($isValidHostMac($row['mac_addr'])) {
+                        $flapping_macs[] = $row;
+                    }
+                }
+            } catch (Exception $e) {}
+        }
+
+        // Strategy C: Cross-Switch End-Device Access Port Isolation
+        // If a loop or blocked port is active, or if MACs are traversing uplink,
+        // find if a MAC on the impacted uplink originates from a known Access Port (<= 3 MACs) on this switch or a sibling switch!
+        $has_loop_indicator = !empty($blocked_ports) || !empty($switch['loop_detected']) || ((int)($switch['stp_topology_changes'] ?? 0) > 20);
+
+        if (empty($flapping_macs) && $has_loop_indicator) {
+            try {
+                // Find candidate uplink port on this switch
+                $target_uplink = !empty($blocked_ports) ? $blocked_ports[0] : null;
+                if (!$target_uplink) {
+                    foreach ($all_ports as $ap) {
+                        if (self::isUplinkPort($ap['port_name'], '', $port_mac_counts[$ap['port_name']] ?? 0, $tagged_ports)) {
+                            $target_uplink = $ap['port_name'];
+                            break;
+                        }
+                    }
+                }
+
+                // Query remote switch access ports carrying the same MAC that traverses this switch's uplink
+                if ($target_uplink) {
+                    $csQuery = "
+                        SELECT spm_remote.mac_addr,
+                               s_remote.name as remote_switch_name,
+                               s_remote.id as remote_switch_id,
+                               spm_remote.port_name as remote_access_port,
+                               spm_local.port_name as local_transit_port
+                        FROM switch_port_map spm_local
+                        JOIN switch_port_map spm_remote ON spm_local.mac_addr = spm_remote.mac_addr AND spm_local.switch_id != spm_remote.switch_id
+                        JOIN switches s_remote ON spm_remote.switch_id = s_remote.id
+                        WHERE spm_local.switch_id = ?
+                          AND spm_local.port_name = ?
+                          AND spm_local.mac_addr NOT LIKE 'PORT:%'
+                          AND spm_local.mac_addr NOT LIKE '00:00:00:00:00%'
+                        ORDER BY spm_remote.updated_at DESC
+                        LIMIT 5
+                    ";
+                    $csStmt = $db->prepare($csQuery);
+                    $csStmt->execute([$switch_id, $target_uplink]);
+                    $cs_candidates = $csStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+                    foreach ($cs_candidates as $cand) {
+                        if ($isValidHostMac($cand['mac_addr'])) {
+                            // Verify remote port is truly an access port (not another 200-MAC trunk)
+                            $remCntStmt = $db->prepare("SELECT COUNT(*) FROM switch_port_map WHERE switch_id = ? AND port_name = ? AND mac_addr NOT LIKE 'PORT:%'");
+                            $remCntStmt->execute([$cand['remote_switch_id'], $cand['remote_access_port']]);
+                            $remCount = (int)$remCntStmt->fetchColumn();
+
+                            if ($remCount <= 3) {
+                                $flapping_macs[] = [
+                                    'mac_addr'           => $cand['mac_addr'],
+                                    'port_cnt'           => 2,
+                                    'port_pair'          => "{$cand['remote_switch_name']} ({$cand['remote_access_port']}) ↔ {$switch['name']} ({$cand['local_transit_port']})",
+                                    'origin_port'        => $cand['remote_access_port'],
+                                    'origin_switch_name' => $cand['remote_switch_name'],
+                                    'transit_port'       => $cand['local_transit_port']
+                                ];
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception $e) {}
+        }
+
+        // Strategy D: True Access-to-Access Loop (same MAC on two access ports, e.g. looped cable between 2 wall ports)
+        if (empty($flapping_macs) && $has_loop_indicator) {
+            try {
+                $dupStmt = $db->prepare("
+                    SELECT spm1.mac_addr,
+                           CONCAT(s1.name, ' (', spm1.port_name, ') ↔ ', s2.name, ' (', spm2.port_name, ')') as port_pair,
+                           spm1.port_name as port_1,
+                           spm2.port_name as port_2,
+                           s1.name as switch_1_name,
+                           s2.name as switch_2_name
+                    FROM switch_port_map spm1
+                    JOIN switch_port_map spm2 ON spm1.mac_addr = spm2.mac_addr AND (spm1.switch_id != spm2.switch_id OR spm1.port_name != spm2.port_name)
+                    JOIN switches s1 ON spm1.switch_id = s1.id
+                    JOIN switches s2 ON spm2.switch_id = s2.id
+                    WHERE spm1.switch_id = ?
+                      AND spm1.mac_addr NOT LIKE 'PORT:%'
+                      AND spm1.mac_addr NOT LIKE '00:00:00:00:00%'
+                    LIMIT 5
+                ");
+                $dupStmt->execute([$switch_id]);
+                $dupRows = $dupStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                foreach ($dupRows as $dr) {
+                    if ($isValidHostMac($dr['mac_addr'])) {
+                        $flapping_macs[] = [
+                            'mac_addr'           => $dr['mac_addr'],
+                            'port_cnt'           => 2,
+                            'port_pair'          => $dr['port_pair'],
+                            'origin_port'        => $dr['port_1'],
+                            'origin_switch_name' => $dr['switch_1_name'],
+                            'transit_port'       => $dr['port_2']
+                        ];
+                        break;
+                    }
+                }
+            } catch (Exception $e) {}
+        }
 
         // Check recorded loop flags
         $has_recorded_loop = !empty($switch['loop_detected']);
@@ -84,28 +296,28 @@ class LoopDetectiveHelper {
         $risk_score = 0;
         $risk_factors = [];
 
-        if (!empty($blocked_ports)) {
-            $risk_score += 50;
-            $risk_factors[] = "Active STP port quarantine (" . count($blocked_ports) . " ports in BLOCKING state)";
-        }
         if (!empty($flapping_macs)) {
-            $risk_score += 35;
-            $risk_factors[] = "CAM Table Thrashing detected (" . count($flapping_macs) . " oscillating MAC addresses)";
+            $risk_score += 65;
+            $risk_factors[] = "Active CAM Table Thrashing / MAC Flapping (" . count($flapping_macs) . " oscillating MAC: {$flapping_macs[0]['mac_addr']})";
+        }
+        if (!empty($blocked_ports)) {
+            $risk_score += 30;
+            $risk_factors[] = "Active STP port quarantine (" . count($blocked_ports) . " ports in BLOCKING state)";
         } elseif ($has_recorded_loop) {
-            $risk_score += 25;
+            $risk_score += 15;
             $risk_factors[] = "Recent loop warning recorded in poller telemetry";
         }
 
         $tcn_count = (int)($switch['stp_topology_changes'] ?? 0);
         if ($tcn_count > 100) {
-            $risk_score += 15;
+            $risk_score += 10;
             $risk_factors[] = "High accumulated STP Topology Changes ($tcn_count TCN events)";
         }
 
         $risk_score = min(100, max(0, $risk_score));
 
         // 4. Construct Investigation Path
-        $investigation_path = self::buildInvestigationPath($db, $switch, $flapping_macs, $blocked_ports);
+        $investigation_path = self::buildInvestigationPath($db, $switch, $flapping_macs, $blocked_ports, $port_mac_counts, $tagged_ports);
 
         // 5. Generate Forensic Verdict
         $verdict = self::generateVerdict($switch, $risk_score, $flapping_macs, $blocked_ports, $investigation_path);
@@ -127,7 +339,7 @@ class LoopDetectiveHelper {
     /**
      * Build the multi-level Investigation Path (Core ➔ Target Switch ➔ Downstream Link ➔ Culprit Endpoint)
      */
-    private static function buildInvestigationPath(PDO $db, array $switch, array $flapping_macs, array $blocked_ports): array {
+    private static function buildInvestigationPath(PDO $db, array $switch, array $flapping_macs, array $blocked_ports, array $port_mac_counts = [], array $tagged_ports = []): array {
         $path = [];
 
         // Level 1: Upstream Core / Parent Switch
@@ -202,27 +414,52 @@ class LoopDetectiveHelper {
             'badge_color' => $has_loop_symptom ? 'var(--danger)' : 'var(--success)'
         ];
 
-        // Level 3: Downstream Target / Connected Neighbor Switch
-        $target_ports = [];
-        if (!empty($flapping_macs)) {
-            foreach ($flapping_macs as $fm) {
-                $pairs = explode(' ↔ ', $fm['port_pair']);
-                foreach ($pairs as $p) {
-                    $target_ports[] = trim($p);
+        // Identify Access vs Uplink ports from flapping or blocked ports
+        $first_flap = !empty($flapping_macs) ? $flapping_macs[0] : null;
+        $access_port = $first_flap['origin_port'] ?? null;
+        $remote_origin_switch = $first_flap['origin_switch_name'] ?? null;
+        $uplink_port = !empty($blocked_ports) ? $blocked_ports[0] : ($first_flap['transit_port'] ?? null);
+
+        if (!$access_port && !empty($flapping_macs)) {
+            $pairs = explode(' ↔ ', $first_flap['port_pair']);
+            foreach ($pairs as $p) {
+                $clean_p = trim(preg_replace('/^.*?:/', '', $p));
+                if (preg_match('/\(([^)]+)\)/', $clean_p, $m)) {
+                    $clean_p = $m[1];
+                }
+                $cnt = $port_mac_counts[$clean_p] ?? 0;
+                if (self::isUplinkPort($clean_p, '', $cnt, $tagged_ports)) {
+                    if (!$uplink_port) $uplink_port = $clean_p;
+                } else {
+                    if (!$access_port) $access_port = $clean_p;
                 }
             }
         }
-        if (!empty($blocked_ports)) {
-            foreach ($blocked_ports as $bp) {
-                $target_ports[] = trim($bp);
+
+        // Ensure uplink_port is resolved if empty or generic
+        if (empty($uplink_port) || strtolower($uplink_port) === 'uplink') {
+            foreach ($port_mac_counts as $p => $cnt) {
+                if ($access_port && $p === $access_port) continue;
+                if (self::isUplinkPort($p, '', $cnt, $tagged_ports)) {
+                    $uplink_port = $p;
+                    break;
+                }
             }
         }
-        $target_ports = array_values(array_unique($target_ports));
 
-        $downstream_switch = null;
-        $downstream_port_label = !empty($target_ports) ? implode(' / ', array_slice($target_ports, 0, 2)) : 'Access Port';
+        // If access port still not isolated, check switches.loop_details for port mention
+        if (!$access_port && !empty($switch['loop_details'])) {
+            if (preg_match('/(?:Access port|port|Port)\s+([a-zA-Z0-9_\-\.\/]+)/i', $switch['loop_details'], $pm)) {
+                $pm_port = $pm[1];
+                $pm_cnt = $port_mac_counts[$pm_port] ?? 0;
+                if (!self::isUplinkPort($pm_port, '', $pm_cnt, $tagged_ports)) {
+                    $access_port = $pm_port;
+                }
+            }
+        }
 
         // Check if any child switch is linked from this switch
+        $downstream_switch = null;
         try {
             $cStmt = $db->prepare("
                 SELECT s.id, s.name, s.ip_addr, s.model, tl.link_label
@@ -244,7 +481,32 @@ class LoopDetectiveHelper {
         }
 
         if ($has_loop_symptom) {
-            if ($downstream_switch) {
+            // Level 3: Downstream Target / Access Link
+            if ($access_port && !empty($remote_origin_switch) && $remote_origin_switch !== $switch['name']) {
+                $path[] = [
+                    'level'       => 3,
+                    'role'        => 'ACCESS_PORT',
+                    'name'        => "Access Link (Switch {$remote_origin_switch}, Port {$access_port})",
+                    'ip'          => 'Remote Edge Host Segment',
+                    'model'       => "Access Port pada switch {$remote_origin_switch}",
+                    'status'      => 'warning',
+                    'status_text' => "Perangkat fisik tercolok di port Access {$access_port} switch {$remote_origin_switch}. Frame looping menyeberang via Uplink ke {$switch['name']}" . ($uplink_port && strtolower($uplink_port) !== 'uplink' ? " ({$uplink_port})" : ""),
+                    'badge'       => 'REMOTE ORIGIN (ROOT CAUSE)',
+                    'badge_color' => '#f97316'
+                ];
+            } elseif ($access_port) {
+                $path[] = [
+                    'level'       => 3,
+                    'role'        => 'ACCESS_PORT',
+                    'name'        => "Access Link (Port {$access_port})",
+                    'ip'          => 'Edge Host Segment',
+                    'model'       => 'Access Port ke End-Device',
+                    'status'      => 'warning',
+                    'status_text' => "Port fisik asal di switch ini yang terhubung langsung ke end-device (Root Cause Origin)",
+                    'badge'       => 'ORIGIN LINK (ROOT CAUSE)',
+                    'badge_color' => '#f97316'
+                ];
+            } elseif ($downstream_switch) {
                 $path[] = [
                     'level'       => 3,
                     'role'        => 'DOWNSTREAM_SWITCH',
@@ -252,21 +514,22 @@ class LoopDetectiveHelper {
                     'ip'          => $downstream_switch['ip_addr'],
                     'model'       => $downstream_switch['model'] ?: 'Downstream Switch',
                     'status'      => 'warning',
-                    'status_text' => "Connected on {$downstream_port_label} (Investigate downstream cabling)",
+                    'status_text' => "Connected downstream on {$uplink_port} (Investigate downstream switch ports)",
                     'badge'       => 'INVESTIGATE TARGET',
                     'badge_color' => 'var(--warning)'
                 ];
             } else {
+                $downstream_label = ($uplink_port && strtolower($uplink_port) !== 'uplink') ? "Port {$uplink_port}" : 'Inter-Switch Trunk Link';
                 $path[] = [
                     'level'       => 3,
                     'role'        => 'DOWNSTREAM_SEGMENT',
-                    'name'        => "Downstream Segment (Port {$downstream_port_label})",
-                    'ip'          => 'Access / Patch Link',
-                    'model'       => 'Unmanaged Switch or Edge Patch Panel',
+                    'name'        => "Impacted Uplink Trunk ({$downstream_label})",
+                    'ip'          => 'Transit Backbone Link (Multi-Host)',
+                    'model'       => 'Trunk / Uplink Segment',
                     'status'      => 'warning',
-                    'status_text' => "Direct link on Port {$downstream_port_label} exhibiting frame oscillation",
-                    'badge'       => 'DOWNSTREAM LINK',
-                    'badge_color' => 'var(--warning)'
+                    'status_text' => "Port {$downstream_label} adalah jalur Uplink/Trunk (bukan colokan end-device). Frame loop masuk dari switch tetangga melalui port ini.",
+                    'badge'       => 'QUARANTINED UPLINK (VICTIM)',
+                    'badge_color' => '#ef4444'
                 ];
             }
 
@@ -275,14 +538,52 @@ class LoopDetectiveHelper {
                 $bouncing_mac = $flapping_macs[0]['mac_addr'];
                 $vendor = function_exists('get_vendor_by_mac') ? get_vendor_by_mac($bouncing_mac) : 'Unknown Vendor';
 
-                // Look up in ip_addresses
-                $ipStmt = $db->prepare("SELECT ip_addr, hostname, vendor, description FROM ip_addresses WHERE mac_addr = ? LIMIT 1");
-                $ipStmt->execute([$bouncing_mac]);
+                // Look up in ip_addresses with flexible formatting
+                $clean_mac = strtoupper(preg_replace('/[^0-9A-F]/i', '', (string)$bouncing_mac));
+                $colon_mac = implode(':', str_split($clean_mac, 2));
+                $dash_mac = implode('-', str_split($clean_mac, 2));
+
+                $ipStmt = $db->prepare("
+                    SELECT ip_addr, hostname, vendor, description 
+                    FROM ip_addresses 
+                    WHERE mac_addr IN (?, ?, ?) 
+                       OR UPPER(REPLACE(REPLACE(mac_addr, ':', ''), '-', '')) = ? 
+                    LIMIT 1
+                ");
+                $ipStmt->execute([$bouncing_mac, $colon_mac, $dash_mac, $clean_mac]);
                 $ipRow = $ipStmt->fetch(PDO::FETCH_ASSOC);
 
-                $dev_name = $ipRow['hostname'] ?? ($vendor !== 'Unknown' ? "$vendor Device" : "Unknown Host");
-                $dev_ip = $ipRow['ip_addr'] ?? 'Static / Non-ARP L2';
-                $dev_desc = $ipRow['description'] ?? "Bouncing MAC: " . strtoupper($bouncing_mac);
+                if (!$ipRow) {
+                    try {
+                        $saStmt = $db->prepare("SELECT ip_address as ip_addr, name as hostname, '' as vendor, '' as description FROM server_assets WHERE UPPER(REPLACE(REPLACE(mac_address, ':', ''), '-', '')) = ? LIMIT 1");
+                        $saStmt->execute([$clean_mac]);
+                        $ipRow = $saStmt->fetch(PDO::FETCH_ASSOC);
+                    } catch (Exception $e) {}
+                }
+
+                $clean_vendor = ($vendor && $vendor !== 'Generic / Unknown' && $vendor !== 'Unknown Vendor') ? $vendor : null;
+                $dev_name = $ipRow['hostname'] ?? ($clean_vendor ? "$clean_vendor Device" : "End-Device / Host");
+                if ($clean_vendor === 'Cisco Meraki' && empty($ipRow['hostname'])) {
+                    $dev_name = "Cisco Meraki (Access Point / Router)";
+                }
+
+                $dev_ip = $ipRow['ip_addr'] ?? 'Unknown / Non-ARP L2';
+                $dev_desc = $ipRow['description'] ?? ("MAC: " . strtoupper($bouncing_mac));
+
+                if ($access_port && !empty($remote_origin_switch) && $remote_origin_switch !== $switch['name']) {
+                    $origin_note = "Tercolok di port Access {$access_port} pada switch {$remote_origin_switch}. ";
+                } elseif ($access_port) {
+                    $origin_note = "Tercolok di port Access {$access_port}. ";
+                } else {
+                    $origin_note = "Periksa switch tetangga yang terhubung ke port " . (($uplink_port && strtolower($uplink_port) !== 'uplink') ? $uplink_port : 'Uplink') . ". ";
+                }
+
+                $uplink_str = "";
+                if ($uplink_port && strtolower($uplink_port) !== 'uplink') {
+                    $uplink_str = " (Port {$uplink_port})";
+                } elseif (!empty($parent_switch)) {
+                    $uplink_str = " (menuju {$parent_switch['name']})";
+                }
 
                 $culprit_info = [
                     'level'       => 4,
@@ -291,19 +592,20 @@ class LoopDetectiveHelper {
                     'ip'          => $dev_ip,
                     'model'       => "$vendor (" . strtoupper($bouncing_mac) . ")",
                     'status'      => 'culprit',
-                    'status_text' => "MAC active across multiple ports simultaneously. $dev_desc",
-                    'badge'       => 'POSSIBLE ROOT CAUSE',
-                    'badge_color' => '#f97316'
+                    'status_text' => "{$origin_note}Frame looping memantul ke Uplink Trunk{$uplink_str}. {$dev_desc}",
+                    'badge'       => 'ROOT CAUSE END-DEVICE',
+                    'badge_color' => '#ef4444'
                 ];
             } else {
+                $uplink_str = ($uplink_port && strtolower($uplink_port) !== 'uplink') ? "Port {$uplink_port}" : "Uplink";
                 $culprit_info = [
                     'level'       => 4,
                     'role'        => 'CULPRIT_DEVICE',
-                    'name'        => 'Dual-Connect / Loopback Cable',
-                    'ip'          => 'Physical Layer Defect',
-                    'model'       => 'Unmanaged Loop / Cross-Connected Patch Cord',
+                    'name'        => 'End-Device / Dual-Connect Cable',
+                    'ip'          => 'Periksa Perangkat di Port Access',
+                    'model'       => 'IP Phone / PABX / Unmanaged Switch / PC Dual-NIC',
                     'status'      => 'culprit',
-                    'status_text' => 'Port quarantined by BPDU Guard or STP to break packet amplification',
+                    'status_text' => "{$uplink_str} di-block oleh STP. Cari perangkat di port access yang tercolok 2 kabel atau bridging.",
                     'badge'       => 'ROOT CAUSE SUSPECT',
                     'badge_color' => '#f97316'
                 ];
@@ -320,22 +622,50 @@ class LoopDetectiveHelper {
     private static function generateVerdict(array $switch, int $risk_score, array $flapping_macs, array $blocked_ports, array $path): array {
         $sw_name = $switch['name'];
 
+        // Extract culprit info if available from path
+        $culprit_node = null;
+        $access_node = null;
+        foreach ($path as $node) {
+            if (($node['role'] ?? '') === 'CULPRIT_DEVICE') $culprit_node = $node;
+            if (($node['role'] ?? '') === 'ACCESS_PORT') $access_node = $node;
+        }
+
         if (!empty($blocked_ports)) {
+            $blocked_str = implode(', ', $blocked_ports);
+            $has_culprit = $culprit_node && $culprit_node['name'] !== 'End-Device / Dual-Connect Cable';
+
+            $summary = "Spanning Tree Protocol telah mem-block port Uplink [{$blocked_str}] pada {$sw_name} untuk mencegah network collapse.";
+            if ($has_culprit && $access_node) {
+                $summary .= " Analisis forensik menemukan sumber frame loop berasal dari perangkat {$culprit_node['name']} ({$culprit_node['model']}) pada {$access_node['name']}.";
+            } else {
+                $summary .= " Port [{$blocked_str}] adalah jalur Uplink/Trunk (rem darurat). Sumber fisik loop berada pada port-port Access atau unmanaged switch downstream.";
+            }
+
+            $actions = [
+                "JANGAN cabut/putus kabel Uplink [{$blocked_str}], karena itu jalur trunk utama distribusi.",
+            ];
+
+            if ($has_culprit && $access_node) {
+                $actions[] = "Periksa perangkat {$culprit_node['name']} (IP: {$culprit_node['ip']}) pada port fisik " . $access_node['name'] . ".";
+                $actions[] = "Pastikan perangkat tersebut tidak dicolok 2 kabel LAN sekaligus (misal port PC & LAN pada IP Phone/PABX), atau matikan interface bridge internalnya.";
+                $actions[] = "Aktifkan 'BPDU Guard' dan 'PortFast/Edge' pada port Access tersebut agar jika terjadi loop lokal di kemudian hari, hanya port access itu yang di-shutdown otomatis tanpa mengorbankan Uplink.";
+            } else {
+                $actions[] = "Telusuri perangkat access (IP Phone, VoIP Gateway, atau unmanaged switch) yang terhubung ke {$sw_name}.";
+                $actions[] = "Cek apakah ada kabel patch cord yang tercolok loopback (ujung ke ujung di switch/wallplate yang sama).";
+                $actions[] = "Aktifkan BPDU Guard pada seluruh port access non-trunk.";
+            }
+
             return [
                 'type'       => 'danger',
-                'title'      => 'Active L2 Switching Loop (Quarantined by STP)',
-                'summary'    => "Spanning Tree Protocol has actively isolated switching loops by placing port(s) " . implode(', ', $blocked_ports) . " into BLOCKING state on {$sw_name}.",
+                'title'      => 'Active L2 Switching Loop (STP Rem Darurat di Uplink)',
+                'summary'    => $summary,
                 'evidence'   => [
-                    "Physical port(s) " . implode(', ', $blocked_ports) . " transitioned to BLOCKING state to eliminate bridge loop.",
-                    "Loop protection prevented total network collapse, but redundant/looped cable path remains physically connected.",
-                    "Frame forwarding on quarantined port(s) is currently suspended."
+                    "Port fisik Uplink [{$blocked_str}] berstatus BLOCKING untuk memutus amplifikasi paket.",
+                    $has_culprit ? "End-Device Culprit teridentifikasi: {$culprit_node['name']} ({$culprit_node['model']})" : "STP mem-block jalur inter-switch untuk mengisolasi badai broadcast.",
+                    "Frame forwarding pada port Uplink yang ter-block saat ini ditahan sementara oleh protokol STP."
                 ],
-                'scope_note' => "The physical cable loop or unmanaged bridge exists directly on or downstream of the quarantined port(s).",
-                'actions'    => [
-                    "Inspect patch cabling connected to port(s) " . implode(', ', $blocked_ports) . " on {$sw_name}.",
-                    "Check for unmanaged 5-port/8-port switches or IP phones with both LAN and PC ports plugged into wall jacks.",
-                    "If dual-link redundancy is intended, configure LACP (802.3ad) aggregation instead of raw unbundled links."
-                ]
+                'scope_note' => "Port Uplink yang ter-block adalah korban mitigasi. Akar masalah loop fisik berada di port Access end-device.",
+                'actions'    => $actions
             ];
         }
 

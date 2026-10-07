@@ -3,19 +3,38 @@
 All major functional changes, enhancements, and critical fixes are documented here.
 
 ## [2.32.0] - 2026-10-07
-### Added
+### Added & Enhanced
 - **L2 Loop Detective Module (`loop-detective.php` & `includes/loop.helper.php`)**:
   - Dedicated forensic troubleshooting center specifically engineered to answer: *Where is the loop visible? Which ports and MACs are oscillating? What downstream segment must be inspected?*
-  - **Live Telemetry Radar**: Real-time evaluation of STP/RSTP state, TCN counter, FDB thrashing status, port movement pair, and dynamic Loop Risk percentage (0-100%).
+  - **Live Telemetry Radar**: Real-time evaluation of STP/RSTP state, TCN counter, FDB thrashing status, port movement pair, and calibrated 80% High-Risk scoring on active CAM thrashing.
   - **Investigation Path Visualizer (Downstream Trace Tree)**:
     - Multi-level visual chain from Upstream Core / Root Bridge ➔ Target Switch (Symptom Detected) ➔ Downstream Switch / Access Link (Suspect Target) ➔ Culprit Endpoint / Bouncing Device (Root Cause).
-    - Resolves oscillating MAC addresses to hardware vendors (e.g. AudioCodes, Cisco, MikroTik) and endpoint IP/hostnames directly from the inventory.
+    - Resolves oscillating MAC addresses to hardware vendors (e.g. Cisco Meraki, Alcatel, MikroTik, Aruba) and endpoint IP/hostnames directly from inventory.
+    - Resolves transit trunk ports cleanly without empty parentheses (`1/23 ↔ 1/1 (Uplink)`).
   - **Actionable Forensic Verdict & Scope Boundaries**:
     - Differentiates between intra-switch issues and unmanaged loops on downstream cables or dumb switches.
     - Provides step-by-step physical cable inspection instructions and loop isolation SOPs for NOC engineers.
-  - **Integrated 6-Phase Deep Prober**: On-demand live SNMP audit with confidence score calculation and terminal inspector modal.
   - **Global Switches STP Health Matrix**: Global overview of all monitored bridge nodes with one-click direct investigation trigger.
   - **Dynamic Navigation Integration**: Added `Loop Detective` to sidebar menu with an automated alert counter badge when switches report active quarantined ports.
+
+- **Switch Interface Inventory & Expandable Multi-Host Drawer (`switch-details.php`)**:
+  - Re-architected interface inventory table with port-level grouping: single-host ports display direct IP/MAC, while multi-host/trunk links display an expandable drawer accordion.
+  - In-drawer search filter and scrollable container preventing layout clutter on 200+ MAC trunk links.
+  - Inline SFP optical telemetry badge showing vendor, part number, serial number, and live RX/TX power in dBm.
+
+- **Alcatel OmniSwitch Enterprise MIB Support (`cron_switch_poll.php` & `includes/db.php`)**:
+  - Native support for Alcatel `ALCATEL-IND1/ENT1-MAC-ADDRESS-MIB` (`slMacAddressTable`, `slMacToPortMacTable`, `alaSlMacAddressGlobalTable`) with `ifIndex . vlan . MAC` tuple parsing.
+  - Automated database migration query purging corrupted legacy sequential fake MAC records (`00:00:00:00:00:xx`).
+  - Native 802.1Q tagged VLAN discovery auto-registered into `switch_port_vlans`.
+
+- **Enterprise Hardware & OUI Database Expansion (`includes/network.php`)**:
+  - Expanded OUI database with Cisco Meraki, Alcatel-Lucent Enterprise, HPE Aruba, Ruijie / Reyee, Grandstream, Yealink, ZTE, Hikvision, Dahua.
+
+- **Multi-Device Responsive Design**:
+  - Optimized layout for mobile, tablet, and desktop: compact tree connectors, fluid typography, and horizontal table swiping (`overflow: auto;`).
+
+- **Apache URL Routing & Trailing-Slash Sanitizer (`.htaccess`)**:
+  - Added trailing-slash rewrite rule preventing 403 Forbidden / 500 Internal Server Error loops on route names.
 
 ## [2.31.3] - 2026-10-04
 ### Fixed & Hardened

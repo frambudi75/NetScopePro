@@ -317,36 +317,71 @@ foreach ($switches as $switch) {
 
         // 4.2 Get Tagged VLANs per port
         // Standard OID: dot1qVlanStaticTaggedPorts (.1.3.6.1.2.1.17.7.1.4.3.1.2)
-        // This OID returns a bitmask for each VLAN, indexed by VLAN ID.
-        // We need to invert this to get a list of VLANs per port.
+        // Also: dot1qVlanCurrentEgressPorts (.1.3.6.1.2.1.17.7.1.4.2.1.4)
         echo "  Fetching Tagged VLANs per port...\n";
         $tagged_ports_vlan = @snmprealwalk($ip, $community, ".1.3.6.1.2.1.17.7.1.4.3.1.2");
+        if (!$tagged_ports_vlan) {
+            $tagged_ports_vlan = @snmprealwalk($ip, $community, ".1.3.6.1.2.1.17.7.1.4.2.1.4");
+        }
         $tagged_vlans_per_ifindex = [];
-        if ($tagged_ports_vlan) {
+        if ($tagged_ports_vlan && is_array($tagged_ports_vlan)) {
             foreach ($tagged_ports_vlan as $oid_full => $value_mask) {
-                // OID structure: OID.vlan_id.if_index (bitmask value)
+                // OID structure: OID.vlan_id or OID.vlan_id.X
                 $oid_parts = explode('.', $oid_full);
-                $vlan_id = (int)$oid_parts[count($oid_parts) - 2]; // Second to last part is VLAN ID
-                $if_index_mask = (int)$oid_parts[count($oid_parts) - 1]; // Last part is ifIndex from bitmask
-                // Clean SNMP prefixes and non-hex chars to avoid hexdec deprecation warning
+                $vlan_id = (int)$oid_parts[count($oid_parts) - 2];
+                if ($vlan_id <= 0) {
+                    $vlan_id = (int)end($oid_parts);
+                }
+                if ($vlan_id <= 0) continue;
+
+                // Clean SNMP prefixes and non-hex chars
                 $cleaned_mask = preg_replace('/^(?:STRING|Hex-STRING|OctetString|Opaque):\s*/i', '', $value_mask);
                 $cleaned_mask = trim($cleaned_mask, '"\' ');
                 $cleaned_mask = preg_replace('/[^0-9a-fA-F]/', '', $cleaned_mask);
-                $bitmask = !empty($cleaned_mask) ? hexdec($cleaned_mask) : 0;
 
-                // Iterate through potential ifIndex (from 1 to 32, covering up to 32 ports in a mask)
-                // This is a common representation for dot1qVlanStaticTaggedPorts
-                // For AOS devices, ifIndex mapping might be more direct.
-                for ($i = 0; $i < 32; $i++) {
-                    if (($bitmask >> $i) & 1) { // Check if the i-th bit is set
-                        $port_ifindex = $i + 1; // ifIndex typically starts from 1
-                        if (!isset($tagged_vlans_per_ifindex[$port_ifindex])) {
-                            $tagged_vlans_per_ifindex[$port_ifindex] = [];
+                if (!empty($cleaned_mask)) {
+                    // Standard 802.1Q PortList is an octet string where each byte represents 8 ports in MSB order
+                    $hex_bytes = str_split($cleaned_mask, 2);
+                    $port_num = 1;
+                    foreach ($hex_bytes as $hb) {
+                        $byte_val = hexdec($hb);
+                        for ($b = 7; $b >= 0; $b--) {
+                            if (($byte_val >> $b) & 1) {
+                                $if_idx = $ifindex_map[$port_num] ?? $port_num;
+                                $tagged_vlans_per_ifindex[$if_idx][] = $vlan_id;
+                            }
+                            $port_num++;
                         }
-                        $tagged_vlans_per_ifindex[$port_ifindex][] = $vlan_id;
                     }
                 }
             }
+        }
+
+        // Alcatel OmniSwitch (AOS) Enterprise MIB for Tagged VLANs:
+        // alaVlanPortType (.1.3.6.1.4.1.6486.800.1.2.1.11.1.2.1.3): 1=default/untagged, 2=tagged (802.1Q)
+        $is_alcatel = (stripos($system_info, 'Alcatel') !== false || stripos($system_info, 'OmniSwitch') !== false || stripos($model, 'Alcatel') !== false);
+        if ($is_alcatel || empty($tagged_vlans_per_ifindex)) {
+            $alcatel_vlan_ports = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.11.1.2.1.3");
+            if ($alcatel_vlan_ports && is_array($alcatel_vlan_ports)) {
+                echo "  Alcatel alaVlanPortTable detected: parsing 802.1Q tagged ports...\n";
+                foreach ($alcatel_vlan_ports as $oid => $val) {
+                    $type_int = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
+                    // 2 = tagged (802.1Q trunk)
+                    if ($type_int === 2) {
+                        $parts = explode('.', $oid);
+                        $if_idx = (int)end($parts);
+                        $vlan_id = (int)$parts[count($parts) - 2];
+                        if ($if_idx && $vlan_id) {
+                            $tagged_vlans_per_ifindex[$if_idx][] = $vlan_id;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Deduplicate tagged VLANs per ifIndex
+        foreach ($tagged_vlans_per_ifindex as $idx => $vlan_arr) {
+            $tagged_vlans_per_ifindex[$idx] = array_values(array_unique($vlan_arr));
         }
         echo "    Found " . count($tagged_vlans_per_ifindex) . " interfaces with tagged VLANs.\n";
         
@@ -456,53 +491,125 @@ foreach ($switches as $switch) {
         echo "    STP: $stp_protocol, Topology Changes: $stp_top_changes\n";
         
         // 6. Get FDB table (MAC to Bridge Port + VLAN)
-        // Detect if this is an Alcatel switch (flat bridge mode)
         $is_alcatel = (stripos($system_info, 'Alcatel') !== false || stripos($model, 'Alcatel') !== false || stripos($system_info, 'OmniSwitch') !== false);
         
+        // Auto-purge corrupted fake sequential MAC records (00:00:00:00:00:xx) generated by legacy OID parsers
+        try {
+            $db->prepare("DELETE FROM switch_port_map WHERE switch_id = ? AND mac_addr LIKE '00:00:00:00:00%'")->execute([$switch['id']]);
+        } catch (Exception $e) {}
+
         echo "  Scanning FDB Tables...\n";
         
-        // Primary: dot1qTpFdbPort (.1.3.6.1.2.1.17.7.1.2.2.1.2) - VLAN Aware (802.1Q)
-        $fdb_table = @snmprealwalk($ip, $community, ".1.3.6.1.2.1.17.7.1.2.2.1.2");
-        $is_vlan_aware = ($fdb_table !== false && count($fdb_table) > 0);
-        
-        if ($is_alcatel && $is_vlan_aware) {
-            echo "    Alcatel flat bridge mode: will use PVID for VLAN resolution.\n";
-            echo "    PVID map has " . count($pvid_map) . " entries.\n";
+        $fdb_table = [];
+        $is_vlan_aware = false;
+
+        // --- ALCATEL-IND1/ENT1-MAC-ADDRESS-MIB (Native OmniSwitch Source Learning Tables) ---
+        if ($is_alcatel) {
+            echo "  Alcatel OmniSwitch detected: querying enterprise Source Learning tables...\n";
+            
+            // 1. Primary: slMacAddressTable (.1.3.6.1.4.1.6486.800.1.2.1.8.1.1.1 or 801)
+            // Index format: ifIndex . dot1qVlanIndex . slMacAddress (PORT + VLAN + MAC)
+            $alcatel_sl = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.8.1.1.1", 2000000, 1);
+            if (empty($alcatel_sl)) {
+                $alcatel_sl = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.801.1.2.1.8.1.1.1", 2000000, 1);
+            }
+            if (!empty($alcatel_sl)) {
+                echo "    Alcatel slMacAddressTable: retrieved " . count($alcatel_sl) . " entries.\n";
+                foreach ($alcatel_sl as $oid => $val) {
+                    $parts = explode('.', $oid);
+                    $tot = count($parts);
+                    if ($tot >= 8) {
+                        $vlan_id = (int)$parts[$tot - 7];
+                        $if_idx = (int)$parts[$tot - 8];
+                        $fdb_table[$oid . '.__alcatel_sl__.' . $if_idx . '.' . $vlan_id] = $if_idx;
+                    }
+                }
+                $is_vlan_aware = true;
+            }
+
+            // 2. Secondary: slMacToPortMacTable (.1.3.6.1.4.1.6486.800.1.2.1.8.1.1.4)
+            if (empty($fdb_table)) {
+                echo "    Trying slMacToPortMacTable (.1.3.6.1.4.1.6486.800.1.2.1.8.1.1.4)...\n";
+                $alcatel_port_mac = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.8.1.1.4", 2000000, 1);
+                if (!empty($alcatel_port_mac)) {
+                    echo "    Alcatel slMacToPortMacTable: retrieved " . count($alcatel_port_mac) . " entries.\n";
+                    foreach ($alcatel_port_mac as $oid => $val) {
+                        $parts = explode('.', $oid);
+                        $tot = count($parts);
+                        if ($tot >= 8) {
+                            $vlan_id = (int)$parts[$tot - 7];
+                            $if_idx = (int)$parts[$tot - 8];
+                            $fdb_table[$oid . '.__alcatel_sl__.' . $if_idx . '.' . $vlan_id] = $if_idx;
+                        }
+                    }
+                    $is_vlan_aware = true;
+                }
+            }
+
+            // 3. Tertiary: alaSlMacAddressGlobalTable (.1.3.6.1.4.1.6486.800.1.2.1.8.1.1.8 or 801)
+            if (empty($fdb_table)) {
+                echo "    Trying alaSlMacAddressGlobalTable (.1.3.6.1.4.1.6486.800.1.2.1.8.1.1.8)...\n";
+                $alcatel_gbl = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.8.1.1.8", 2000000, 1);
+                if (empty($alcatel_gbl)) {
+                    $alcatel_gbl = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.801.1.2.1.8.1.1.8", 2000000, 1);
+                }
+                if (!empty($alcatel_gbl)) {
+                    echo "    Alcatel alaSlMacAddressGlobalTable: retrieved " . count($alcatel_gbl) . " entries.\n";
+                    foreach ($alcatel_gbl as $oid => $val) {
+                        $parts = explode('.', $oid);
+                        $tot = count($parts);
+                        if ($tot >= 8) {
+                            $vlan_id = (int)$parts[$tot - 7];
+                            $if_idx = (int)$parts[$tot - 8];
+                            $fdb_table[$oid . '.__alcatel_sl__.' . $if_idx . '.' . $vlan_id] = $if_idx;
+                        }
+                    }
+                    $is_vlan_aware = true;
+                }
+            }
         }
-        
-        // Fallback: dot1dTpFdbPort (.1.3.6.1.2.1.17.4.3.1.2) - Generic (no VLAN)
-        if (!$is_vlan_aware) {
-            echo "    dot1q empty, falling back to generic bridge table...\n";
-            $fdb_table = @snmprealwalk($ip, $community, ".1.3.6.1.2.1.17.4.3.1.2");
+
+        // Standard Q-BRIDGE-MIB fallback (dot1qTpFdbPort .1.3.6.1.2.1.17.7.1.2.2.1.2)
+        if (empty($fdb_table)) {
+            $fdb_table = @snmprealwalk($ip, $community, ".1.3.6.1.2.1.17.7.1.2.2.1.2");
+            $is_vlan_aware = ($fdb_table !== false && count($fdb_table) > 0);
+            
+            if ($is_alcatel && $is_vlan_aware) {
+                echo "    Alcatel flat bridge mode: will use PVID for VLAN resolution.\n";
+                echo "    PVID map has " . count($pvid_map) . " entries.\n";
+            }
+            
+            // Fallback: dot1dTpFdbPort (.1.3.6.1.2.1.17.4.3.1.2) - Generic (no VLAN)
+            if (!$is_vlan_aware) {
+                echo "    dot1q empty, falling back to generic bridge table...\n";
+                $fdb_table = @snmprealwalk($ip, $community, ".1.3.6.1.2.1.17.4.3.1.2");
+            }
         }
         
         // Cisco IOS per-VLAN community polling fallback
-        // Some Cisco IOS switches require community@vlan to access FDB per VLAN context
         if ((!$fdb_table || count($fdb_table) === 0) && stripos($system_info, 'Cisco') !== false) {
             echo "  Cisco detected: trying per-VLAN community polling...\n";
             $vlan_list = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.9.9.46.1.3.1.1.2"); // vtpVlanState
             if (empty($vlan_list)) {
-                // Fallback: try dot1qVlanStaticRowStatus
                 $vlan_list = snmp_walk_indexed($ip, $community, ".1.3.6.1.2.1.17.7.1.4.3.1.5");
             }
             
             $fdb_table = [];
-            $cisco_vlans = !empty($vlan_list) ? array_keys($vlan_list) : [1]; // Default VLAN 1
+            $cisco_vlans = !empty($vlan_list) ? array_keys($vlan_list) : [1];
             foreach ($cisco_vlans as $vlan_num) {
                 $vlan_num = (int)$vlan_num;
-                if ($vlan_num >= 1002 && $vlan_num <= 1005) continue; // Skip reserved VLANs
+                if ($vlan_num >= 1002 && $vlan_num <= 1005) continue;
                 
                 $vlan_community = $community . '@' . $vlan_num;
                 $vlan_fdb = @snmprealwalk($ip, $vlan_community, ".1.3.6.1.2.1.17.4.3.1.2");
                 if ($vlan_fdb && is_array($vlan_fdb)) {
-                    // Tag each entry with its VLAN for later extraction
                     foreach ($vlan_fdb as $oid => $val) {
                         $fdb_table[$oid . '.__vlan__.' . $vlan_num] = $val;
                     }
                     echo "    VLAN $vlan_num: " . count($vlan_fdb) . " entries\n";
                 }
             }
-            $is_vlan_aware = false; // Use dot1d parsing but with tagged VLANs
+            $is_vlan_aware = false;
         }
 
         // Cache existing MAC locations to track MAC Flapping (L2 loop indicator)
@@ -518,6 +625,20 @@ foreach ($switches as $switch) {
         if ($fdb_table) {
             $discovered_count = 0;
             foreach ($fdb_table as $oid => $val) {
+                $is_alcatel_sl = false;
+                $alcatel_ifindex = null;
+                $alcatel_vlan = null;
+
+                // Check for Alcatel native SL entry
+                if (strpos($oid, '.__alcatel_sl__.') !== false) {
+                    $sl_parts = explode('.__alcatel_sl__.', $oid);
+                    $oid = $sl_parts[0];
+                    $meta = explode('.', $sl_parts[1]);
+                    $alcatel_ifindex = (int)$meta[0];
+                    $alcatel_vlan = (int)$meta[1];
+                    $is_alcatel_sl = true;
+                }
+
                 // Check for Cisco per-VLAN tagged entries
                 $cisco_vlan_tag = null;
                 if (strpos($oid, '.__vlan__.') !== false) {
@@ -528,7 +649,10 @@ foreach ($switches as $switch) {
                 
                 $parts = explode('.', $oid);
                 
-                if ($is_vlan_aware && !$cisco_vlan_tag) {
+                if ($is_alcatel_sl) {
+                    $vlan_id = $alcatel_vlan;
+                    $mac_dec = array_slice($parts, -6);
+                } elseif ($is_vlan_aware && !$cisco_vlan_tag) {
                     // Structure: ...1.2.2.1.2.<VLAN>.<MAC_6_PARTS>
                     $vlan_id = (int)$parts[count($parts) - 7];
                     $mac_dec = array_slice($parts, -6);
@@ -539,60 +663,69 @@ foreach ($switches as $switch) {
                 }
 
                 $mac_hex = [];
+                $all_zero = true;
                 foreach ($mac_dec as $dec) {
                     $d = (int)preg_replace('/[^0-9]/', '', $dec);
+                    if ($d > 255) { $d = 255; }
+                    if ($d !== 0) { $all_zero = false; }
                     $mac_hex[] = str_pad(dechex($d), 2, '0', STR_PAD_LEFT);
                 }
                 $mac_addr = strtoupper(implode(':', $mac_hex));
                 
-                // Validate MAC: must be 17 chars (AA:BB:CC:DD:EE:FF) and not broadcast/multicast
-                if (strlen($mac_addr) !== 17 || $mac_addr === 'FF:FF:FF:FF:FF:FF' || $mac_addr === '00:00:00:00:00:00') {
+                // Validate MAC: must be 17 chars and not dummy, broadcast, or multicast
+                if ($all_zero || strlen($mac_addr) !== 17 || str_starts_with($mac_addr, '00:00:00:00:00') || $mac_addr === 'FF:FF:FF:FF:FF:FF' || $mac_addr === '00:00:00:00:00:00') {
                     continue;
                 }
                 
-                $bridge_port = trim(str_replace('INTEGER: ', '', $val));
+                $bridge_port = $is_alcatel_sl ? $alcatel_ifindex : trim(str_replace('INTEGER: ', '', $val));
                 
-                // Smart VLAN Resolution using PVID
-                // Alcatel flat bridge: dot1q always reports VLAN 1, use PVID instead
-                // Other vendors: use PVID only when VLAN is missing
-                if ($is_alcatel) {
-                    // Alcatel PVID is indexed by bridge port (1001, 1002, etc.)
-                    $pvid_val = $pvid_map[$bridge_port] ?? null;
-                    if ($pvid_val && (int)$pvid_val > 0) {
-                        $vlan_id = (int)$pvid_val;
+                // Smart VLAN Resolution using PVID for standard bridges
+                if (!$is_alcatel_sl) {
+                    if ($is_alcatel) {
+                        $pvid_val = $pvid_map[$bridge_port] ?? null;
+                        if ($pvid_val && (int)$pvid_val > 0) {
+                            $vlan_id = (int)$pvid_val;
+                        }
+                    } elseif (!$vlan_id) {
+                        $vlan_id = $pvid_map[$bridge_port] ?? 1;
                     }
-                } elseif (!$vlan_id) {
-                    $vlan_id = $pvid_map[$bridge_port] ?? 1;
                 }
 
-                // For Cisco per-VLAN polling, bridge-to-ifIndex might need VLAN context too
-                $ifindex = $ifindex_map[$bridge_port] ?? null;
-                if (!$ifindex && $cisco_vlan_tag) {
-                    // Try fetching bridge port mapping with VLAN community
-                    $vlan_ifindex = @snmp2_get($ip, $community . '@' . $cisco_vlan_tag, ".1.3.6.1.2.1.17.1.4.1.2." . $bridge_port);
-                    if ($vlan_ifindex !== false) {
-                        $ifindex = trim(str_replace('INTEGER: ', '', $vlan_ifindex));
-                        $ifindex_map[$bridge_port] = $ifindex; // Cache for future lookups
+                // Bridge port to ifIndex resolution
+                if ($is_alcatel_sl) {
+                    $ifindex = $alcatel_ifindex;
+                } else {
+                    $ifindex = $ifindex_map[$bridge_port] ?? null;
+                    if (!$ifindex && $cisco_vlan_tag) {
+                        $vlan_ifindex = @snmp2_get($ip, $community . '@' . $cisco_vlan_tag, ".1.3.6.1.2.1.17.1.4.1.2." . $bridge_port);
+                        if ($vlan_ifindex !== false) {
+                            $ifindex = trim(str_replace('INTEGER: ', '', $vlan_ifindex));
+                            $ifindex_map[$bridge_port] = $ifindex;
+                        }
                     }
-                }
-                
-                // Fallback: If still no ifIndex, assume ifIndex = bridge_port
-                // Many switches (like TP-Link, HP, Huawei) map bridge port directly to ifIndex 1:1
-                if (!$ifindex) {
-                    $ifindex = $bridge_port;
+                    if (!$ifindex) {
+                        $ifindex = $bridge_port;
+                    }
                 }
                 
                 // Smart port name resolution with vendor-aware fallback
                 $raw_name = $name_map[$ifindex] ?? null;
                 $port_name = normalize_port_name($raw_name, $bridge_port, $ifindex, $system_info);
                 
-                // Track MAC Flapping on this switch
+                // Track MAC Flapping on this switch (exclude dummy, multicast, broadcast, VRRP)
                 if (isset($existing_mac_ports[$mac_addr]) && $existing_mac_ports[$mac_addr] !== $port_name) {
-                    $mac_flaps[] = [
-                        'mac' => $mac_addr,
-                        'from' => $existing_mac_ports[$mac_addr],
-                        'to' => $port_name
-                    ];
+                    $mUpper = strtoupper($mac_addr);
+                    $firstOctet = hexdec(substr($mUpper, 0, 2));
+                    $isMulticast = ($firstOctet & 1);
+                    $isDummy = str_starts_with($mUpper, '00:00:00:00:00') || $mUpper === 'FF:FF:FF:FF:FF:FF' || str_starts_with($mUpper, '00:00:5E:') || str_starts_with($mUpper, '00:00:0C:');
+                    
+                    if (!$isMulticast && !$isDummy && strlen($mUpper) === 17) {
+                        $mac_flaps[] = [
+                            'mac' => $mac_addr,
+                            'from' => $existing_mac_ports[$mac_addr],
+                            'to' => $port_name
+                        ];
+                    }
                 }
 
                 // Get interface status for this port
@@ -657,7 +790,27 @@ foreach ($switches as $switch) {
             }
             
             // Pair-specific MAC Flapping Analysis (Filters out normal WiFi roaming & client movement)
+            // Fetch MAC count per port on this switch to differentiate Trunk/Uplink vs Access/Edge
+            $port_mac_counts = [];
+            try {
+                $mcStmt = $db->prepare("SELECT port_name, COUNT(*) as cnt FROM switch_port_map WHERE switch_id = ? AND mac_addr NOT LIKE 'PORT:%' GROUP BY port_name");
+                $mcStmt->execute([$switch['id']]);
+                $port_mac_counts = $mcStmt->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+            } catch (Exception $e) {}
+
+            $fnIsUplink = function($pName) use ($port_mac_counts, $name_map_ifalias) {
+                $clean = preg_match('/\(([^)]+)\)/', $pName, $m) ? $m[1] : $pName;
+                $clean = trim($clean);
+                $cnt = $port_mac_counts[$clean] ?? ($port_mac_counts[$pName] ?? 0);
+                if ($cnt > 3) return true;
+                if (preg_match('/(-to-|-sw|uplink|trunk|core|dist|po\d+|bond|ae\d+|sfp|\/48|\/49|\/50|\/51|\/52|\/24|\/25|\/26)/i', $clean)) return true;
+                $alias = $name_map_ifalias[$clean] ?? ($name_map_ifalias[$pName] ?? '');
+                if (!empty($alias) && preg_match('/(uplink|trunk|core|dist|switch|to\s)/i', $alias)) return true;
+                return false;
+            };
+
             $pair_flaps = [];
+            $access_suspects = []; // Root cause candidates where an Access port is flapping to Uplink or another port
             foreach ($mac_flaps as $mf) {
                 $p1 = $mf['from'];
                 $p2 = $mf['to'];
@@ -665,8 +818,23 @@ foreach ($switches as $switch) {
                 // Normalize pair so (Port A <-> Port B) and (Port B <-> Port A) are grouped together
                 $pair_key = ($p1 < $p2) ? "$p1 <-> $p2" : "$p2 <-> $p1";
                 $pair_flaps[$pair_key][] = $mf['mac'];
+
+                $p1_up = $fnIsUplink($p1);
+                $p2_up = $fnIsUplink($p2);
+
+                // If one port is Access and the other is Uplink, or both are Access:
+                if (!$p1_up || !$p2_up) {
+                    $origin_port = !$p1_up ? $p1 : $p2;
+                    $transit_port = !$p1_up ? $p2 : $p1;
+                    $access_suspects[] = [
+                        'mac'          => $mf['mac'],
+                        'access_port'  => $origin_port,
+                        'transit_port' => $transit_port
+                    ];
+                }
             }
 
+            // Identify highest flapping pair
             $top_pair = null;
             $max_pair_flaps = 0;
             foreach ($pair_flaps as $pair => $flapped_macs) {
@@ -675,6 +843,49 @@ foreach ($switches as $switch) {
                     $max_pair_flaps = $unique_macs;
                     $top_pair = $pair;
                 }
+            }
+
+            // Identify Root-Cause End Device on Access port if available
+            $culprit_info = null;
+            if (!empty($access_suspects)) {
+                $best_suspect = $access_suspects[0];
+                $s_mac = $best_suspect['mac'];
+                $s_vendor = function_exists('get_vendor_by_mac') ? get_vendor_by_mac($s_mac) : 'Unknown';
+                
+                // Lookup IP & Hostname
+                $ipStmt = $db->prepare("SELECT ip_addr, hostname, vendor, description FROM ip_addresses WHERE mac_addr = ? LIMIT 1");
+                $ipStmt->execute([$s_mac]);
+                $ipRow = $ipStmt->fetch(PDO::FETCH_ASSOC);
+
+                $dev_ip = $ipRow['ip_addr'] ?? null;
+                $dev_host = $ipRow['hostname'] ?? null;
+                $dev_name = $dev_host ?: ($s_vendor !== 'Unknown' ? "$s_vendor Device" : "End-Device");
+
+                $culprit_info = [
+                    'mac'          => $s_mac,
+                    'vendor'       => $s_vendor,
+                    'ip'           => $dev_ip,
+                    'name'         => $dev_name,
+                    'access_port'  => $best_suspect['access_port'],
+                    'transit_port' => $best_suspect['transit_port']
+                ];
+
+                // Log into ip_conflict_events table for forensic auditing
+                try {
+                    $ceStmt = $db->prepare("
+                        INSERT INTO ip_conflict_events 
+                        (ip_addr, mac_a, vendor_a, switch_port_a, switch_port_b, event_type, details, flap_count, status, detected_at)
+                        VALUES (?, ?, ?, ?, ?, 'flapping', ?, 1, 'active', NOW())
+                    ");
+                    $ceStmt->execute([
+                        $dev_ip ?: '0.0.0.0',
+                        $s_mac,
+                        $s_vendor,
+                        $best_suspect['access_port'],
+                        $best_suspect['transit_port'],
+                        "End-device thrashing on Access port {$best_suspect['access_port']} bouncing to {$best_suspect['transit_port']}"
+                    ]);
+                } catch (Exception $e) {}
             }
 
             // Flap sensitivity threshold: minimum distinct MACs flapping on the EXACT same port pair
@@ -688,8 +899,17 @@ foreach ($switches as $switch) {
             $loop_details = null;
             if (!empty($stp_blocked_ports)) {
                 $loop_detected = 1;
-                $loop_details = "STP Loop Prevention Active: Port(s) " . implode(', ', $stp_blocked_ports) . " in BLOCKING state to prevent switching loop";
+                $blocked_list = implode(', ', $stp_blocked_ports);
+                if ($culprit_info) {
+                    $loop_details = "STP Loop Quarantined: Port(s) {$blocked_list} in BLOCKING state. Suspect End-Device on Access port {$culprit_info['access_port']}: {$culprit_info['name']} [{$culprit_info['vendor']} - {$culprit_info['mac']}]";
+                } else {
+                    $loop_details = "STP Loop Prevention Active: Port(s) {$blocked_list} in BLOCKING state to prevent switching loop";
+                }
                 echo "  ⚠️ [STP LOOP MITIGATED]: $loop_details\n";
+            } elseif ($culprit_info) {
+                $loop_detected = 1;
+                $loop_details = "L2 Loop Warning: End-device thrashing on Access port {$culprit_info['access_port']} [{$culprit_info['name']} ({$culprit_info['mac']})] bouncing to Uplink {$culprit_info['transit_port']}";
+                echo "  ⚠️ [L2 LOOP WARNING]: $loop_details\n";
             } elseif ($top_pair !== null && $max_pair_flaps >= $flap_threshold) {
                 $loop_detected = 1;
                 $loop_details = "L2 Loop Warning: High-frequency MAC thrashing ($max_pair_flaps MACs) between $top_pair";

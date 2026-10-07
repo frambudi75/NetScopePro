@@ -4,6 +4,10 @@ SetEnv MIBDIRS "D:/xampp/php/extras/mibs"
     # Enable Rewrite Engine
     RewriteEngine On
 
+    # 0. Strip trailing slash for file routes (e.g. /tools/ -> /tools)
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)/$ $1 [R=301,L]
+
     # 1. Externally redirect /file.php to /file (strip .php extension)
     # Exclude api directory to prevent issues with direct script calls
     RewriteCond %{REQUEST_URI} !/api/
