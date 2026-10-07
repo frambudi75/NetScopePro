@@ -15,8 +15,7 @@ class LoopDetectiveHelper {
      */
     public static function getSwitches(PDO $db): array {
         $stmt = $db->query("
-            SELECT s.id, s.name, s.ip_address, s.model, s.location, s.status,
-                   s.loop_detected, s.loop_details, s.stp_root_bridge, s.stp_topology_changes,
+            SELECT s.id, s.name, s.ip_addr, s.model, s.loop_detected, s.loop_details, s.stp_topology_changes,
                    COUNT(spm.id) as total_ports,
                    SUM(CASE WHEN spm.stp_state = 'blocking' AND LOWER(spm.port_status) = 'up' THEN 1 ELSE 0 END) as blocked_ports,
                    SUM(CASE WHEN spm.stp_state = 'forwarding' THEN 1 ELSE 0 END) as forwarding_ports
@@ -42,10 +41,10 @@ class LoopDetectiveHelper {
 
         // 1. Fetch port STP operational states
         $pStmt = $db->prepare("
-            SELECT port_name, port_number, mac_addr, ip_addr, vlan_name, port_status, stp_state, speed
+            SELECT port_name, mac_addr, vlan_name, port_status, stp_state, port_speed
             FROM switch_port_map
             WHERE switch_id = ?
-            ORDER BY port_number ASC, port_name ASC
+            ORDER BY port_name ASC
         ");
         $pStmt->execute([$switch_id]);
         $all_ports = $pStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -131,38 +130,36 @@ class LoopDetectiveHelper {
     private static function buildInvestigationPath(PDO $db, array $switch, array $flapping_macs, array $blocked_ports): array {
         $path = [];
 
-        // Level 1: Upstream Core / Root Bridge Node
-        $root_bridge_mac = trim($switch['stp_root_bridge'] ?? '');
-        $is_root = false;
-
-        // Check if current switch is itself the root bridge
-        if (!empty($root_bridge_mac)) {
-            $sw_own_mac = self::getSwitchBridgeMac($db, $switch['id']);
-            if ($sw_own_mac && stripos($root_bridge_mac, $sw_own_mac) !== false) {
-                $is_root = true;
-            }
+        // Level 1: Upstream Core / Parent Switch
+        $parent_switch = null;
+        if (!empty($switch['parent_switch_id'])) {
+            try {
+                $pStmt = $db->prepare("SELECT id, name, ip_addr, model FROM switches WHERE id = ?");
+                $pStmt->execute([$switch['parent_switch_id']]);
+                $parent_switch = $pStmt->fetch(PDO::FETCH_ASSOC);
+            } catch (Exception $e) {}
         }
 
-        // Check topology links for an upstream parent switch
-        $parent_switch = null;
-        try {
-            $pStmt = $db->prepare("
-                SELECT s.id, s.name, s.ip_address, s.model, tl.link_label
-                FROM topology_links tl
-                JOIN switches s ON tl.parent_switch_id = s.id
-                WHERE tl.target_type = 'switch' AND tl.target_id = ?
-                LIMIT 1
-            ");
-            $pStmt->execute([$switch['id']]);
-            $parent_switch = $pStmt->fetch(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {}
+        if (!$parent_switch) {
+            try {
+                $pStmt = $db->prepare("
+                    SELECT s.id, s.name, s.ip_addr, s.model, tl.link_label
+                    FROM topology_links tl
+                    JOIN switches s ON tl.parent_switch_id = s.id
+                    WHERE tl.target_type = 'switch' AND tl.target_id = ?
+                    LIMIT 1
+                ");
+                $pStmt->execute([$switch['id']]);
+                $parent_switch = $pStmt->fetch(PDO::FETCH_ASSOC);
+            } catch (Exception $e) {}
+        }
 
         if ($parent_switch) {
             $path[] = [
                 'level'       => 1,
                 'role'        => 'UPSTREAM_CORE',
                 'name'        => $parent_switch['name'],
-                'ip'          => $parent_switch['ip_address'],
+                'ip'          => $parent_switch['ip_addr'],
                 'model'       => $parent_switch['model'] ?: 'Core / Distribution Switch',
                 'status'      => 'normal',
                 'status_text' => 'Normal L2 Trunk Forwarding',
@@ -173,11 +170,11 @@ class LoopDetectiveHelper {
             $path[] = [
                 'level'       => 1,
                 'role'        => 'UPSTREAM_CORE',
-                'name'        => $is_root ? 'This Switch is STP Root Bridge' : ($root_bridge_mac ? "Root Bridge ($root_bridge_mac)" : 'Upstream Core / Distribution'),
-                'ip'          => $is_root ? $switch['ip_address'] : 'L2 Root Path',
-                'model'       => $is_root ? 'STP Root Node' : 'Designated Root',
+                'name'        => 'Upstream Core / Root Path',
+                'ip'          => 'L2 Bridge Backbone',
+                'model'       => 'Designated Root Path',
                 'status'      => 'normal',
-                'status_text' => 'Bridge Priority 32768 / Root Forwarding',
+                'status_text' => 'Spanning Tree Root Forwarding Active',
                 'badge'       => 'ROOT PATH',
                 'badge_color' => 'var(--text-muted)'
             ];
@@ -197,7 +194,7 @@ class LoopDetectiveHelper {
             'level'       => 2,
             'role'        => 'TARGET_SWITCH',
             'name'        => $switch['name'],
-            'ip'          => $switch['ip_address'],
+            'ip'          => $switch['ip_addr'],
             'model'       => $switch['model'] ?: 'Managed Switch',
             'status'      => $has_loop_symptom ? 'critical' : 'normal',
             'status_text' => $symptom_detail,
@@ -206,7 +203,6 @@ class LoopDetectiveHelper {
         ];
 
         // Level 3: Downstream Target / Connected Neighbor Switch
-        // Determine the problematic port(s)
         $target_ports = [];
         if (!empty($flapping_macs)) {
             foreach ($flapping_macs as $fm) {
@@ -229,7 +225,7 @@ class LoopDetectiveHelper {
         // Check if any child switch is linked from this switch
         try {
             $cStmt = $db->prepare("
-                SELECT s.id, s.name, s.ip_address, s.model, tl.link_label
+                SELECT s.id, s.name, s.ip_addr, s.model, tl.link_label
                 FROM topology_links tl
                 JOIN switches s ON tl.target_id = s.id
                 WHERE tl.parent_switch_id = ? AND tl.target_type = 'switch'
@@ -239,13 +235,21 @@ class LoopDetectiveHelper {
             $downstream_switch = $cStmt->fetch(PDO::FETCH_ASSOC);
         } catch (Exception $e) {}
 
+        if (!$downstream_switch) {
+            try {
+                $cStmt = $db->prepare("SELECT id, name, ip_addr, model FROM switches WHERE parent_switch_id = ? LIMIT 1");
+                $cStmt->execute([$switch['id']]);
+                $downstream_switch = $cStmt->fetch(PDO::FETCH_ASSOC);
+            } catch (Exception $e) {}
+        }
+
         if ($has_loop_symptom) {
             if ($downstream_switch) {
                 $path[] = [
                     'level'       => 3,
                     'role'        => 'DOWNSTREAM_SWITCH',
                     'name'        => $downstream_switch['name'],
-                    'ip'          => $downstream_switch['ip_address'],
+                    'ip'          => $downstream_switch['ip_addr'],
                     'model'       => $downstream_switch['model'] ?: 'Downstream Switch',
                     'status'      => 'warning',
                     'status_text' => "Connected on {$downstream_port_label} (Investigate downstream cabling)",
@@ -267,7 +271,6 @@ class LoopDetectiveHelper {
             }
 
             // Level 4: Endpoint / Culprit Device (Resolve MAC to IP & Vendor)
-            $culprit_info = null;
             if (!empty($flapping_macs)) {
                 $bouncing_mac = $flapping_macs[0]['mac_addr'];
                 $vendor = function_exists('get_vendor_by_mac') ? get_vendor_by_mac($bouncing_mac) : 'Unknown Vendor';
@@ -405,8 +408,8 @@ class LoopDetectiveHelper {
             return ['error' => 'Switch not found'];
         }
 
-        $sw_ip = $sw['ip_address'];
-        $community = $sw['snmp_community'] ?: 'public';
+        $sw_ip = $sw['ip_addr'];
+        $community = $sw['community'] ?: 'public';
 
         // Check reachability
         $sys_descr = @snmp2_get($sw_ip, $community, ".1.3.6.1.2.1.1.1.0", 1000000, 1);
@@ -443,7 +446,8 @@ class LoopDetectiveHelper {
             $b2if = [];
             if ($b2if_raw && is_array($b2if_raw)) {
                 foreach ($b2if_raw as $oid => $val) {
-                    $bp = end(explode('.', $oid));
+                    $parts = explode('.', $oid);
+                    $bp = end($parts);
                     $b2if[$bp] = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
                 }
             }
@@ -451,7 +455,8 @@ class LoopDetectiveHelper {
             $opers = [];
             if ($oper_raw && is_array($oper_raw)) {
                 foreach ($oper_raw as $oid => $val) {
-                    $ifidx = end(explode('.', $oid));
+                    $parts = explode('.', $oid);
+                    $ifidx = end($parts);
                     $opers[$ifidx] = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
                 }
             }
@@ -459,14 +464,16 @@ class LoopDetectiveHelper {
             $names = [];
             if ($names_raw && is_array($names_raw)) {
                 foreach ($names_raw as $oid => $val) {
-                    $ifidx = end(explode('.', $oid));
+                    $parts = explode('.', $oid);
+                    $ifidx = end($parts);
                     $names[$ifidx] = trim(str_replace(['STRING: ', '"'], '', $val));
                 }
             }
 
             if ($stp_raw && is_array($stp_raw)) {
                 foreach ($stp_raw as $oid => $val) {
-                    $bp = end(explode('.', $oid));
+                    $parts = explode('.', $oid);
+                    $bp = end($parts);
                     $ifidx = $b2if[$bp] ?? $bp;
                     $pname = $names[$ifidx] ?? "Port #$bp";
                     $sint = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
@@ -540,15 +547,5 @@ class LoopDetectiveHelper {
             'flapping_macs'    => $flapping_macs,
             'confidence'       => $confidence
         ];
-    }
-
-    /**
-     * Helper to get switch own base bridge MAC if available
-     */
-    private static function getSwitchBridgeMac(PDO $db, int $switch_id): ?string {
-        $stmt = $db->prepare("SELECT mac_addr FROM switch_port_map WHERE switch_id = ? AND mac_addr LIKE 'PORT:%' LIMIT 1");
-        $stmt->execute([$switch_id]);
-        $val = $stmt->fetchColumn();
-        return $val ? strtolower(str_replace('PORT:', '', $val)) : null;
     }
 }
