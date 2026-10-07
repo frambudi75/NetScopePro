@@ -3,12 +3,19 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.31.3');
-if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-04');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.32.0');
+if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-07');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.32.0', 'date' => '2026-10-07', 'changes' => [
+        'L2 Loop Detective Module (Dedicated forensic switching loop & downstream root-cause investigator)',
+        'Investigation Path Visualizer (Multi-level trace: Core ➔ Target Switch ➔ Access Link ➔ Culprit Endpoint)',
+        'Live Telemetry Radar & Risk Meter (STP/RSTP stability, TCN activity, FDB anomalies & oscillating MAC pair)',
+        'Actionable Forensic Verdict & Scope Boundaries (Downstream isolation instructions & NOC remediation checklist)',
+        'Global Switches STP Health Matrix & Dynamic Sidebar Loop Alert Counter Badge'
+    ]],
     ['ver' => '2.31.3', 'date' => '2026-10-04', 'changes' => [
         'SSH Channel 1 Collision Fix (Eliminated "Please close the channel (1)" runtime exception)',
         'Target Server SSH Session Leak Prevention (Explicit $ssh->disconnect() prevents OpenSSH MaxStartups exhaustion)',

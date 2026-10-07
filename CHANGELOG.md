@@ -2,6 +2,21 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.32.0] - 2026-10-07
+### Added
+- **L2 Loop Detective Module (`loop-detective.php` & `includes/loop.helper.php`)**:
+  - Dedicated forensic troubleshooting center specifically engineered to answer: *Where is the loop visible? Which ports and MACs are oscillating? What downstream segment must be inspected?*
+  - **Live Telemetry Radar**: Real-time evaluation of STP/RSTP state, TCN counter, FDB thrashing status, port movement pair, and dynamic Loop Risk percentage (0-100%).
+  - **Investigation Path Visualizer (Downstream Trace Tree)**:
+    - Multi-level visual chain from Upstream Core / Root Bridge ➔ Target Switch (Symptom Detected) ➔ Downstream Switch / Access Link (Suspect Target) ➔ Culprit Endpoint / Bouncing Device (Root Cause).
+    - Resolves oscillating MAC addresses to hardware vendors (e.g. AudioCodes, Cisco, MikroTik) and endpoint IP/hostnames directly from the inventory.
+  - **Actionable Forensic Verdict & Scope Boundaries**:
+    - Differentiates between intra-switch issues and unmanaged loops on downstream cables or dumb switches.
+    - Provides step-by-step physical cable inspection instructions and loop isolation SOPs for NOC engineers.
+  - **Integrated 6-Phase Deep Prober**: On-demand live SNMP audit with confidence score calculation and terminal inspector modal.
+  - **Global Switches STP Health Matrix**: Global overview of all monitored bridge nodes with one-click direct investigation trigger.
+  - **Dynamic Navigation Integration**: Added `Loop Detective` to sidebar menu with an automated alert counter badge when switches report active quarantined ports.
+
 ## [2.31.3] - 2026-10-04
 ### Fixed & Hardened
 - **SSH Channel 1 Collision Fix (`api/server-metrics.php`)**:
