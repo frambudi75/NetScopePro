@@ -16,7 +16,8 @@ $versions = [
         'Switch Interface Inventory & Expandable Multi-Host Drawer (Accordions for trunk links & inline SFP optical telemetry)',
         'Alcatel OmniSwitch Enterprise MIB Support (Native slMacAddressTable parsing & auto-purge of legacy fake MACs)',
         'Multi-Device Responsive Design (Optimized mobile tree view, table-responsive horizontal swiping & adaptive drawer)',
-        'Apache Routing & Trailing-Slash Sanitizer (.htaccess rewrite guard preventing 403/500 collision on routes)'
+        'Apache Routing & Trailing-Slash Sanitizer (.htaccess rewrite guard preventing 403/500 collision on routes)',
+        'Enterprise Discord Rich Embeds & Webhook Sentinels (Dynamic color cards, 2-column inline fields, live timestamps & test buttons)'
     ]],
     ['ver' => '2.31.3', 'date' => '2026-10-04', 'changes' => [
         'SSH Channel 1 Collision Fix (Eliminated "Please close the channel (1)" runtime exception)',

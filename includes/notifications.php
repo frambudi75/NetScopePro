@@ -135,8 +135,10 @@ class NotificationHelper {
     public static function notifyNewDevice($ip, $mac, $vendor, $hostname, $subnet_name) {
         $telegram_enabled = Settings::enabled('telegram_enabled') && (Settings::get('telegram_notify_new_device', '1') === '1');
         $email_enabled = Settings::enabled('email_enabled');
+        $discord_enabled = Settings::enabled('discord_enabled');
+        $slack_enabled = Settings::enabled('slack_enabled');
 
-        if (!$telegram_enabled && !$email_enabled) return;
+        if (!$telegram_enabled && !$email_enabled && !$discord_enabled && !$slack_enabled) return;
 
         if ($telegram_enabled) {
             $message = "🚨 <b>New Device Discovered!</b>\n\n";
@@ -147,6 +149,36 @@ class NotificationHelper {
             $message .= "🏢 <b>Vendor:</b> " . htmlspecialchars($vendor ?: 'Generic') . "\n";
             $message .= "🕒 <b>Time:</b> " . date('Y-m-d H:i:s');
             self::sendTelegram($message);
+        }
+
+        if ($discord_enabled) {
+            $embed = [
+                'title' => '🔍 New Device Discovered',
+                'description' => "Perangkat baru terdeteksi aktif pada subnet **{$subnet_name}**.",
+                'color' => 0x3B82F6, // Blue
+                'fields' => [
+                    ['name' => '📍 Subnet', 'value' => $subnet_name, 'inline' => true],
+                    ['name' => '🌐 IP Address', 'value' => "`{$ip}`", 'inline' => true],
+                    ['name' => '🏷 Hostname', 'value' => $hostname ?: 'Unknown', 'inline' => true],
+                    ['name' => '🔌 MAC Address', 'value' => "`{$mac}`", 'inline' => true],
+                    ['name' => '🏢 Vendor', 'value' => $vendor ?: 'Generic', 'inline' => true],
+                    ['name' => '🕒 Waktu', 'value' => date('Y-m-d H:i:s'), 'inline' => true]
+                ],
+                'footer' => ['text' => APP_NAME . ' Auto-Discovery'],
+                'timestamp' => date('c')
+            ];
+            self::sendDiscord(null, $embed);
+        }
+
+        if ($slack_enabled) {
+            $markdown = "*[ NEW DEVICE DISCOVERED ]*\n" .
+                        "Subnet: {$subnet_name}\n" .
+                        "IP: `{$ip}`\n" .
+                        "Hostname: " . ($hostname ?: 'Unknown') . "\n" .
+                        "MAC: `{$mac}`\n" .
+                        "Vendor: " . ($vendor ?: 'Generic') . "\n" .
+                        "Time: " . date('Y-m-d H:i:s');
+            self::sendSlack($markdown);
         }
 
         if ($email_enabled) {
@@ -203,7 +235,23 @@ class NotificationHelper {
         $markdown .= "🕒 **Waktu:** {$time}\n";
         $markdown .= "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
 
-        if ($discord_enabled) self::sendDiscord($markdown);
+        if ($discord_enabled) {
+            $embed = [
+                'title' => '⚠️ IP Conflict Alert (ARP Clashing)',
+                'description' => "Terdeteksi bentrok alamat IP / pergantian MAC cepat pada subnet **{$subnet_name}**.",
+                'color' => 0xF59E0B, // Amber
+                'fields' => [
+                    ['name' => '🌐 Target IP', 'value' => "`{$ip}`", 'inline' => true],
+                    ['name' => '📍 Subnet', 'value' => $subnet_name, 'inline' => true],
+                    ['name' => '🛑 Initial MAC', 'value' => "`{$old_mac}`", 'inline' => true],
+                    ['name' => '🚩 Conflicting MAC', 'value' => "`{$new_mac}`", 'inline' => true],
+                    ['name' => '🕒 Waktu', 'value' => $time, 'inline' => false]
+                ],
+                'footer' => ['text' => APP_NAME . ' ARP Conflict Sentinel'],
+                'timestamp' => date('c')
+            ];
+            self::sendDiscord(null, $embed);
+        }
         if ($slack_enabled) self::sendSlack($markdown);
 
         if ($email_enabled) {
@@ -266,7 +314,29 @@ class NotificationHelper {
         $markdown .= "🕒 **Waktu:** {$time}\n";
         $markdown .= "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
 
-        if ($discord_enabled) self::sendDiscord($markdown);
+        if ($discord_enabled) {
+            $embed = [
+                'title' => '🚨 CRITICAL: L2 Switching Loop Alert!',
+                'description' => "Terdeteksi badai switching loop atau port blocking pada switch infrastruktur.",
+                'color' => 0xEF4444, // Red
+                'fields' => [
+                    ['name' => '🏢 Switch', 'value' => $switch_name, 'inline' => true],
+                    ['name' => '🌐 IP Address', 'value' => "`{$switch_ip}`", 'inline' => true],
+                    ['name' => '⚠️ Event Detail', 'value' => $loop_details, 'inline' => false]
+                ],
+                'footer' => ['text' => APP_NAME . ' Loop Detective'],
+                'timestamp' => date('c')
+            ];
+            if (!empty($blocked_ports)) {
+                $embed['fields'][] = [
+                    'name' => '🚫 Blocked Port(s)',
+                    'value' => '`' . implode(', ', $blocked_ports) . '`',
+                    'inline' => true
+                ];
+            }
+            $embed['fields'][] = ['name' => '🕒 Waktu', 'value' => $time, 'inline' => true];
+            self::sendDiscord(null, $embed);
+        }
         if ($slack_enabled) self::sendSlack($markdown);
 
         if ($email_enabled) {
@@ -321,7 +391,28 @@ class NotificationHelper {
         $markdown .= "🕒 **Waktu:** {$time}\n";
         $markdown .= "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
 
-        if ($discord_enabled) self::sendDiscord($markdown);
+        if ($discord_enabled) {
+            $embed = [
+                'title' => '✅ RESOLVED: L2 Switching Loop Cleared',
+                'description' => "Kondisi loop pada switch telah teratasi dan topologi frame forwarding kembali normal.",
+                'color' => 0x10B981, // Emerald Green
+                'fields' => [
+                    ['name' => '🏢 Switch', 'value' => $switch_name, 'inline' => true],
+                    ['name' => '🌐 IP Address', 'value' => "`{$switch_ip}`", 'inline' => true]
+                ],
+                'footer' => ['text' => APP_NAME . ' Loop Detective'],
+                'timestamp' => date('c')
+            ];
+            if (!empty($previous_details)) {
+                $embed['fields'][] = [
+                    'name' => 'ℹ️ Riwayat Sebelumnya',
+                    'value' => $previous_details,
+                    'inline' => false
+                ];
+            }
+            $embed['fields'][] = ['name' => '🕒 Waktu', 'value' => $time, 'inline' => true];
+            self::sendDiscord(null, $embed);
+        }
         if ($slack_enabled) self::sendSlack($markdown);
 
         if ($email_enabled) {
@@ -378,7 +469,26 @@ class NotificationHelper {
         $markdown .= "🕒 **Waktu:** {$time}\n";
         $markdown .= "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
 
-        if ($discord_enabled) self::sendDiscord($markdown);
+        if ($discord_enabled) {
+            $embed = [
+                'title' => '📉 SFP Optical Power Warning (DDM)',
+                'description' => "Redaman fiber optik pada transceiver SFP turun melewati ambang batas normal.",
+                'color' => 0xF59E0B, // Amber
+                'fields' => [
+                    ['name' => '🏢 Switch', 'value' => $switch_name, 'inline' => true],
+                    ['name' => '🌐 IP Address', 'value' => "`{$switch_ip}`", 'inline' => true],
+                    ['name' => '🔌 Port', 'value' => "`{$port_name}`", 'inline' => true],
+                    ['name' => '📉 RX Optical Power', 'value' => "`{$rx_power} dBm` (Critical Low)", 'inline' => true]
+                ],
+                'footer' => ['text' => APP_NAME . ' Optical DDM Telemetry'],
+                'timestamp' => date('c')
+            ];
+            if ($tx_power !== null) {
+                $embed['fields'][] = ['name' => '📈 TX Optical Power', 'value' => "`{$tx_power} dBm`", 'inline' => true];
+            }
+            $embed['fields'][] = ['name' => '🕒 Waktu', 'value' => $time, 'inline' => true];
+            self::sendDiscord(null, $embed);
+        }
         if ($slack_enabled) self::sendSlack($markdown);
 
         if ($email_enabled) {
@@ -400,8 +510,10 @@ class NotificationHelper {
 
         $telegram_enabled = Settings::enabled('telegram_enabled');
         $email_enabled = Settings::enabled('email_enabled');
+        $discord_enabled = Settings::enabled('discord_enabled');
+        $slack_enabled = Settings::enabled('slack_enabled');
 
-        if (!$telegram_enabled && !$email_enabled) return;
+        if (!$telegram_enabled && !$email_enabled && !$discord_enabled && !$slack_enabled) return;
 
         if ($telegram_enabled) {
             $message = "☢️ <b>Subnet Nearly Full! (" . (int)$percent . "%)</b>\n\n";
@@ -410,6 +522,30 @@ class NotificationHelper {
             $message .= "⚡️ <b>Notice:</b> Pertimbangkan memperluas subnet ini segera.\n";
             $message .= "🕒 <b>Time:</b> " . date('Y-m-d H:i:s');
             self::sendTelegram($message);
+        }
+
+        if ($discord_enabled) {
+            $embed = [
+                'title' => '☢️ Subnet Capacity Warning (' . (int)$percent . '%)',
+                'description' => "Penggunaan alokasi IP pada subnet ini hampir mencapai kapasitas maksimal.",
+                'color' => 0xF59E0B, // Amber
+                'fields' => [
+                    ['name' => '📍 Subnet', 'value' => "`{$subnet}/{$mask}`", 'inline' => true],
+                    ['name' => '📊 Alokasi IP', 'value' => "{$used} / {$total} ({$percent}%)", 'inline' => true],
+                    ['name' => '🕒 Waktu', 'value' => date('Y-m-d H:i:s'), 'inline' => true]
+                ],
+                'footer' => ['text' => APP_NAME . ' IPAM Capacity Guard'],
+                'timestamp' => date('c')
+            ];
+            self::sendDiscord(null, $embed);
+        }
+
+        if ($slack_enabled) {
+            $markdown = "*[ SUBNET CAPACITY ALERT ]*\n" .
+                        "Subnet: `{$subnet}/{$mask}`\n" .
+                        "Usage: {$used}/{$total} ({$percent}%)\n" .
+                        "Time: " . date('Y-m-d H:i:s');
+            self::sendSlack($markdown);
         }
 
         if ($email_enabled) {
@@ -490,7 +626,29 @@ class NotificationHelper {
 
         // Send to Discord
         if ($discord_enabled) {
-            if (self::sendDiscord($markdown_message)) $success = true;
+            $color = ($status === 'up') ? 0x10B981 : (($status === 'intermittent') ? 0xF59E0B : 0xEF4444);
+            $embed = [
+                'title' => "{$icon} Netwatch Alert: {$name} is {$state_text}",
+                'description' => "Status target monitoring telah berubah menjadi **{$state_text}**.",
+                'color' => $color,
+                'fields' => [
+                    ['name' => '🖥 Perangkat', 'value' => $name, 'inline' => true],
+                    ['name' => '🌐 Host / IP', 'value' => "`{$host}`", 'inline' => true],
+                    ['name' => '📊 Status', 'value' => "**{$state_text}**", 'inline' => true],
+                    ['name' => '⚡ Latency', 'value' => $latency ? "`{$latency}ms`" : ($status === 'up' ? '`0ms`' : '`Timeout`'), 'inline' => true]
+                ],
+                'footer' => ['text' => APP_NAME . ' Netwatch Sentinel'],
+                'timestamp' => date('c')
+            ];
+            if ($status === 'up' && !empty($duration)) {
+                $embed['fields'][] = ['name' => '⏱ Downtime', 'value' => "`{$duration}`", 'inline' => true];
+            }
+            $embed['fields'][] = ['name' => '🕒 Waktu', 'value' => $time, 'inline' => true];
+
+            $custom_template = Settings::get('custom_netwatch_template');
+            $custom_text = !empty($custom_template) ? $markdown_message : null;
+
+            if (self::sendDiscord($custom_text, $embed)) $success = true;
         }
 
         // Send to Slack
@@ -539,6 +697,39 @@ class NotificationHelper {
         $message .= "  • ⚡ New Device Discovery\n\n";
         $message .= "🕒 <b>Timestamp:</b> " . date('Y-m-d H:i:s');
         return self::sendTelegram($message);
+    }
+
+    public static function testDiscord() {
+        $server_host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'Localhost');
+        $embed = [
+            'title' => '🚀 ' . APP_NAME . ' • Discord Webhook Connected!',
+            'description' => "Webhook Discord berhasil diintegrasikan dengan sistem **" . APP_NAME . "**. Channel ini siap menerima telemetri dan notifikasi insiden jaringan secara real-time.",
+            'color' => 0x10B981, // Emerald Green
+            'fields' => [
+                ['name' => '🖥 Server Host', 'value' => "`{$server_host}`", 'inline' => true],
+                ['name' => '📦 Versi Sistem', 'value' => "`v" . APP_VERSION . "`", 'inline' => true],
+                ['name' => '📡 Jalur Dispatcher', 'value' => 'Discord Webhook Direct', 'inline' => true],
+                [
+                    'name' => '🔔 Sentinels Aktif',
+                    'value' => "• 🚨 Netwatch Host Down/Recovery\n• 🔄 L2 Switching Loop & STP Detective\n• ⚠️ Enterprise IP Conflict & ARP Clashing\n• 📉 SFP Optical DDM Degradation\n• 🔍 New Device Discovery",
+                    'inline' => false
+                ]
+            ],
+            'footer' => ['text' => APP_NAME . ' NOC Sentinel • Systems Operational'],
+            'timestamp' => date('c')
+        ];
+        return self::sendDiscord(null, $embed);
+    }
+
+    public static function testSlack() {
+        $server_host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'Localhost');
+        $text = "*[ " . APP_NAME . " • Test Notification ]*\n\n" .
+                "✅ *Integration Status: CONNECTED*\n" .
+                "Slack webhook alert dispatcher beroperasi dengan normal.\n\n" .
+                "🖥 *Server:* `{$server_host}`\n" .
+                "📦 *Version:* `v" . APP_VERSION . "`\n" .
+                "🕒 *Timestamp:* " . date('Y-m-d H:i:s');
+        return self::sendSlack($text);
     }
 
     public static function testEmail() {
@@ -754,19 +945,67 @@ class NotificationHelper {
         return true;
     }
     /**
-     * Send message to Discord Webhook
+     * Send message to Discord Webhook (Supports raw text, custom template, or Rich Embeds)
+     * @param string|array|null $content Message string or payload array
+     * @param array|null $embed Optional embed object or array of embeds
      */
-    private static function sendDiscord($text) {
+    public static function sendDiscord($content, $embed = null) {
         $url = Settings::get('discord_webhook_url');
         if (empty($url)) return false;
 
-        $data = ['content' => $text];
+        $payload = [
+            'username' => APP_NAME . ' Sentinel'
+        ];
+
+        if (is_array($content) && isset($content['embeds'])) {
+            $payload = array_merge($payload, $content);
+        } elseif (is_array($content) && (isset($content['title']) || isset($content['fields']))) {
+            $payload['embeds'] = [$content];
+        } else {
+            if ($content !== null && $content !== '') {
+                $payload['content'] = (string)$content;
+            }
+            if (!empty($embed)) {
+                $payload['embeds'] = (isset($embed[0]) && is_array($embed[0])) ? $embed : [$embed];
+            }
+        }
+
+        $json_data = json_encode($payload);
+
+        // Prefer cURL for robust networking & SSL
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $json_data,
+                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 6,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false
+            ]);
+            $res = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err = curl_error($ch);
+            curl_close($ch);
+
+            if ($res === false || $http_code >= 400) {
+                error_log("Discord Send Error: HTTP {$http_code} | " . ($err ?: $res));
+                return false;
+            }
+            return true;
+        }
+
         $options = [
             'http' => [
                 'method' => 'POST',
                 'header' => 'Content-Type: application/json',
-                'content' => json_encode($data),
-                'timeout' => 5
+                'content' => $json_data,
+                'timeout' => 6
+            ],
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false
             ]
         ];
         return @file_get_contents($url, false, stream_context_create($options)) !== false;
@@ -775,17 +1014,40 @@ class NotificationHelper {
     /**
      * Send message to Slack Webhook
      */
-    private static function sendSlack($text) {
+    public static function sendSlack($text) {
         $url = Settings::get('slack_webhook_url');
         if (empty($url)) return false;
 
         $data = ['text' => $text];
+        $json_data = json_encode($data);
+
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $json_data,
+                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 6,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false
+            ]);
+            $res = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            return ($res !== false && $http_code < 400);
+        }
+
         $options = [
             'http' => [
                 'method' => 'POST',
                 'header' => 'Content-Type: application/json',
-                'content' => json_encode($data),
-                'timeout' => 5
+                'content' => $json_data,
+                'timeout' => 6
+            ],
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false
             ]
         ];
         return @file_get_contents($url, false, stream_context_create($options)) !== false;
