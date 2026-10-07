@@ -76,10 +76,40 @@ try {
     $tagged_vlans_per_port = [];
 }
 
-// Pre-calculate MAC count per port to identify uplinks
+// Pre-calculate MAC count and group ports by physical interface name
 $port_mac_counts = [];
+$grouped_ports = [];
 foreach ($ports as $p) {
-    $port_mac_counts[$p['port_name']] = ($port_mac_counts[$p['port_name']] ?? 0) + 1;
+    $pname = $p['port_name'];
+    $port_mac_counts[$pname] = ($port_mac_counts[$pname] ?? 0) + 1;
+    if (!isset($grouped_ports[$pname])) {
+        $grouped_ports[$pname] = [
+            'port_name'         => $pname,
+            'port_status'       => $p['port_status'] ?? null,
+            'stp_state'         => $p['stp_state'] ?? null,
+            'port_type'         => $p['port_type'] ?? null,
+            'port_speed'        => $p['port_speed'] ?? null,
+            'port_alias'        => $p['port_alias'] ?? null,
+            'sfp_vendor'        => $p['sfp_vendor'] ?? null,
+            'sfp_part'          => $p['sfp_part'] ?? null,
+            'sfp_serial'        => $p['sfp_serial'] ?? null,
+            'sfp_rx_power'      => $p['sfp_rx_power'] ?? null,
+            'sfp_tx_power'      => $p['sfp_tx_power'] ?? null,
+            'vlan_id'           => $p['vlan_id'] ?? null,
+            'vlan_name'         => $p['vlan_name'] ?? null,
+            'last_seen_on_port' => $p['last_seen_on_port'] ?? null,
+            'devices'           => []
+        ];
+    }
+    if (!empty($p['mac_addr']) && stripos($p['mac_addr'], 'PORT:') === false) {
+        $grouped_ports[$pname]['devices'][] = [
+            'mac_addr'          => $p['mac_addr'],
+            'ip_addr'           => $p['ip_addr'] ?? null,
+            'hostname'          => $p['hostname'] ?? null,
+            'vendor'            => $p['vendor'] ?? null,
+            'last_seen_on_port' => $p['last_seen_on_port'] ?? null
+        ];
+    }
 }
 
 $page_title = "Switch: " . $switch['name'];
@@ -105,6 +135,37 @@ include 'includes/header.php';
     background: rgba(56, 189, 248, 0.25);
     border-color: #38bdf8;
     color: #fff;
+}
+.btn-device-collapse {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-device-collapse:hover {
+    background: rgba(56, 189, 248, 0.25);
+    border-color: #38bdf8;
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+}
+.port-device-drawer {
+    animation: drawerFadeIn 0.2s ease;
+}
+@keyframes drawerFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.drawer-chevron {
+    transition: transform 0.2s ease;
 }
 </style>
 
@@ -222,11 +283,13 @@ include 'includes/header.php';
 
     <!-- Port Mapping Table -->
     <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
-            <h3 style="font-size: 1rem; margin: 0;">Device Port Mapping</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+                <h3 style="font-size: 1rem; margin: 0; font-weight: 700;">Physical Interface Inventory & Connected Hosts</h3>
+                <span style="font-size: 0.75rem; color: var(--text-muted);"><?php echo count($grouped_ports); ?> Interfaces • <?php echo count($ports); ?> MAC records</span>
+            </div>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="text" id="portSearch" placeholder="Filter..." class="input-control" style="width: 180px; padding: 6px 12px; font-size: 0.8rem;">
-                <span style="font-size: 0.75rem; color: var(--text-muted);"><?php echo count($ports); ?> entries</span>
+                <input type="text" id="portSearch" placeholder="Filter interface / MAC / IP / VLAN..." class="input-control" style="width: 250px; padding: 6px 12px; font-size: 0.8rem;">
             </div>
         </div>
         <div class="table-responsive">
@@ -236,20 +299,22 @@ include 'includes/header.php';
                         <th style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem;">Interface</th>
                         <th style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem;">Status</th>
                         <th style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem;">VLAN</th>
-                        <th style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem;">MAC Address</th>
+                        <th style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem;">Connected Devices / MAC</th>
                         <th style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem;">Mapped IP</th>
                         <th style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem;">Hostname / Vendor</th>
-                        <th style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem; text-align: right;">Seen</th>
+                        <th style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem; text-align: right;">Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (empty($ports)): ?>
+                    <?php if (empty($grouped_ports)): ?>
                         <tr>
-                            <td colspan="7" style="padding: 2rem; text-align: center; color: var(--text-muted);">No devices discovered on this switch yet. Run a poll to start.</td>
+                            <td colspan="7" style="padding: 2rem; text-align: center; color: var(--text-muted);">No interfaces discovered on this switch yet. Run a poll to start.</td>
                         </tr>
                     <?php else: ?>
-                        <?php foreach ($ports as $port): ?>
+                        <?php $p_idx = 0; ?>
+                        <?php foreach ($grouped_ports as $pname => $port): ?>
                             <?php
+                                $p_idx++;
                                 $status = $port['port_status'] ?? null;
                                 $statusColor = match($status) {
                                     'up' => 'var(--success)',
@@ -265,11 +330,18 @@ include 'includes/header.php';
                                 };
                                 $typeLabel = $port['port_type'] ?? null;
                                 $speedLabel = $port['port_speed'] ?? null;
-                                
-                                // Check if this is likely an uplink port (> 3 MACs on the same port)
-                                $is_uplink = ($port_mac_counts[$port['port_name']] ?? 0) > 3;
+                                $devices = $port['devices'];
+                                $dev_count = count($devices);
+                                $is_uplink = $dev_count > 3 || preg_match('/(-to-|-sw|uplink|trunk|core|dist|po\d+|bond|ae\d+|sfp)/i', $port['port_name']);
+                                $single_dev = ($dev_count === 1) ? $devices[0] : null;
+                                $drawer_id = "drawer-" . $p_idx;
                             ?>
-                            <tr style="border-bottom: 1px solid var(--border); cursor: pointer;" class="port-row" data-port-name="<?php echo htmlspecialchars($port['port_name']); ?>" onclick="selectPort('<?php echo htmlspecialchars($port['port_name']); ?>')">
+                            <tr style="border-bottom: 1px solid var(--border); cursor: pointer;" 
+                                class="port-row port-row-main" 
+                                data-port-name="<?php echo htmlspecialchars($port['port_name']); ?>" 
+                                data-port-alias="<?php echo htmlspecialchars($port['port_alias'] ?? ''); ?>"
+                                data-drawer-id="<?php echo $dev_count > 1 ? $drawer_id : ''; ?>"
+                                onclick="<?php echo $dev_count > 1 ? "togglePortDrawer('{$drawer_id}')" : "selectPort('" . htmlspecialchars($port['port_name'], ENT_QUOTES) . "')"; ?>">
                                 <td style="padding: 1rem; white-space: nowrap;">
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <i data-lucide="cable" style="width: 14px; color: <?php echo $statusColor; ?>;"></i>
@@ -291,7 +363,7 @@ include 'includes/header.php';
                                                     <span>• <?php echo htmlspecialchars($speedLabel); ?></span>
                                                 <?php endif; ?>
                                                 <?php if (!empty($port['port_alias'])): ?>
-                                                    <span title="<?php echo htmlspecialchars($port['port_alias']); ?>">• <?php echo htmlspecialchars(substr($port['port_alias'], 0, 20)); ?></span>
+                                                    <span title="<?php echo htmlspecialchars($port['port_alias']); ?>">• <?php echo htmlspecialchars(substr($port['port_alias'], 0, 25)); ?></span>
                                                 <?php endif; ?>
                                                 <?php if (!empty($port['sfp_vendor'])): ?>
                                                     <span style="color: var(--warning); display: inline-flex; align-items: center; gap: 3px;" title="SFP Module Info&#10;Vendor: <?php echo htmlspecialchars($port['sfp_vendor']); ?>&#10;Part: <?php echo htmlspecialchars($port['sfp_part'] ?? 'N/A'); ?>&#10;S/N: <?php echo htmlspecialchars($port['sfp_serial'] ?? 'N/A'); ?>&#10;RX Power: <?php echo htmlspecialchars($port['sfp_rx_power'] ?? 'N/A'); ?>&#10;TX Power: <?php echo htmlspecialchars($port['sfp_tx_power'] ?? 'N/A'); ?>">
@@ -332,10 +404,8 @@ include 'includes/header.php';
                                 <td style="padding: 1rem;">
                                     <?php
                                         $port_has_tagged_vlans = isset($tagged_vlans_per_port[$port['port_name']]) && !empty($tagged_vlans_per_port[$port['port_name']]);
-                                        $is_access_port = ($port['vlan_id'] && !$port_has_tagged_vlans);
-                                        $is_trunk_port = ($port_has_tagged_vlans);
                                     ?>
-                                    <?php if ($port['vlan_id']): // Display PVID/Untagged VLAN ?>
+                                    <?php if ($port['vlan_id']): ?>
                                         <div style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: var(--brand-soft); border-radius: 4px;">
                                             <span style="color: var(--primary); font-size: 0.75rem; font-weight: 800;">ID: <?php echo $port['vlan_id']; ?></span>
                                             <?php if (!empty($port['vlan_name'])): ?>
@@ -343,12 +413,12 @@ include 'includes/header.php';
                                             <?php endif; ?>
                                             <span style="font-size: 0.65rem; color: var(--primary); font-weight: 600;">(Untagged)</span>
                                         </div>
-                                    <?php elseif (!$port_has_tagged_vlans): // If no PVID and no tagged VLANs ?>
+                                    <?php elseif (!$port_has_tagged_vlans): ?>
                                         <span style="color: var(--text-muted); font-size: 0.75rem;">-</span>
                                     <?php endif; ?>
 
-                                    <?php if ($port_has_tagged_vlans): // Display Tagged VLANs ?>
-                                        <?php if ($port['vlan_id']): // Add separator if both untagged and tagged exist ?>
+                                    <?php if ($port_has_tagged_vlans): ?>
+                                        <?php if ($port['vlan_id']): ?>
                                             <div style="height: 5px;"></div>
                                         <?php endif; ?>
                                         <div style="font-size: 0.7rem; color: var(--text-muted);">
@@ -359,8 +429,10 @@ include 'includes/header.php';
                                                 $tagged_vlan_items = explode(',', $tagged_vlans_per_port[$port['port_name']]);
                                                 $display_tags = [];
                                                 foreach ($tagged_vlan_items as $item) {
-                                                    list($vlan_id, $vlan_name) = explode(':', $item, 2);
-                                                    $display_tags[] = !empty($vlan_name) ? htmlspecialchars($vlan_name) : $vlan_id;
+                                                    $t_parts = explode(':', $item, 2);
+                                                    $t_vid = $t_parts[0];
+                                                    $t_vname = $t_parts[1] ?? '';
+                                                    $display_tags[] = !empty($t_vname) ? htmlspecialchars($t_vname) : $t_vid;
                                                 }
                                                 echo implode(', ', $display_tags);
                                             ?>
@@ -368,26 +440,142 @@ include 'includes/header.php';
                                         </div>
                                     <?php endif; ?>
                                 </td>
+
+                                <!-- Connected Devices / MAC Address Column -->
                                 <td style="padding: 1rem; font-family: monospace; font-size: 0.85rem; white-space: nowrap;">
-                                    <?php echo $port['mac_addr']; ?>
-                                </td>
-                                <td style="padding: 1rem; white-space: nowrap;">
-                                    <?php if ($port['ip_addr']): ?>
-                                        <a href="javascript:void(0)" onclick="openIpIntelligence('<?php echo $port['ip_addr']; ?>')" style="color: var(--text); text-decoration: none; font-weight: 600; border-bottom: 1px dashed var(--primary); cursor: pointer;" title="Open IP Intelligence Dossier">
-                                            <?php echo $port['ip_addr']; ?>
-                                        </a>
+                                    <?php if ($dev_count === 0): ?>
+                                        <span style="color: var(--text-muted); font-size: 0.75rem; font-family: inherit;">No active MAC</span>
+                                    <?php elseif ($dev_count === 1): ?>
+                                        <span style="color: var(--text); font-weight: 600;"><?php echo htmlspecialchars($single_dev['mac_addr']); ?></span>
                                     <?php else: ?>
-                                        <span style="opacity: 0.3; font-size: 0.75rem;">Not in IPAM</span>
+                                        <button type="button" class="btn-device-collapse" onclick="event.stopPropagation(); togglePortDrawer('<?php echo $drawer_id; ?>')">
+                                            <i data-lucide="layers" style="width: 12px; height: 12px;"></i>
+                                            <span><?php echo $dev_count; ?> MACs</span>
+                                            <i data-lucide="chevron-down" id="chevron-<?php echo $drawer_id; ?>" class="drawer-chevron" style="width: 12px; height: 12px;"></i>
+                                        </button>
                                     <?php endif; ?>
                                 </td>
-                                <td style="padding: 1rem;">
-                                    <div style="font-size: 0.875rem; font-weight: 600;"><?php echo htmlspecialchars($port['hostname'] ?: '-'); ?></div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);"><?php echo htmlspecialchars($port['vendor'] ?: ''); ?></div>
+
+                                <!-- Mapped IP Column -->
+                                <td style="padding: 1rem; white-space: nowrap;">
+                                    <?php if ($dev_count === 1 && !empty($single_dev['ip_addr'])): ?>
+                                        <a href="javascript:void(0)" onclick="openIpIntelligence('<?php echo $single_dev['ip_addr']; ?>')" style="color: var(--text); text-decoration: none; font-weight: 600; border-bottom: 1px dashed var(--primary); cursor: pointer;" title="Open IP Intelligence Dossier">
+                                            <?php echo htmlspecialchars($single_dev['ip_addr']); ?>
+                                        </a>
+                                    <?php elseif ($dev_count === 1): ?>
+                                        <span style="opacity: 0.35; font-size: 0.75rem;">Not in IPAM</span>
+                                    <?php elseif ($dev_count > 1): ?>
+                                        <span style="font-size: 0.75rem; color: var(--primary); font-weight: 600; cursor: pointer;" onclick="event.stopPropagation(); togglePortDrawer('<?php echo $drawer_id; ?>')">
+                                            <?php echo $dev_count; ?> Downstream Hosts
+                                        </span>
+                                    <?php else: ?>
+                                        <span style="color: var(--text-muted); font-size: 0.75rem;">-</span>
+                                    <?php endif; ?>
                                 </td>
+
+                                <!-- Hostname / Vendor Column -->
+                                <td style="padding: 1rem;">
+                                    <?php if ($dev_count === 1): ?>
+                                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--text);"><?php echo htmlspecialchars($single_dev['hostname'] ?: '-'); ?></div>
+                                        <div style="font-size: 0.75rem; color: var(--text-muted);"><?php echo htmlspecialchars($single_dev['vendor'] ?: ''); ?></div>
+                                    <?php elseif ($dev_count > 1): ?>
+                                        <span class="badge" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8; font-size: 0.7rem; padding: 2px 6px;">
+                                            Multi-Host Trunk Link
+                                        </span>
+                                    <?php else: ?>
+                                        <span style="color: var(--text-muted); font-size: 0.75rem;">-</span>
+                                    <?php endif; ?>
+                                </td>
+
+                                <!-- Action / Seen Column -->
                                 <td style="padding: 1rem; text-align: right; font-size: 0.75rem; color: var(--text-muted); white-space: nowrap;">
-                                    <?php echo date('H:i, d M', strtotime($port['last_seen_on_port'])); ?>
+                                    <?php if ($dev_count > 1): ?>
+                                        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); togglePortDrawer('<?php echo $drawer_id; ?>')" style="padding: 3px 8px; font-size: 0.75rem; gap: 4px; border-radius: 4px;">
+                                            <span>Expand</span> <i data-lucide="chevron-down" style="width: 12px; height: 12px;"></i>
+                                        </button>
+                                    <?php elseif ($dev_count === 1 && !empty($single_dev['last_seen_on_port'])): ?>
+                                        <?php echo date('H:i, d M', strtotime($single_dev['last_seen_on_port'])); ?>
+                                    <?php elseif (!empty($port['last_seen_on_port'])): ?>
+                                        <?php echo date('H:i, d M', strtotime($port['last_seen_on_port'])); ?>
+                                    <?php else: ?>
+                                        -
+                                    <?php endif; ?>
                                 </td>
                             </tr>
+
+                            <!-- Expandable Drawer Row for Multi-Device Ports -->
+                            <?php if ($dev_count > 1): ?>
+                                <tr id="<?php echo $drawer_id; ?>" class="port-device-drawer" style="display: none; background: rgba(15, 23, 42, 0.75);">
+                                    <td colspan="7" style="padding: 0.75rem 1.25rem 1.25rem 1.25rem; border-bottom: 2px solid rgba(56, 189, 248, 0.25);">
+                                        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem; box-shadow: 0 4px 14px rgba(0,0,0,0.3);">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                                                <div style="display: flex; align-items: center; gap: 8px;">
+                                                    <i data-lucide="network" style="width: 16px; height: 16px; color: var(--primary);"></i>
+                                                    <strong style="font-size: 0.85rem; color: var(--text);">
+                                                        Downstream Devices on Port <?php echo htmlspecialchars($port['port_name']); ?> 
+                                                        <span style="font-weight: 400; color: var(--text-muted); font-size: 0.75rem;">(<?php echo $dev_count; ?> MAC addresses)</span>
+                                                    </strong>
+                                                </div>
+                                                <div style="display: flex; gap: 8px; align-items: center;">
+                                                    <input type="text" 
+                                                           placeholder="Filter MAC / IP on this port..." 
+                                                           class="input-control" 
+                                                           onkeyup="filterDrawerTable(this, 'table-<?php echo $drawer_id; ?>')"
+                                                           style="padding: 4px 10px; font-size: 0.75rem; width: 220px; border-radius: 4px;">
+                                                    <button type="button" 
+                                                            class="btn btn-secondary btn-sm" 
+                                                            onclick="togglePortDrawer('<?php echo $drawer_id; ?>')" 
+                                                            style="padding: 3px 8px; font-size: 0.75rem;">
+                                                        Tutup ▲
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div style="max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: 6px;">
+                                                <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;" id="table-<?php echo $drawer_id; ?>">
+                                                    <thead>
+                                                        <tr style="background: rgba(0,0,0,0.25); position: sticky; top: 0; z-index: 2; border-bottom: 1px solid var(--border); text-align: left;">
+                                                            <th style="padding: 6px 12px; color: var(--text-muted); font-size: 0.75rem;">MAC Address</th>
+                                                            <th style="padding: 6px 12px; color: var(--text-muted); font-size: 0.75rem;">IP Address</th>
+                                                            <th style="padding: 6px 12px; color: var(--text-muted); font-size: 0.75rem;">Hostname</th>
+                                                            <th style="padding: 6px 12px; color: var(--text-muted); font-size: 0.75rem;">Vendor</th>
+                                                            <th style="padding: 6px 12px; color: var(--text-muted); font-size: 0.75rem; text-align: right;">Last Seen</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <?php foreach ($devices as $dev): ?>
+                                                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                                                                <td style="padding: 6px 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 600; color: var(--text);">
+                                                                    <?php echo htmlspecialchars($dev['mac_addr']); ?>
+                                                                </td>
+                                                                <td style="padding: 6px 12px;">
+                                                                    <?php if (!empty($dev['ip_addr'])): ?>
+                                                                        <a href="javascript:void(0)" onclick="openIpIntelligence('<?php echo $dev['ip_addr']; ?>')" style="color: var(--primary); text-decoration: none; font-weight: 600; border-bottom: 1px dashed var(--primary); cursor: pointer;">
+                                                                            <?php echo htmlspecialchars($dev['ip_addr']); ?>
+                                                                        </a>
+                                                                    <?php else: ?>
+                                                                        <span style="opacity: 0.35; font-size: 0.7rem;">Not in IPAM</span>
+                                                                    <?php endif; ?>
+                                                                </td>
+                                                                <td style="padding: 6px 12px; font-size: 0.8rem; color: var(--text);">
+                                                                    <?php echo htmlspecialchars($dev['hostname'] ?: '-'); ?>
+                                                                </td>
+                                                                <td style="padding: 6px 12px; font-size: 0.75rem; color: var(--text-muted);">
+                                                                    <?php echo htmlspecialchars($dev['vendor'] ?: '-'); ?>
+                                                                </td>
+                                                                <td style="padding: 6px 12px; text-align: right; font-size: 0.75rem; color: var(--text-muted);">
+                                                                    <?php echo !empty($dev['last_seen_on_port']) ? date('H:i, d M', strtotime($dev['last_seen_on_port'])) : '-'; ?>
+                                                                </td>
+                                                            </tr>
+                                                        <?php endforeach; ?>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>
@@ -502,11 +690,50 @@ include 'includes/header.php';
 </div>
 
 <script>
-// Port search filter
+// Drawer toggle for multi-MAC ports
+window.togglePortDrawer = function(drawerId) {
+    const drawer = document.getElementById(drawerId);
+    if (!drawer) return;
+    
+    const isHidden = drawer.style.display === 'none' || !drawer.style.display;
+    drawer.style.display = isHidden ? 'table-row' : 'none';
+    
+    const chevron = document.getElementById('chevron-' + drawerId);
+    if (chevron) {
+        chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+    if (window.lucide) lucide.createIcons();
+};
+
+// Filter downstream devices inside a specific port drawer
+window.filterDrawerTable = function(input, tableId) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    const q = input.value.toLowerCase().trim();
+    const rows = table.querySelectorAll('tbody tr');
+    rows.forEach(tr => {
+        tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none';
+    });
+};
+
+// Port search filter across main table and open/closed drawers
 document.getElementById('portSearch')?.addEventListener('input', function() {
-    const q = this.value.toLowerCase();
+    const q = this.value.toLowerCase().trim();
     document.querySelectorAll('.port-row').forEach(row => {
-        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+        const portName = row.getAttribute('data-port-name') || '';
+        const drawerId = 'drawer-' + portName.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const drawer = document.getElementById(drawerId);
+        
+        const rowText = row.textContent.toLowerCase();
+        const drawerText = drawer ? drawer.textContent.toLowerCase() : '';
+        const matches = !q || rowText.includes(q) || drawerText.includes(q);
+        
+        row.style.display = matches ? '' : 'none';
+        if (!matches && drawer) {
+            drawer.style.display = 'none';
+            const chev = document.getElementById('chevron-' + drawerId);
+            if (chev) chev.style.transform = 'rotate(0deg)';
+        }
     });
 });
 

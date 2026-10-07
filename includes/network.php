@@ -881,18 +881,31 @@ function get_vendor_by_mac($mac) {
         'B827EB' => 'Raspberry Pi', 'DCDECA' => 'Raspberry Pi',
         // Microsoft
         '00155D' => 'Microsoft (Hyper-V)',
-        // Cisco
+        // Cisco & Meraki
         '000A19' => 'Cisco', '000142' => 'Cisco', '000143' => 'Cisco',
         '000C41' => 'Cisco', '000E83' => 'Cisco', '00408C' => 'Cisco',
         'E0ACF1' => 'Cisco', 'CC46D6' => 'Cisco', '64A0E7' => 'Cisco',
+        '6C7F0C' => 'Cisco Meraki', '00180A' => 'Cisco Meraki', 'E0553D' => 'Cisco Meraki',
+        '881544' => 'Cisco Meraki', '3456FE' => 'Cisco Meraki', '0024B2' => 'Cisco Meraki', 'E4C722' => 'Cisco Meraki',
+        // Alcatel-Lucent Enterprise
+        '00809F' => 'Alcatel-Lucent', '002060' => 'Alcatel-Lucent', 'E01954' => 'Alcatel-Lucent',
+        '0026AA' => 'Alcatel-Lucent', '2CFA21' => 'Alcatel-Lucent', '706979' => 'Alcatel-Lucent',
+        // Aruba / HPE
+        '000B86' => 'HPE Aruba', '001A1E' => 'HPE Aruba', '24DEC6' => 'HPE Aruba',
+        '703A0E' => 'HPE Aruba', '84D47E' => 'HPE Aruba', '94F665' => 'HPE Aruba', 'AC4A56' => 'HPE Aruba',
+        // Ruijie / Reyee
+        '00749C' => 'Ruijie', '14144B' => 'Ruijie', '58696C' => 'Ruijie', '800588' => 'Ruijie', 'B02AE7' => 'Ruijie',
+        // Grandstream / Yealink (VoIP / IP Phone)
+        '000B82' => 'Grandstream', 'C074AD' => 'Grandstream',
+        '001565' => 'Yealink', '805E0C' => 'Yealink',
         // HP
         '000E7F' => 'HP', '00110A' => 'HP', '001708' => 'HP',
         // Dell
         '001C23' => 'Dell', '00219B' => 'Dell', '000AC7' => 'Dell', 'B083FE' => 'Dell', '24B657' => 'Dell',
         // TP-Link
-        '000D0B' => 'TP-Link', '30B5C2' => 'TP-Link', '34DAB7' => 'TP-Link', '98DA33' => 'TP-Link',
+        '000D0B' => 'TP-Link', '30B5C2' => 'TP-Link', '34DAB7' => 'TP-Link', '98DA33' => 'TP-Link', '50C7BF' => 'TP-Link', 'AC84C6' => 'TP-Link',
         // Ubiquiti
-        '00156D' => 'Ubiquiti', '24A43C' => 'Ubiquiti', 'F09FC2' => 'Ubiquiti', 'B4FBE4' => 'Ubiquiti',
+        '00156D' => 'Ubiquiti', '24A43C' => 'Ubiquiti', 'F09FC2' => 'Ubiquiti', 'B4FBE4' => 'Ubiquiti', '788A20' => 'Ubiquiti', 'E43883' => 'Ubiquiti', 'AC8B03' => 'Ubiquiti', '18E829' => 'Ubiquiti',
         // Synology
         '001132' => 'Synology',
         // Realtek
@@ -900,11 +913,13 @@ function get_vendor_by_mac($mac) {
         // D-Link
         '0009B0' => 'D-Link', '18622C' => 'D-Link',
         // MikroTik
-        '001D0F' => 'MikroTik', '4C5E0C' => 'MikroTik', '6C3B6B' => 'MikroTik', 'D4CA6D' => 'MikroTik',
+        '001D0F' => 'MikroTik', '4C5E0C' => 'MikroTik', '6C3B6B' => 'MikroTik', 'D4CA6D' => 'MikroTik', 'B869F4' => 'MikroTik', 'CC2DE0' => 'MikroTik', '488F5A' => 'MikroTik',
         // Samsung
         'A04411' => 'Samsung', '786A4F' => 'Samsung', 'EC1F72' => 'Samsung',
         // Huawei
-        '00E0FC' => 'Huawei', '48EA35' => 'Huawei', '5C7F4D' => 'Huawei',
+        '00E0FC' => 'Huawei', '48EA35' => 'Huawei', '5C7F4D' => 'Huawei', '286ED4' => 'Huawei', '707B53' => 'Huawei',
+        // ZTE
+        '0019C6' => 'ZTE', '002293' => 'ZTE', '7802F8' => 'ZTE',
         // Intel
         'A0C9A0' => 'Intel', '3C970E' => 'Intel', 'F8B156' => 'Intel',
         // Netgear
@@ -912,9 +927,9 @@ function get_vendor_by_mac($mac) {
         // Axis (IP Camera)
         '00408C' => 'Axis', 'ACCC8E' => 'Axis',
         // Hikvision (IP Camera)
-        'C03F72' => 'Hikvision', 'E0508B' => 'Hikvision',
+        'C03F72' => 'Hikvision', 'E0508B' => 'Hikvision', '4419B6' => 'Hikvision', 'A41437' => 'Hikvision',
         // Dahua (IP Camera)
-        '3C926E' => 'Dahua', '4C112F' => 'Dahua',
+        '3C926E' => 'Dahua', '4C112F' => 'Dahua', 'A0BDCD' => 'Dahua',
         // Fortinet
         '00909E' => 'Fortinet', '84410E' => 'Fortinet',
         // Juniper

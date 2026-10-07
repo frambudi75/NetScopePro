@@ -588,6 +588,24 @@ UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 --
+-- Table structure for table `switch_port_vlans`
+--
+
+CREATE TABLE IF NOT EXISTS `switch_port_vlans` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `switch_id` int(11) NOT NULL,
+  `port_name` varchar(100) NOT NULL,
+  `vlan_id` int(11) NOT NULL,
+  `vlan_name` varchar(100) DEFAULT NULL,
+  `is_tagged` tinyint(1) NOT NULL DEFAULT 1,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_unique_port_vlan` (`switch_id`, `port_name`, `vlan_id`),
+  KEY `fk_port_vlan_switch_id` (`switch_id`),
+  CONSTRAINT `fk_port_vlan_switch_id` FOREIGN KEY (`switch_id`) REFERENCES `switches` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
 -- Table structure for table `ip_conflict_events`
 --
 

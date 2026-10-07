@@ -8,13 +8,14 @@ if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-07');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
-$versions = [
     ['ver' => '2.32.0', 'date' => '2026-10-07', 'changes' => [
-        'L2 Loop Detective Module (Dedicated forensic switching loop & downstream root-cause investigator)',
-        'Investigation Path Visualizer (Multi-level trace: Core ➔ Target Switch ➔ Access Link ➔ Culprit Endpoint)',
-        'Live Telemetry Radar & Risk Meter (STP/RSTP stability, TCN activity, FDB anomalies & oscillating MAC pair)',
-        'Actionable Forensic Verdict & Scope Boundaries (Downstream isolation instructions & NOC remediation checklist)',
-        'Global Switches STP Health Matrix & Dynamic Sidebar Loop Alert Counter Badge'
+        'L2 Loop Detective & Downstream Root-Cause Investigator (Visual forensic trace: Core ➔ Switch ➔ Access Link ➔ Culprit Device)',
+        'Live Telemetry Radar & Calibrated Risk Meter (Accurate 80% high-risk CAM thrashing detection & port pair tracking)',
+        'Enterprise Hardware & OUI Detection (Cisco Meraki, Alcatel-Lucent, HPE Aruba, Ruijie, Grandstream, Yealink)',
+        'Switch Interface Inventory & Expandable Multi-Host Drawer (Accordions for trunk links & inline SFP optical telemetry)',
+        'Alcatel OmniSwitch Enterprise MIB Support (Native slMacAddressTable parsing & auto-purge of legacy fake MACs)',
+        'Multi-Device Responsive Design (Optimized mobile tree view, table-responsive horizontal swiping & adaptive drawer)',
+        'Apache Routing & Trailing-Slash Sanitizer (.htaccess rewrite guard preventing 403/500 collision on routes)'
     ]],
     ['ver' => '2.31.3', 'date' => '2026-10-04', 'changes' => [
         'SSH Channel 1 Collision Fix (Eliminated "Please close the channel (1)" runtime exception)',

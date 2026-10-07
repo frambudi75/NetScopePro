@@ -252,6 +252,47 @@ foreach ($switches as $s) {
     max-height: 400px;
     overflow-y: auto;
 }
+
+@media (max-width: 640px) {
+    .forensic-workspace {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    .path-node {
+        grid-template-columns: 36px 1fr;
+        padding-bottom: 1rem;
+    }
+    .path-circle {
+        width: 28px;
+        height: 28px;
+    }
+    .path-circle svg {
+        width: 14px;
+        height: 14px;
+    }
+    .path-line {
+        top: 28px;
+    }
+    .path-content {
+        margin-left: 0.25rem;
+        padding: 0.75rem 0.85rem;
+    }
+    .path-node-title {
+        font-size: 0.85rem;
+    }
+    .path-node-meta {
+        font-size: 0.7rem;
+    }
+    .path-node-desc {
+        font-size: 0.75rem;
+    }
+    .verdict-box {
+        padding: 1rem;
+    }
+    .detective-card {
+        padding: 1rem;
+    }
+}
 </style>
 
 <div class="detective-header">
