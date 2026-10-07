@@ -352,7 +352,7 @@ foreach ($switches as $s) {
                 }
                 ?>
                 <option value="<?php echo $sw['id']; ?>" <?php echo $sw['id'] == $selected_switch_id ? 'selected' : ''; ?>>
-                    <?php echo htmlspecialchars($sw['name'] . ' (' . $sw['ip_address'] . ')' . $sw_alert); ?>
+                    <?php echo htmlspecialchars($sw['name'] . ' (' . ($sw['ip_addr'] ?? '') . ')' . $sw_alert); ?>
                 </option>
             <?php endforeach; ?>
         </select>
@@ -388,7 +388,7 @@ foreach ($switches as $s) {
             <div>
                 <div style="font-size: 0.85rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between;">
                     <span>🔎 Live Telemetry Radar</span>
-                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400; font-family: 'JetBrains Mono', monospace;"><?php echo htmlspecialchars($sw['ip_address']); ?></span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400; font-family: 'JetBrains Mono', monospace;"><?php echo htmlspecialchars($sw['ip_addr'] ?? ''); ?></span>
                 </div>
 
                 <div class="radar-item">
@@ -593,7 +593,7 @@ foreach ($switches as $s) {
                             <?php endif; ?>
                         </td>
                         <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
-                            <?php echo htmlspecialchars($sw['ip_address']); ?>
+                            <?php echo htmlspecialchars($sw['ip_addr'] ?? ''); ?>
                         </td>
                         <td style="color: var(--text-muted);">
                             <?php echo htmlspecialchars($sw['model'] ?: 'Generic Switch'); ?>
