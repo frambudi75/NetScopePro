@@ -8,6 +8,7 @@ if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-07');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
+$versions = [
     ['ver' => '2.32.0', 'date' => '2026-10-07', 'changes' => [
         'L2 Loop Detective & Downstream Root-Cause Investigator (Visual forensic trace: Core ➔ Switch ➔ Access Link ➔ Culprit Device)',
         'Live Telemetry Radar & Calibrated Risk Meter (Accurate 80% high-risk CAM thrashing detection & port pair tracking)',
