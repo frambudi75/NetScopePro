@@ -25,7 +25,16 @@
                         <span style="opacity: 0.3; font-size: 0.8rem;">/</span> 
                         <span style="display: flex; align-items: center; gap: 6px; font-weight: 500;">
                             <?php 
-                            $icon_map = ['Dashboard' => 'layout-dashboard', 'Reports' => 'bar-chart-3', 'Subnets' => 'layers', 'Devices' => 'monitor', 'Managed Switches' => 'server', 'Topology' => 'map'];
+                            $icon_map = [
+                                'Dashboard' => 'layout-dashboard',
+                                'Reports' => 'bar-chart-3',
+                                'Subnets' => 'layers',
+                                'Devices' => 'monitor',
+                                'Managed Switches' => 'server',
+                                'Topology' => 'map',
+                                'Conflict Center' => 'shield-alert',
+                                'Loop Detective' => 'search-check'
+                            ];
                             $current_icon = $icon_map[$page_title] ?? 'hash';
                             ?>
                             <i data-lucide="<?php echo $current_icon; ?>" style="width: 14px; color: var(--primary);"></i>

@@ -187,6 +187,9 @@ try {
                 </div>
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <a href="loop-detective" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.5rem 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem;">
+                    <i data-lucide="search-check" style="width: 14px;"></i> Open Loop Detective
+                </a>
                 <a href="switches" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 0.85rem; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5; display: inline-flex; align-items: center; gap: 0.4rem;">
                     <i data-lucide="server" style="width: 14px;"></i> View Switches
                 </a>
@@ -198,8 +201,8 @@ try {
                     <span style="font-weight: 700; color: #fff; font-size: 0.85rem;"><?php echo htmlspecialchars($lsw['name']); ?></span>
                     <code style="font-size: 0.75rem; color: #fca5a5;"><?php echo htmlspecialchars($lsw['ip_addr']); ?></code>
                     <span style="font-size: 0.75rem; color: #f87171;"><?php echo htmlspecialchars($lsw['loop_details'] ?: 'Loop detected'); ?></span>
-                    <a href="tools?action=loop&target=<?php echo urlencode($lsw['ip_addr']); ?>" class="btn" style="padding: 2px 8px; font-size: 0.7rem; background: rgba(59,130,246,0.2); color: #93c5fd;">
-                        Diagnosa Loop &rarr;
+                    <a href="loop-detective?switch_id=<?php echo (int)($lsw['id'] ?? 0); ?>" class="btn" style="padding: 2px 8px; font-size: 0.7rem; background: rgba(56,189,248,0.2); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.3);">
+                        Investigasi &rarr;
                     </a>
                 </div>
             <?php endforeach; ?>
