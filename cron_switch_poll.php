@@ -937,7 +937,28 @@ foreach ($switches as $switch) {
 
             // Flap sensitivity threshold: minimum distinct MACs flapping on the EXACT same port pair
             $flap_threshold = max(3, (int)Settings::get('loop_flap_threshold', 5));
-            $is_real_flapping_loop = ($top_pair !== null && $max_pair_flaps >= $flap_threshold);
+
+            // Differentiate Access-to-Access loop (physical cable loop) vs Access-to-Uplink (normal Wi-Fi AP roaming)
+            $is_access_to_access = false;
+            if ($top_pair !== null && strpos($top_pair, ' <-> ') !== false) {
+                list($tp1, $tp2) = explode(' <-> ', $top_pair);
+                $tp1_up = $fnIsUplink(trim($tp1));
+                $tp2_up = $fnIsUplink(trim($tp2));
+                $is_access_to_access = (!$tp1_up && !$tp2_up);
+            }
+
+            // Real Loop Evaluation:
+            // 1. True Cable Loop: 2 Access ports looping frames back-to-back (>= flap_threshold)
+            // 2. Uplink Roaming vs Storm: If an uplink/trunk is involved, require massive flood (>= 20 MACs)
+            //    to avoid false positives caused by normal mobile Wi-Fi client roaming across APs.
+            $is_real_flapping_loop = false;
+            if ($top_pair !== null) {
+                if ($is_access_to_access && $max_pair_flaps >= $flap_threshold) {
+                    $is_real_flapping_loop = true;
+                } elseif ($max_pair_flaps >= 20) {
+                    $is_real_flapping_loop = true;
+                }
+            }
 
             // Identify Root-Cause End Device on Access port if a REAL loop or blocked port is confirmed
             $culprit_info = null;

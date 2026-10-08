@@ -695,7 +695,6 @@ function run_auto_migrations($db) {
             UPDATE switches 
             SET loop_detected = 0, loop_details = NULL 
             WHERE loop_detected = 1 
-              AND (loop_details LIKE '%End-device thrashing on Access port%' OR loop_details IS NULL)
               AND id NOT IN (
                   SELECT DISTINCT switch_id FROM switch_port_map WHERE stp_state = 'blocking' AND LOWER(port_status) = 'up'
               )
