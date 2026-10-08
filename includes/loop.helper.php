@@ -132,38 +132,88 @@ class LoopDetectiveHelper {
             // Only parse if it represents an actual loop or quarantine (not an obsolete single-MAC move)
             $is_obsolete_single = (stripos($switch['loop_details'], 'End-device thrashing on Access port') !== false && stripos($switch['loop_details'], 'High-frequency') === false);
             if (!$is_obsolete_single) {
+                $parsed_mac = null;
                 if (preg_match('/([0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2})/', $switch['loop_details'], $m)) {
-                    $parsed_mac = strtoupper(str_replace('-', ':', $m[1]));
-                    if ($isValidHostMac($parsed_mac)) {
-                        $port_match = '';
-                        if (preg_match('/(?:Access port|port|Port)\s+([a-zA-Z0-9_\-\.\/]+)/i', $switch['loop_details'], $pm)) {
-                            $port_match = $pm[1];
-                        }
+                    $test_mac = strtoupper(str_replace('-', ':', $m[1]));
+                    if ($isValidHostMac($test_mac)) {
+                        $parsed_mac = $test_mac;
+                    }
+                }
 
-                        // Resolve candidate uplink port on this switch
-                        $candidate_uplink = !empty($blocked_ports) ? $blocked_ports[0] : null;
-                        if (!$candidate_uplink) {
-                            foreach ($all_ports as $ap) {
-                                $ap_name = $ap['port_name'];
-                                if ($port_match && $ap_name === $port_match) continue;
-                                $cnt = $port_mac_counts[$ap_name] ?? 0;
-                                if (self::isUplinkPort($ap_name, '', $cnt, $tagged_ports)) {
-                                    $candidate_uplink = $ap_name;
-                                    break;
-                                }
+                // Parse port pair in "between PortA <-> PortB" or "between PortA ↔ PortB"
+                $pair_match_a = null;
+                $pair_match_b = null;
+                if (preg_match('/between\s+([a-zA-Z0-9_\-\.\/]+)\s*(?:<->|↔)\s*([a-zA-Z0-9_\-\.\/]+)/i', $switch['loop_details'], $pm)) {
+                    $pair_match_a = trim($pm[1]);
+                    $pair_match_b = trim($pm[2]);
+                }
+
+                if ($pair_match_a && $pair_match_b) {
+                    // If no explicit MAC in string, fetch a representative host MAC from switch_port_map on these ports
+                    if (!$parsed_mac) {
+                        try {
+                            $smStmt = $db->prepare("
+                                SELECT mac_addr FROM switch_port_map 
+                                WHERE switch_id = ? AND port_name IN (?, ?) 
+                                  AND mac_addr NOT LIKE 'PORT:%' AND mac_addr NOT LIKE '00:00:00:%' 
+                                ORDER BY updated_at DESC LIMIT 1
+                            ");
+                            $smStmt->execute([$switch['id'], $pair_match_a, $pair_match_b]);
+                            $found_mac = $smStmt->fetchColumn();
+                            if ($found_mac && $isValidHostMac($found_mac)) {
+                                $parsed_mac = strtoupper($found_mac);
+                            }
+                        } catch (Exception $e) {}
+                    }
+                    if (!$parsed_mac) {
+                        $parsed_mac = 'Oscillating CAM Group';
+                    }
+
+                    $pA_cnt = $port_mac_counts[$pair_match_a] ?? 0;
+                    $pB_cnt = $port_mac_counts[$pair_match_b] ?? 0;
+                    $pA_up = self::isUplinkPort($pair_match_a, '', $pA_cnt, $tagged_ports);
+                    $pB_up = self::isUplinkPort($pair_match_b, '', $pB_cnt, $tagged_ports);
+
+                    $origin_p = (!$pA_up && $pB_up) ? $pair_match_a : ((!$pB_up && $pA_up) ? $pair_match_b : $pair_match_a);
+                    $transit_p = ($origin_p === $pair_match_a) ? $pair_match_b : $pair_match_a;
+
+                    $flapping_macs[] = [
+                        'mac_addr'            => $parsed_mac,
+                        'port_cnt'            => 2,
+                        'port_pair'           => "{$pair_match_a} ↔ {$pair_match_b}",
+                        'origin_port'         => $origin_p,
+                        'origin_switch_name'  => $switch['name'],
+                        'transit_port'        => $transit_p
+                    ];
+                } elseif ($parsed_mac) {
+                    $port_match = '';
+                    if (preg_match('/(?:Access port|port|Port)\s+([a-zA-Z0-9_\-\.\/]+)/i', $switch['loop_details'], $pm)) {
+                        $port_match = $pm[1];
+                    }
+
+                    // Resolve candidate uplink port on this switch
+                    $candidate_uplink = !empty($blocked_ports) ? $blocked_ports[0] : null;
+                    if (!$candidate_uplink) {
+                        foreach ($all_ports as $ap) {
+                            $ap_name = $ap['port_name'];
+                            if ($port_match && $ap_name === $port_match) continue;
+                            $cnt = $port_mac_counts[$ap_name] ?? 0;
+                            if (self::isUplinkPort($ap_name, '', $cnt, $tagged_ports)) {
+                                $candidate_uplink = $ap_name;
+                                break;
                             }
                         }
-
-                        $uplink_label = $candidate_uplink ? "{$candidate_uplink} (Uplink)" : "Uplink";
-                        $flapping_macs[] = [
-                            'mac_addr'            => $parsed_mac,
-                            'port_cnt'            => 2,
-                            'port_pair'           => $port_match ? "{$port_match} ↔ {$uplink_label}" : "Access ↔ {$uplink_label}",
-                            'origin_port'         => $port_match ?: null,
-                            'origin_switch_name'  => $switch['name'],
-                            'transit_port'        => $candidate_uplink ?: 'Uplink'
-                        ];
                     }
+
+                    $uplink_label = $candidate_uplink ? "{$candidate_uplink} (Uplink)" : "Uplink";
+                    $flapping_macs[] = [
+                        'mac_addr'            => $parsed_mac,
+                        'port_cnt'            => 2,
+                        'port_pair'           => $port_match ? "{$port_match} ↔ {$uplink_label}" : "Access ↔ {$uplink_label}",
+                        'origin_port'         => $port_match ?: null,
+                        'origin_switch_name'  => $switch['name'],
+                        'transit_port'        => $candidate_uplink ?: 'Uplink'
+                    ];
                 }
             }
         }
@@ -610,6 +660,9 @@ class LoopDetectiveHelper {
                 ];
             } else {
                 $uplink_str = ($uplink_port && strtolower($uplink_port) !== 'uplink') ? "Port {$uplink_port}" : "Uplink";
+                $status_msg = !empty($blocked_ports)
+                    ? "{$uplink_str} di-block oleh STP. Cari perangkat di port access yang tercolok 2 kabel atau bridging."
+                    : "Sirkulasi frame terdeteksi pada {$uplink_str}. Periksa kabel loop atau unmanaged switch pada segmen ini.";
                 $culprit_info = [
                     'level'       => 4,
                     'role'        => 'CULPRIT_DEVICE',
@@ -617,7 +670,7 @@ class LoopDetectiveHelper {
                     'ip'          => 'Periksa Perangkat di Port Access',
                     'model'       => 'IP Phone / PABX / Unmanaged Switch / PC Dual-NIC',
                     'status'      => 'culprit',
-                    'status_text' => "{$uplink_str} di-block oleh STP. Cari perangkat di port access yang tercolok 2 kabel atau bridging.",
+                    'status_text' => $status_msg,
                     'badge'       => 'ROOT CAUSE SUSPECT',
                     'badge_color' => '#f97316'
                 ];

@@ -700,6 +700,8 @@ function run_auto_migrations($db) {
                   SELECT DISTINCT switch_id FROM switch_port_map WHERE stp_state = 'blocking' AND LOWER(port_status) = 'up'
               )
         ");
+        $db->exec("DELETE FROM switch_port_map WHERE port_name = 'Port 0' OR port_name = '0'");
+        $db->exec("UPDATE switches SET loop_detected = 0, loop_details = NULL WHERE loop_details LIKE '%Port 0%'");
         $db->exec("
             UPDATE ip_conflict_events 
             SET status = 'resolved', resolved_at = NOW(), resolved_by = 'system_anti_false_positive' 
