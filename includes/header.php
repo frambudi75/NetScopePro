@@ -6,6 +6,16 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='%2358a6ff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'><rect x='16' y='16' width='6' height='6' rx='1'/><rect x='2' y='16' width='6' height='6' rx='1'/><rect x='9' y='2' width='6' height='6' rx='1'/><path d='M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3'/><path d='M12 12V8'/></svg>">
     <title><?php echo isset($page_title) ? $page_title . ' - ' . APP_NAME : APP_NAME; ?></title>
     <link rel="stylesheet" href="assets/css/style.css?v=<?php echo APP_VERSION; ?>">
+    <script>
+        // Synchronously restore collapsed sidebar state to eliminate layout shift (CLS)
+        (function() {
+            try {
+                if (window.innerWidth > 1024 && localStorage.getItem('netscope_sidebar_collapsed') === 'true') {
+                    document.documentElement.classList.add('sidebar-collapsed');
+                }
+            } catch(e) {}
+        })();
+    </script>
     <script src="assets/js/lucide.min.js"></script>
     <script src="assets/js/chart.min.js"></script>
     <script src="assets/js/universal-search.js" defer></script>
@@ -16,7 +26,7 @@
         <main class="main-content">
             <header class="top-header">
                 <div style="display: flex; align-items: center; gap: 1rem;">
-                    <button id="menu-toggle" class="btn" style="padding: 6px; display: none; background: var(--surface-light); color: var(--text-muted); border: 1px solid var(--border);">
+                    <button id="menu-toggle" class="btn menu-toggle-btn" type="button" title="Toggle Navigation Sidebar">
                         <i data-lucide="menu"></i>
                     </button>
                     <div class="breadcrumb" style="display: flex; align-items: center; gap: 8px;">

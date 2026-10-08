@@ -90,21 +90,57 @@
     <script>
         lucide.createIcons();
         
-        // Mobile Sidebar Toggle
+        // Sidebar Navigation Controller (Desktop Collapse & Mobile Drawer)
         const menuBtn = document.getElementById('menu-toggle');
+        const collapseBtn = document.getElementById('sidebar-collapse-btn');
         const sidebar = document.querySelector('.sidebar');
-        if (menuBtn && sidebar) {
+
+        function updateCollapseIcon(isCollapsed) {
+            if (collapseBtn) {
+                const icon = collapseBtn.querySelector('i') || collapseBtn.querySelector('svg');
+                if (icon) {
+                    icon.setAttribute('data-lucide', isCollapsed ? 'panel-left-open' : 'panel-left-close');
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        function toggleSidebarNavigation() {
+            if (window.innerWidth <= 1024) {
+                if (sidebar) sidebar.classList.toggle('active');
+            } else {
+                const isCollapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+                try {
+                    localStorage.setItem('netscope_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+                } catch(e) {}
+                updateCollapseIcon(isCollapsed);
+            }
+        }
+
+        // Initialize collapse button icon state
+        if (document.documentElement.classList.contains('sidebar-collapsed')) {
+            updateCollapseIcon(true);
+        }
+
+        if (menuBtn) {
             menuBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                sidebar.classList.toggle('active');
-            });
-            
-            document.addEventListener('click', (e) => {
-                if (!sidebar.contains(e.target) && sidebar.classList.contains('active')) {
-                    sidebar.classList.remove('active');
-                }
+                toggleSidebarNavigation();
             });
         }
+
+        if (collapseBtn) {
+            collapseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleSidebarNavigation();
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 1024 && sidebar && !sidebar.contains(e.target) && sidebar.classList.contains('active')) {
+                sidebar.classList.remove('active');
+            }
+        });
     </script>
 </body>
 </html>

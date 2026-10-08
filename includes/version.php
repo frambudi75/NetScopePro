@@ -14,7 +14,8 @@ $versions = [
         'Click-to-Inspect Architecture: Active Port Inspector Card showing speed, duplex, PVID untagged, tagged VLAN chips, and connected hosts',
         'Hardware Temperature Polling Engine across Cisco, Alcatel, MikroTik, Huawei, Juniper, HP/Aruba, Extreme, Dell, and Fortinet',
         'Dynamic Temperature Gauge widget with real-time SSE stream telemetry in api/switch-health-stream.php',
-        'Clean numbered port faceplate labels & Apache DirectorySlash fix in .htaccess'
+        'Clean numbered port faceplate labels & Apache DirectorySlash fix in .htaccess',
+        'Collapsible Desktop Mini-Sidebar / Icon-Rail mode (68px) with persistent localStorage state & +192px workspace expansion'
     ]],
     ['ver' => '2.32.6', 'date' => '2026-10-08', 'changes' => [
         'Evidence Reasoning & Transparency Matrix in loop-detective.php (Correlated Evidence Checklist & Anti-Noise Disqualification Panel)',
