@@ -3,12 +3,19 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.32.6');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.0');
 if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-08');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.33.0', 'date' => '2026-10-08', 'changes' => [
+        'Interactive Switch Physical Faceplate Visualizer in switch-details.php (Dual-row RJ45 matrix & dedicated SFP optical bays with status LEDs)',
+        'Click-to-Inspect Architecture: Active Port Inspector Card showing speed, duplex, PVID untagged, tagged VLAN chips, and connected hosts',
+        'Hardware Temperature Polling Engine across Cisco, Alcatel, MikroTik, Huawei, Juniper, HP/Aruba, Extreme, Dell, and Fortinet',
+        'Dynamic Temperature Gauge widget with real-time SSE stream telemetry in api/switch-health-stream.php',
+        'Clean numbered port faceplate labels & Apache DirectorySlash fix in .htaccess'
+    ]],
     ['ver' => '2.32.6', 'date' => '2026-10-08', 'changes' => [
         'Evidence Reasoning & Transparency Matrix in loop-detective.php (Correlated Evidence Checklist & Anti-Noise Disqualification Panel)',
         'L2 Multi-Evidence Correlation Engine (FDB Candidate-Only architecture: FDB table alone never triggers LOOP_DETECTED)',
