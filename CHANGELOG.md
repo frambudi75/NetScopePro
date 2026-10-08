@@ -2,6 +2,17 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.32.1] - 2026-10-08
+### Fixed & Enhanced
+- **Alcatel OmniSwitch 802.1Q Tagged Trunk VLAN Resolution (`cron_switch_poll.php`)**:
+  - Integrated native Alcatel Enterprise VLAN Manager MIB `vpaTable` (`.1.3.6.1.4.1.6486.800.1.2.1.3.1.1.2.1.1.3` and `.801...`) to discover trunk tagged VLANs alongside fallback tables.
+  - Added support for Alcatel `vlanDescription` (`.1.3.6.1.4.1.6486.800/801.1.2.1.3.1.1.1.1.1.2`) to fetch descriptive VLAN labels.
+  - Implemented Phase 1.5 direct registration: all discovered tagged VLANs per interface are committed into `switch_port_vlans` immediately, even if no active host MACs are currently attached to the trunk.
+  - Added dynamic traffic tag learning: packets arriving on non-PVID VLANs on trunk interfaces automatically register that VLAN into `switch_port_vlans`.
+- **Sequential Dummy MAC Auto-Purge & Filter (`cron_switch_poll.php` & `includes/db.php`)**:
+  - Corrected dummy MAC prefix matching from `00:00:00:00:00%` to `00:00:00:00:%`.
+  - Automatically clears existing legacy fake sequential MAC records (e.g. `00:00:00:00:01:00`, `00:00:00:00:E6:78`) generated from RFC 1493 Bridge MIB index walks on trunk/uplink ports.
+
 ## [2.32.0] - 2026-10-07
 ### Added & Enhanced
 - **L2 Loop Detective Module (`loop-detective.php` & `includes/loop.helper.php`)**:

@@ -3,12 +3,17 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.32.0');
-if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-07');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.32.1');
+if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-08');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.32.1', 'date' => '2026-10-08', 'changes' => [
+        'Alcatel OmniSwitch 802.1Q Tagged VLAN Discovery (vpaTable .1.3.6.1.4.1.6486.800/801.1.2.1.3 and vlanDescription support)',
+        'Direct Trunk/Tagged Interface Auto-Registration into switch_port_vlans across both static configuration and dynamic traffic',
+        'Auto-Purge & Filter for Sequential Dummy MACs (00:00:00:00:xx:xx from legacy bridge MIB index walks on trunk ports)'
+    ]],
     ['ver' => '2.32.0', 'date' => '2026-10-07', 'changes' => [
         'L2 Loop Detective & Downstream Root-Cause Investigator (Visual forensic trace: Core ➔ Switch ➔ Access Link ➔ Culprit Device)',
         'Live Telemetry Radar & Calibrated Risk Meter (Accurate 80% high-risk CAM thrashing detection & port pair tracking)',
