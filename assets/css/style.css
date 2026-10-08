@@ -390,12 +390,19 @@ ul {
 
 .grid-side-detail {
     display: grid;
-    grid-template-columns: 350px 1fr;
+    grid-template-columns: 320px minmax(0, 1fr);
     gap: 1.5rem;
     align-items: start;
+    min-width: 0;
+    max-width: 100%;
 }
 
-@media (max-width: 1024px) {
+.grid-side-detail > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+@media (max-width: 1100px) {
     .grid-2-1, .grid-side-detail {
         grid-template-columns: 1fr;
     }

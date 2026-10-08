@@ -475,6 +475,27 @@ include 'includes/header.php';
     padding: 14px 18px;
     box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.7), 0 4px 14px rgba(0, 0, 0, 0.25);
     overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: #334155 #0b1120;
+    -webkit-overflow-scrolling: touch;
+}
+.faceplate-chassis::-webkit-scrollbar {
+    height: 7px;
+}
+.faceplate-chassis::-webkit-scrollbar-track {
+    background: #0b1120;
+    border-radius: 4px;
+}
+.faceplate-chassis::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+}
+.faceplate-chassis::-webkit-scrollbar-thumb:hover {
+    background: #38bdf8;
 }
 .faceplate-bezel-bar {
     display: flex;
@@ -614,6 +635,64 @@ include 'includes/header.php';
 @keyframes inspectorFadeIn {
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive Grid & Faceplate Layout */
+.grid-side-detail {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+    min-width: 0;
+    max-width: 100%;
+}
+.grid-side-detail > * {
+    min-width: 0;
+    max-width: 100%;
+}
+#switch-ports-main-card {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+}
+#faceplate-view-container {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+}
+.inspector-grid {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.35fr);
+    gap: 1.25rem;
+    min-width: 0;
+    max-width: 100%;
+}
+.inspector-grid > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+@media (max-width: 1100px) {
+    .grid-side-detail {
+        grid-template-columns: 1fr;
+    }
+}
+@media (max-width: 860px) {
+    .inspector-grid {
+        grid-template-columns: 1fr;
+    }
+    .faceplate-chassis {
+        padding: 10px 12px;
+    }
+    .fp-port-btn {
+        width: 38px;
+        min-width: 38px;
+        max-width: 38px;
+        height: 38px;
+    }
+    .fp-port-num {
+        font-size: 0.78rem;
+    }
 }
 </style>
 
@@ -955,7 +1034,7 @@ include 'includes/header.php';
                 </div>
 
                 <!-- Inspector 2-Column Grid -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem;">
+                <div class="inspector-grid">
                     <!-- Column 1: Interface & VLAN Configuration -->
                     <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.1rem; display: flex; flex-direction: column; gap: 0.85rem;">
                         <h4 style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin: 0; display: flex; align-items: center; gap: 6px;">
@@ -1755,7 +1834,7 @@ window.inspectPort = function(portName) {
             });
 
             devicesContainer.innerHTML = `
-                <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--surface);">
+                <div style="max-height: 250px; overflow-y: auto; overflow-x: auto; max-width: 100%; border: 1px solid var(--border); border-radius: 6px; background: var(--surface);">
                     <table style="width:100%; border-collapse:collapse; font-size:0.8rem;" id="insp-devices-table">
                         <thead>
                             <tr style="background:rgba(0,0,0,0.3); position:sticky; top:0; z-index:2; border-bottom:1px solid var(--border); text-align:left;">
