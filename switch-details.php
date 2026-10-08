@@ -139,13 +139,16 @@ foreach ($grouped_ports as $pname => $port) {
         $faceplate_online_count++;
     }
 
-    // Extract clean display label (e.g. Alcatel 1/24 -> 24, Cisco Gi1/0/24 -> 24, MikroTik ether3-to-Sw -> 3)
+    // Extract clean display label across all switch vendors (Alcatel, Cisco, HP/Aruba, Juniper, Huawei, MikroTik, Extreme, Dell)
     $label = (string)$pname;
-    if (preg_match('/\/(\d+)(?:[^\d]*)$/', $pname, $m)) {
-        // Slash notation (Alcatel 1/24, Cisco Gi1/0/24, 1/1/48, Juniper ge-0/0/1 -> digits after last slash)
+    if (preg_match('/^([A-Za-z]\d{1,2})$/', $pname, $m)) {
+        // HP ProCurve slot letter notation (e.g. A1..A24, B1..B24)
+        $label = strtoupper($m[1]);
+    } elseif (preg_match('/[\/:](\d+)(?:[^\d]*)$/', $pname, $m)) {
+        // Multi-tier slash or colon notation (Alcatel 1/24, Cisco Gi1/0/24, Aruba 1/1/48, Juniper ge-0/0/1, Extreme 1:24)
         $label = $m[1];
-    } elseif (preg_match('/(?:ether|ge|fe|fa|gi|te|xe|po|port|eth|sfp)[\s\/\-\.]*(\d+)/i', $pname, $m)) {
-        // Named interfaces (ether1, ether3-to-Sw, port4, sfp1)
+    } elseif (preg_match('/(?:ether|ge|fe|fa|gi|te|xe|et|po|trk|port|eth|sfp|combo|ae)[\s\/\-\.]*(\d+)/i', $pname, $m)) {
+        // Named interfaces (MikroTik ether3-to-Sw, Cisco Po1, Juniper ae0, Aruba Trk1, sfp1)
         $label = $m[1];
     } elseif (preg_match('/(\d+)(?:[^\d]*)$/', $pname, $m)) {
         // Trailing digits (LAN 5, Port10, eth12)
