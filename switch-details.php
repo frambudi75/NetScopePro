@@ -139,13 +139,19 @@ foreach ($grouped_ports as $pname => $port) {
         $faceplate_online_count++;
     }
 
-    // Extract clean display label (e.g. ether1 -> 1, ether3-to-Sw -> 3, Gi0/12 -> 12, 1/1/24 -> 24)
+    // Extract clean display label (e.g. Alcatel 1/24 -> 24, Cisco Gi1/0/24 -> 24, MikroTik ether3-to-Sw -> 3)
     $label = (string)$pname;
-    if (preg_match('/(?:ether|ge|fe|fa|gi|te|xe|po|port|eth|sfp)[\s\/\-\.]*(\d+)/i', $pname, $m)) {
+    if (preg_match('/\/(\d+)(?:[^\d]*)$/', $pname, $m)) {
+        // Slash notation (Alcatel 1/24, Cisco Gi1/0/24, 1/1/48, Juniper ge-0/0/1 -> digits after last slash)
         $label = $m[1];
-    } elseif (preg_match('/(?:^|[^\d])(\d+)(?:[^\d]|$)/', $pname, $m)) {
+    } elseif (preg_match('/(?:ether|ge|fe|fa|gi|te|xe|po|port|eth|sfp)[\s\/\-\.]*(\d+)/i', $pname, $m)) {
+        // Named interfaces (ether1, ether3-to-Sw, port4, sfp1)
+        $label = $m[1];
+    } elseif (preg_match('/(\d+)(?:[^\d]*)$/', $pname, $m)) {
+        // Trailing digits (LAN 5, Port10, eth12)
         $label = $m[1];
     } elseif (preg_match('/(\d+)/', $pname, $m)) {
+        // Any digits fallback
         $label = $m[1];
     }
     if (mb_strlen($label) > 4) {
