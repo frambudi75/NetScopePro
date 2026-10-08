@@ -932,51 +932,71 @@ foreach ($switches as $switch) {
                 }
             }
 
-            // Identify Root-Cause End Device on Access port if available
-            $culprit_info = null;
-            if (!empty($access_suspects)) {
-                $best_suspect = $access_suspects[0];
-                $s_mac = $best_suspect['mac'];
-                $s_vendor = function_exists('get_vendor_by_mac') ? get_vendor_by_mac($s_mac) : 'Unknown';
-                
-                // Lookup IP & Hostname
-                $ipStmt = $db->prepare("SELECT ip_addr, hostname, vendor, description FROM ip_addresses WHERE mac_addr = ? LIMIT 1");
-                $ipStmt->execute([$s_mac]);
-                $ipRow = $ipStmt->fetch(PDO::FETCH_ASSOC);
-
-                $dev_ip = $ipRow['ip_addr'] ?? null;
-                $dev_host = $ipRow['hostname'] ?? null;
-                $dev_name = $dev_host ?: ($s_vendor !== 'Unknown' ? "$s_vendor Device" : "End-Device");
-
-                $culprit_info = [
-                    'mac'          => $s_mac,
-                    'vendor'       => $s_vendor,
-                    'ip'           => $dev_ip,
-                    'name'         => $dev_name,
-                    'access_port'  => $best_suspect['access_port'],
-                    'transit_port' => $best_suspect['transit_port']
-                ];
-
-                // Log into ip_conflict_events table for forensic auditing
-                try {
-                    $ceStmt = $db->prepare("
-                        INSERT INTO ip_conflict_events 
-                        (ip_addr, mac_a, vendor_a, switch_port_a, switch_port_b, event_type, details, flap_count, status, detected_at)
-                        VALUES (?, ?, ?, ?, ?, 'flapping', ?, 1, 'active', NOW())
-                    ");
-                    $ceStmt->execute([
-                        $dev_ip ?: '0.0.0.0',
-                        $s_mac,
-                        $s_vendor,
-                        $best_suspect['access_port'],
-                        $best_suspect['transit_port'],
-                        "End-device thrashing on Access port {$best_suspect['access_port']} bouncing to {$best_suspect['transit_port']}"
-                    ]);
-                } catch (Exception $e) {}
-            }
-
             // Flap sensitivity threshold: minimum distinct MACs flapping on the EXACT same port pair
             $flap_threshold = max(3, (int)Settings::get('loop_flap_threshold', 5));
+            $is_real_flapping_loop = ($top_pair !== null && $max_pair_flaps >= $flap_threshold);
+
+            // Identify Root-Cause End Device on Access port if a REAL loop or blocked port is confirmed
+            $culprit_info = null;
+            if (!empty($access_suspects) && ($is_real_flapping_loop || !empty($stp_blocked_ports))) {
+                $matched_suspect = null;
+                if ($is_real_flapping_loop) {
+                    foreach ($access_suspects as $as) {
+                        $p_key = ($as['access_port'] < $as['transit_port'])
+                            ? "{$as['access_port']} <-> {$as['transit_port']}"
+                            : "{$as['transit_port']} <-> {$as['access_port']}";
+                        if ($p_key === $top_pair) {
+                            $matched_suspect = $as;
+                            break;
+                        }
+                    }
+                } elseif (!empty($stp_blocked_ports)) {
+                    $matched_suspect = $access_suspects[0];
+                }
+
+                if ($matched_suspect) {
+                    $s_mac = $matched_suspect['mac'];
+                    $s_vendor = function_exists('get_vendor_by_mac') ? get_vendor_by_mac($s_mac) : 'Unknown';
+                    
+                    // Lookup IP & Hostname
+                    $ipStmt = $db->prepare("SELECT ip_addr, hostname, vendor, description FROM ip_addresses WHERE mac_addr = ? LIMIT 1");
+                    $ipStmt->execute([$s_mac]);
+                    $ipRow = $ipStmt->fetch(PDO::FETCH_ASSOC);
+
+                    $dev_ip = $ipRow['ip_addr'] ?? null;
+                    $dev_host = $ipRow['hostname'] ?? null;
+                    $dev_name = $dev_host ?: ($s_vendor !== 'Unknown' ? "$s_vendor Device" : "End-Device");
+
+                    $culprit_info = [
+                        'mac'          => $s_mac,
+                        'vendor'       => $s_vendor,
+                        'ip'           => $dev_ip,
+                        'name'         => $dev_name,
+                        'access_port'  => $matched_suspect['access_port'],
+                        'transit_port' => $matched_suspect['transit_port']
+                    ];
+
+                    // Log into ip_conflict_events table ONLY for confirmed high-frequency loop events
+                    if ($is_real_flapping_loop) {
+                        try {
+                            $ceStmt = $db->prepare("
+                                INSERT INTO ip_conflict_events 
+                                (ip_addr, mac_a, vendor_a, switch_port_a, switch_port_b, event_type, details, flap_count, status, detected_at)
+                                VALUES (?, ?, ?, ?, ?, 'flapping', ?, ?, 'active', NOW())
+                            ");
+                            $ceStmt->execute([
+                                $dev_ip ?: '0.0.0.0',
+                                $s_mac,
+                                $s_vendor,
+                                $matched_suspect['access_port'],
+                                $matched_suspect['transit_port'],
+                                "MAC thrashing ($max_pair_flaps MACs) on Access port {$matched_suspect['access_port']} bouncing to {$matched_suspect['transit_port']}",
+                                $max_pair_flaps
+                            ]);
+                        } catch (Exception $e) {}
+                    }
+                }
+            }
 
             // Assess Loop Condition
             $prev_loop_detected = (int)($switch['loop_detected'] ?? 0);
@@ -993,13 +1013,13 @@ foreach ($switches as $switch) {
                     $loop_details = "STP Loop Prevention Active: Port(s) {$blocked_list} in BLOCKING state to prevent switching loop";
                 }
                 echo "  ⚠️ [STP LOOP MITIGATED]: $loop_details\n";
-            } elseif ($culprit_info) {
+            } elseif ($is_real_flapping_loop) {
                 $loop_detected = 1;
-                $loop_details = "L2 Loop Warning: End-device thrashing on Access port {$culprit_info['access_port']} [{$culprit_info['name']} ({$culprit_info['mac']})] bouncing to Uplink {$culprit_info['transit_port']}";
-                echo "  ⚠️ [L2 LOOP WARNING]: $loop_details\n";
-            } elseif ($top_pair !== null && $max_pair_flaps >= $flap_threshold) {
-                $loop_detected = 1;
-                $loop_details = "L2 Loop Warning: High-frequency MAC thrashing ($max_pair_flaps MACs) between $top_pair";
+                if ($culprit_info) {
+                    $loop_details = "L2 Loop Warning: High-frequency MAC thrashing ($max_pair_flaps MACs) between $top_pair. Root-cause origin on Access port {$culprit_info['access_port']} [{$culprit_info['name']} ({$culprit_info['mac']})]";
+                } else {
+                    $loop_details = "L2 Loop Warning: High-frequency MAC thrashing ($max_pair_flaps MACs) between $top_pair";
+                }
                 echo "  ⚠️ [L2 LOOP WARNING]: $loop_details\n";
             }
 

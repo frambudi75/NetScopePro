@@ -640,9 +640,17 @@ foreach ($switches as $s) {
                             <?php echo htmlspecialchars($sw['model'] ?: 'Generic Switch'); ?>
                         </td>
                         <td>
-                            <?php if ($has_loop): ?>
+                            <?php if ($blocked_cnt > 0): ?>
                                 <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: var(--danger); font-size: 0.75rem;">
-                                    <?php echo $blocked_cnt > 0 ? "Quarantined ($blocked_cnt)" : "MAC Thrashing"; ?>
+                                    Quarantined (<?php echo $blocked_cnt; ?>)
+                                </span>
+                            <?php elseif (!empty($sw['loop_detected'])): ?>
+                                <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: var(--danger); font-size: 0.75rem;">
+                                    MAC Thrashing
+                                </span>
+                            <?php elseif (isset($sw['stp_enabled']) && (int)$sw['stp_enabled'] === 0): ?>
+                                <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: var(--text-muted); font-size: 0.75rem;">
+                                    Disabled
                                 </span>
                             <?php else: ?>
                                 <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--success); font-size: 0.75rem;">
