@@ -35,11 +35,113 @@
 class VendorDetector {
 
     /**
+     * Alcatel OmniSwitch sysObjectID hardware catalogue
+     * Maps sysObjectID (.1.3.6.1.2.1.1.2.0) directly to exact commercial model names.
+     */
+    public static $alcatel_sysobjectid_map = [
+        // Alcatel OmniSwitch 6350
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.13.1.1' => 'Alcatel OmniSwitch 6350-24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.13.1.2' => 'Alcatel OmniSwitch 6350-P24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.13.1.3' => 'Alcatel OmniSwitch 6350-48',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.13.1.4' => 'Alcatel OmniSwitch 6350-P48',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.13.1.5' => 'Alcatel OmniSwitch 6350-10',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.13.1.6' => 'Alcatel OmniSwitch 6350-P10',
+
+        // Alcatel OmniSwitch 6450
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.1' => 'Alcatel OmniSwitch 6450-10',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.2' => 'Alcatel OmniSwitch 6450-P10',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.3' => 'Alcatel OmniSwitch 6450-10L',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.4' => 'Alcatel OmniSwitch 6450-P10L',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.5' => 'Alcatel OmniSwitch 6450-24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.6' => 'Alcatel OmniSwitch 6450-P24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.7' => 'Alcatel OmniSwitch 6450-U24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.8' => 'Alcatel OmniSwitch 6450-48',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.9' => 'Alcatel OmniSwitch 6450-P48',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.10' => 'Alcatel OmniSwitch 6450-24L',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.11' => 'Alcatel OmniSwitch 6450-P24L',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.12' => 'Alcatel OmniSwitch 6450-48L',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.13' => 'Alcatel OmniSwitch 6450-P48L',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.14' => 'Alcatel OmniSwitch 6450-P10S',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.15' => 'Alcatel OmniSwitch 6450-U24S',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.16' => 'Alcatel OmniSwitch 6450-10M',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.17' => 'Alcatel OmniSwitch 6450-24XM',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.18' => 'Alcatel OmniSwitch 6450-24X',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.19' => 'Alcatel OmniSwitch 6450-P24X',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.20' => 'Alcatel OmniSwitch 6450-48X',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.21' => 'Alcatel OmniSwitch 6450-P48X',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.22' => 'Alcatel OmniSwitch 6450-U24SXM',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.12.1.23' => 'Alcatel OmniSwitch 6450-U24X',
+
+        // Alcatel OmniSwitch 6250
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.11.1.1' => 'Alcatel OmniSwitch 6250-8M',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.11.1.2' => 'Alcatel OmniSwitch 6250-24M',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.11.1.3' => 'Alcatel OmniSwitch 6250-24MD',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.11.1.4' => 'Alcatel OmniSwitch 6250-U24M',
+
+        // Alcatel OmniSwitch 6400
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.10.1.1' => 'Alcatel OmniSwitch 6400-24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.10.1.2' => 'Alcatel OmniSwitch 6400-P24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.10.1.3' => 'Alcatel OmniSwitch 6400-U24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.10.1.4' => 'Alcatel OmniSwitch 6400-DU24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.10.1.5' => 'Alcatel OmniSwitch 6400-48',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.10.1.6' => 'Alcatel OmniSwitch 6400-P48',
+
+        // Alcatel OmniSwitch 6855
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.9.1.1' => 'Alcatel OmniSwitch 6855-14',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.9.1.2' => 'Alcatel OmniSwitch 6855-U10',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.9.1.3' => 'Alcatel OmniSwitch 6855-24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.9.1.4' => 'Alcatel OmniSwitch 6855-U24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.9.1.5' => 'Alcatel OmniSwitch 6855-U24X',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.9.1.6' => 'Alcatel OmniSwitch 6855-P14',
+
+        // Alcatel OmniSwitch 6850
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.1' => 'Alcatel OmniSwitch 6850-24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.2' => 'Alcatel OmniSwitch 6850-48',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.3' => 'Alcatel OmniSwitch 6850-24X',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.4' => 'Alcatel OmniSwitch 6850-48X',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.5' => 'Alcatel OmniSwitch 6850-P24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.6' => 'Alcatel OmniSwitch 6850-P48',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.7' => 'Alcatel OmniSwitch 6850-P24X',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.8' => 'Alcatel OmniSwitch 6850-P48X',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.9' => 'Alcatel OmniSwitch 6850-U24',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.10' => 'Alcatel OmniSwitch 6850-U24X',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.11' => 'Alcatel OmniSwitch 6850-24L',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.12' => 'Alcatel OmniSwitch 6850-48L',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.13' => 'Alcatel OmniSwitch 6850-24XL',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.14' => 'Alcatel OmniSwitch 6850-48XL',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.15' => 'Alcatel OmniSwitch 6850-P24L',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.16' => 'Alcatel OmniSwitch 6850-P48L',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.17' => 'Alcatel OmniSwitch 6850-P24XL',
+        '.1.3.6.1.4.1.6486.800.1.1.2.1.7.1.18' => 'Alcatel OmniSwitch 6850-P48XL',
+
+        // Alcatel OmniSwitch 6900
+        '.1.3.6.1.4.1.6486.801.1.1.2.1.10.1.1' => 'Alcatel OmniSwitch 6900-X20',
+        '.1.3.6.1.4.1.6486.801.1.1.2.1.10.1.2' => 'Alcatel OmniSwitch 6900-X40',
+        '.1.3.6.1.4.1.6486.801.1.1.2.1.10.1.3' => 'Alcatel OmniSwitch 6900-T20',
+        '.1.3.6.1.4.1.6486.801.1.1.2.1.10.1.4' => 'Alcatel OmniSwitch 6900-T40',
+        '.1.3.6.1.4.1.6486.801.1.1.2.1.10.1.5' => 'Alcatel OmniSwitch 6900-Q32',
+        '.1.3.6.1.4.1.6486.801.1.1.2.1.10.1.6' => 'Alcatel OmniSwitch 6900-X72'
+    ];
+
+    /**
      * Detect vendor and poll CPU/RAM via SNMP.
      * Returns ['model' => string, 'cpu' => int, 'mem' => int]
      */
     public static function detect($ip, $community, $sys_descr) {
         $info = strtolower($sys_descr);
+
+        // Probe sysObjectID (.1.3.6.1.2.1.1.2.0) for high-precision hardware model detection
+        $sysobj_raw = @snmp2_get($ip, $community, ".1.3.6.1.2.1.1.2.0", 350000, 1);
+        $sysobj = $sysobj_raw ? trim(str_replace(['OID: ', '"'], '', $sysobj_raw)) : '';
+        if ($sysobj && !str_starts_with($sysobj, '.')) {
+            $sysobj = '.' . $sysobj;
+        }
+
+        // Fast match on Alcatel sysObjectID table
+        $exact_alcatel_model = null;
+        if ($sysobj && isset(self::$alcatel_sysobjectid_map[$sysobj])) {
+            $exact_alcatel_model = self::$alcatel_sysobjectid_map[$sysobj];
+        }
 
         // Try each vendor in order of specificity
         $vendors = [
@@ -72,14 +174,28 @@ class VendorDetector {
             'Linux Server'    => ['match' => ['linux', 'ubuntu', 'debian', 'centos', 'rhel', 'rocky', 'alma', 'net-snmp'], 'handler' => 'pollNetSNMP'],
         ];
 
+        // Direct Alcatel hit from sysObjectID
+        if ($exact_alcatel_model) {
+            $result = self::pollAlcatel($ip, $community);
+            $result['model'] = $exact_alcatel_model;
+            return $result;
+        }
+
         foreach ($vendors as $model => $v) {
             foreach ($v['match'] as $keyword) {
                 if (strpos($info, $keyword) !== false) {
                     $result = self::{$v['handler']}($ip, $community);
-                    $result['model'] = $model;
+                    $result['model'] = ($model === 'Alcatel-Lucent' && $exact_alcatel_model) ? $exact_alcatel_model : $model;
                     return $result;
                 }
             }
+        }
+
+        // Alcatel OID branch check fallback (.1.3.6.1.4.1.6486)
+        if ($sysobj && strpos($sysobj, '.1.3.6.1.4.1.6486.') !== false) {
+            $result = self::pollAlcatel($ip, $community);
+            $result['model'] = 'Alcatel OmniSwitch';
+            return $result;
         }
 
         // Ultimate fallback
