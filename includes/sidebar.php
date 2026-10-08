@@ -1,15 +1,15 @@
 <aside class="sidebar">
-    <div class="sidebar-logo" style="display: flex; align-items: center; gap: 8px;">
-        <i data-lucide="network" style="color: var(--primary); width: 20px;"></i>
-        <h2 style="font-size: 1.05rem; font-weight: 700; color: var(--text); letter-spacing: -0.01em;">NetScope <span style="color: var(--text-muted); font-weight: 400;">Pro</span></h2>
+    <div class="sidebar-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; min-height: 28px;">
+        <a href="index" class="sidebar-brand" style="display: flex; align-items: center; gap: 8px; text-decoration: none;" title="NetScope Pro">
+            <i data-lucide="network" class="brand-icon" style="color: var(--primary); width: 20px; flex-shrink: 0;"></i>
+            <h2 class="logo-text" style="font-size: 1.05rem; font-weight: 700; color: var(--text); letter-spacing: -0.01em; margin: 0; white-space: nowrap;">NetScope <span style="color: var(--text-muted); font-weight: 400;">Pro</span></h2>
+        </a>
+        <button id="sidebar-collapse-btn" class="sidebar-collapse-btn" type="button" title="Minimize / Expand Sidebar" aria-label="Toggle Sidebar">
+            <i data-lucide="panel-left-close" style="width: 16px; height: 16px;"></i>
+        </button>
     </div>
 
     <nav class="sidebar-nav">
-        <style>
-            .sidebar .btn { transition: all 0.3s ease; }
-            .sidebar .btn:hover { border-left-color: var(--text-muted) !important; padding-left: 1.25rem; }
-            .sidebar .btn.active:hover { border-left-color: var(--primary) !important; }
-        </style>
         <?php
         $current = basename($_SERVER['PHP_SELF']);
         
@@ -57,16 +57,17 @@
                 $is_active = ($current == $item[0] . '.php');
             ?>
             <li>
-                <a href="<?php echo $item[0]; ?>" class="btn <?php echo $is_active ? 'active' : ''; ?>" style="width: 100%; justify-content: flex-start; background: <?php echo $is_active ? 'var(--surface-light)' : 'transparent'; ?>; border-left: 2px solid <?php echo $is_active ? 'var(--primary)' : 'transparent'; ?>; color: <?php echo $is_active ? 'var(--text)' : 'var(--text-muted)'; ?>; font-weight: <?php echo $is_active ? '500' : '400'; ?>;">
-                    <i data-lucide="<?php echo $item[1]; ?>" style="width: 15px;"></i> <?php echo $item[2]; ?>
+                <a href="<?php echo $item[0]; ?>" class="btn <?php echo $is_active ? 'active' : ''; ?>" title="<?php echo htmlspecialchars($item[2]); ?>" style="width: 100%; justify-content: flex-start; background: <?php echo $is_active ? 'var(--surface-light)' : 'transparent'; ?>; border-left: 2px solid <?php echo $is_active ? 'var(--primary)' : 'transparent'; ?>; color: <?php echo $is_active ? 'var(--text)' : 'var(--text-muted)'; ?>; font-weight: <?php echo $is_active ? '500' : '400'; ?>;">
+                    <i data-lucide="<?php echo $item[1]; ?>" style="width: 15px; flex-shrink: 0;"></i> 
+                    <span class="nav-text"><?php echo $item[2]; ?></span>
                     <?php if ($item[0] === 'netwatch' && $netwatch_down_count > 0): ?>
-                        <span style="margin-left: auto; background: var(--danger); color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; font-weight: 700;"><?php echo $netwatch_down_count; ?></span>
+                        <span class="sidebar-badge badge-danger"><?php echo $netwatch_down_count; ?></span>
                     <?php endif; ?>
                     <?php if ($item[0] === 'conflicts' && $conflict_count_badge > 0): ?>
-                        <span style="margin-left: auto; background: #ef4444; color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; font-weight: 700;"><?php echo $conflict_count_badge; ?></span>
+                        <span class="sidebar-badge badge-danger"><?php echo $conflict_count_badge; ?></span>
                     <?php endif; ?>
                     <?php if ($item[0] === 'loop-detective' && $loop_count_badge > 0): ?>
-                        <span style="margin-left: auto; background: #f59e0b; color: #1e1b4b; font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; font-weight: 700;"><?php echo $loop_count_badge; ?></span>
+                        <span class="sidebar-badge badge-warning"><?php echo $loop_count_badge; ?></span>
                     <?php endif; ?>
                 </a>
             </li>
@@ -87,17 +88,19 @@
                 $is_active = ($current == $item[0] . '.php');
             ?>
             <li>
-                <a href="<?php echo $item[0]; ?>" class="btn <?php echo $is_active ? 'active' : ''; ?>" style="width: 100%; justify-content: flex-start; background: <?php echo $is_active ? 'var(--surface-light)' : 'transparent'; ?>; border-left: 2px solid <?php echo $is_active ? 'var(--primary)' : 'transparent'; ?>; color: <?php echo $is_active ? 'var(--text)' : 'var(--text-muted)'; ?>; font-weight: <?php echo $is_active ? '500' : '400'; ?>;">
-                    <i data-lucide="<?php echo $item[1]; ?>" style="width: 15px;"></i> <?php echo $item[2]; ?>
+                <a href="<?php echo $item[0]; ?>" class="btn <?php echo $is_active ? 'active' : ''; ?>" title="<?php echo htmlspecialchars($item[2]); ?>" style="width: 100%; justify-content: flex-start; background: <?php echo $is_active ? 'var(--surface-light)' : 'transparent'; ?>; border-left: 2px solid <?php echo $is_active ? 'var(--primary)' : 'transparent'; ?>; color: <?php echo $is_active ? 'var(--text)' : 'var(--text-muted)'; ?>; font-weight: <?php echo $is_active ? '500' : '400'; ?>;">
+                    <i data-lucide="<?php echo $item[1]; ?>" style="width: 15px; flex-shrink: 0;"></i> 
+                    <span class="nav-text"><?php echo $item[2]; ?></span>
                     <?php if ($item[0] === 'settings' && Updater::isUpdateAvailable()): ?>
-                        <span style="margin-left: auto; width: 6px; height: 6px; background: var(--primary); border-radius: 50%;"></span>
+                        <span class="sidebar-badge badge-primary sidebar-badge-dot"></span>
                     <?php endif; ?>
                 </a>
             </li>
             <?php endforeach; ?>
             <li>
-                <a href="#" class="btn" onclick="openBugReportModal(event)" style="width: 100%; justify-content: flex-start; color: var(--text-muted); border-left: 2px solid transparent;">
-                    <i data-lucide="bug" style="width: 15px;"></i> Report Issue
+                <a href="#" class="btn" onclick="openBugReportModal(event)" title="Report Issue" style="width: 100%; justify-content: flex-start; color: var(--text-muted); border-left: 2px solid transparent;">
+                    <i data-lucide="bug" style="width: 15px; flex-shrink: 0;"></i> 
+                    <span class="nav-text">Report Issue</span>
                 </a>
             </li>
         </ul>
@@ -114,17 +117,19 @@
                 $is_active = ($current == $item[0] . '.php');
             ?>
             <li>
-                <a href="<?php echo $item[0]; ?>" class="btn <?php echo $is_active ? 'active' : ''; ?>" style="width: 100%; justify-content: flex-start; background: <?php echo $is_active ? 'var(--surface-light)' : 'transparent'; ?>; border-left: 2px solid <?php echo $is_active ? 'var(--primary)' : 'transparent'; ?>; color: <?php echo $is_active ? 'var(--text)' : 'var(--text-muted)'; ?>; font-weight: <?php echo $is_active ? '500' : '400'; ?>;">
-                    <i data-lucide="<?php echo $item[1]; ?>" style="width: 15px;"></i> <?php echo $item[2]; ?>
+                <a href="<?php echo $item[0]; ?>" class="btn <?php echo $is_active ? 'active' : ''; ?>" title="<?php echo htmlspecialchars($item[2]); ?>" style="width: 100%; justify-content: flex-start; background: <?php echo $is_active ? 'var(--surface-light)' : 'transparent'; ?>; border-left: 2px solid <?php echo $is_active ? 'var(--primary)' : 'transparent'; ?>; color: <?php echo $is_active ? 'var(--text)' : 'var(--text-muted)'; ?>; font-weight: <?php echo $is_active ? '500' : '400'; ?>;">
+                    <i data-lucide="<?php echo $item[1]; ?>" style="width: 15px; flex-shrink: 0;"></i> 
+                    <span class="nav-text"><?php echo $item[2]; ?></span>
                     <?php if ($item[0] === 'about' && Updater::isUpdateAvailable()): ?>
-                        <span style="margin-left: auto; background: var(--primary); color: var(--background); font-size: 0.6rem; padding: 1px 6px; border-radius: var(--radius-sm); font-weight: 700;">NEW</span>
+                        <span class="sidebar-badge badge-primary" style="font-size: 0.6rem;">NEW</span>
                     <?php endif; ?>
                 </a>
             </li>
             <?php endforeach; ?>
             <li>
-                <a href="logout" class="btn" style="width: 100%; justify-content: flex-start; color: var(--danger); border-left: 2px solid transparent;">
-                    <i data-lucide="log-out" style="width: 15px;"></i> Logout
+                <a href="logout" class="btn" title="Logout" style="width: 100%; justify-content: flex-start; color: var(--danger); border-left: 2px solid transparent;">
+                    <i data-lucide="log-out" style="width: 15px; flex-shrink: 0;"></i> 
+                    <span class="nav-text">Logout</span>
                 </a>
             </li>
         </ul>

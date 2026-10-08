@@ -16,6 +16,13 @@ All major functional changes, enhancements, and critical fixes are documented he
   - Added `switches.temperature` column with automated schema migration in `includes/db.php`, `includes/db_upgrade.php`, and `sql/database.sql`.
   - Added dynamic Temperature Gauge widget and status badge to the Hardware Health sidebar with color-coded safety thresholds (< 50°C Green, 50-65°C Amber, > 65°C Red, or Unsupported/NA fallback).
   - Extended live SSE stream (`api/switch-health-stream.php`) to push real-time temperature updates to the browser.
+- **Collapsible Desktop Mini-Sidebar / Icon-Rail Mode (`includes/sidebar.php`, `includes/header.php`, `includes/footer.php`, `assets/css/style.css`)**:
+  - Implemented desktop collapse toggle (`#sidebar-collapse-btn` & `#menu-toggle`) reducing sidebar width from 260px to 68px.
+  - Centered brand network icon and menu icons in rail mode, smoothly hiding verbose labels and section headers.
+  - Condensed alert badges (Netwatch Down, IP Conflict, Loop Detective) into discrete status dots.
+  - Persistent client preference stored in `localStorage` with zero-CLS early hydration in `<head>`.
+  - Expands usable horizontal screen space by **+192px**, providing significant breathing room for switch faceplates, traffic graphs, and dense inventory tables.
+  - Mobile drawer responsiveness preserved with full text display and touch-friendly targets.
 
 ## [2.32.6] - 2026-10-08
 ### Added & Enhanced
