@@ -133,17 +133,23 @@ $faceplate_online_count = 0;
 $faceplate_total_count = count($grouped_ports);
 
 foreach ($grouped_ports as $pname => $port) {
-    $status = $port['port_status'] ?? 'down';
+    $raw_status = $port['port_status'] ?? 'down';
+    $status = (!empty($raw_status) && is_string($raw_status)) ? strtolower(trim($raw_status)) : 'down';
     if ($status === 'up') {
         $faceplate_online_count++;
     }
 
-    // Extract clean display label (trailing port number or short code)
-    $label = $pname;
-    if (preg_match('/(?:^|[^\d])(\d+)$/', $pname, $m)) {
+    // Extract clean display label (e.g. ether1 -> 1, ether3-to-Sw -> 3, Gi0/12 -> 12, 1/1/24 -> 24)
+    $label = (string)$pname;
+    if (preg_match('/(?:ether|ge|fe|fa|gi|te|xe|po|port|eth|sfp)[\s\/\-\.]*(\d+)/i', $pname, $m)) {
         $label = $m[1];
-    } elseif (preg_match('/(?:sfp|ge|fe|fa|gi|te|xe|po|ether)[\s\/\-\.]*(\d+)/i', $pname, $m)) {
+    } elseif (preg_match('/(?:^|[^\d])(\d+)(?:[^\d]|$)/', $pname, $m)) {
         $label = $m[1];
+    } elseif (preg_match('/(\d+)/', $pname, $m)) {
+        $label = $m[1];
+    }
+    if (mb_strlen($label) > 4) {
+        $label = mb_substr($label, 0, 4);
     }
 
     $is_sfp = !empty($port['sfp_vendor']) || preg_match('/(sfp|fiber|optical|uplink|ten)/i', $pname);
@@ -482,25 +488,27 @@ include 'includes/header.php';
 }
 .faceplate-matrix {
     display: flex;
-    gap: 12px;
-    align-items: center;
+    gap: 16px;
+    align-items: flex-start;
     min-width: max-content;
-    padding: 4px 0 6px 0;
+    padding: 6px 0 10px 0;
 }
 .faceplate-bay {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
 }
 .faceplate-row {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     align-items: center;
 }
 .fp-port-btn {
     width: 44px;
-    height: 38px;
-    border-radius: 5px;
+    min-width: 44px;
+    max-width: 44px;
+    height: 42px;
+    border-radius: 6px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -508,12 +516,14 @@ include 'includes/header.php';
     cursor: pointer;
     user-select: none;
     font-family: 'JetBrains Mono', monospace;
-    font-weight: 700;
-    font-size: 0.82rem;
+    font-weight: 800;
+    font-size: 0.88rem;
     transition: all 0.15s ease;
     border: 1px solid transparent;
-    padding: 0;
+    padding: 3px 2px;
     position: relative;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 .fp-port-btn:hover {
     filter: brightness(1.22);
@@ -527,7 +537,7 @@ include 'includes/header.php';
 }
 .fp-port-down {
     background: #1e293b;
-    color: #475569;
+    color: #64748b;
     border-color: #334155;
 }
 .fp-port-dormant {
@@ -553,13 +563,15 @@ include 'includes/header.php';
 }
 .fp-port-num {
     line-height: 1;
-    font-size: 0.8rem;
+    font-size: 0.88rem;
+    font-weight: 800;
+    letter-spacing: -0.3px;
 }
 .fp-port-led {
-    width: 4px;
-    height: 4px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
 }
 .fp-port-up .fp-port-led {
     background: #34d399;
@@ -791,19 +803,21 @@ include 'includes/header.php';
                                 <div class="faceplate-row">
                                     <?php foreach ($copper_row1 as $p): ?>
                                         <?php
-                                            $pStatusClass = match($p['status']) {
-                                                'up' => ($p['stp_state'] === 'blocking' ? 'fp-port-blocking' : 'fp-port-up'),
+                                            $raw_st = strtolower((string)($p['status'] ?? 'down'));
+                                            $pStatusClass = match($raw_st) {
+                                                'up' => (!empty($p['stp_state']) && $p['stp_state'] === 'blocking' ? 'fp-port-blocking' : 'fp-port-up'),
                                                 'dormant' => 'fp-port-dormant',
                                                 default => 'fp-port-down'
                                             };
+                                            $p_title = (string)$p['name'] . ' (' . strtoupper($raw_st) . ')' . (!empty($p['alias']) ? ' - ' . $p['alias'] : '');
                                         ?>
                                         <button type="button" 
                                                 class="fp-port-btn <?php echo $pStatusClass; ?>" 
-                                                data-port-id="<?php echo htmlspecialchars($p['id']); ?>"
-                                                onclick="inspectPort('<?php echo htmlspecialchars($p['id'], ENT_QUOTES); ?>')"
-                                                title="<?php echo htmlspecialchars($p['name'] . ' (' . strtoupper($p['status']) . ')' . ($p['alias'] ? ' - ' . $p['alias'] : '')); ?>">
+                                                data-port-id="<?php echo htmlspecialchars((string)$p['id'], ENT_QUOTES, 'UTF-8'); ?>"
+                                                onclick="inspectPort('<?php echo htmlspecialchars((string)$p['id'], ENT_QUOTES, 'UTF-8'); ?>')"
+                                                title="<?php echo htmlspecialchars($p_title, ENT_QUOTES, 'UTF-8'); ?>">
                                             <span class="fp-port-led"></span>
-                                            <span class="fp-port-num"><?php echo htmlspecialchars($p['label']); ?></span>
+                                            <span class="fp-port-num"><?php echo htmlspecialchars((string)$p['label'], ENT_QUOTES, 'UTF-8'); ?></span>
                                         </button>
                                     <?php endforeach; ?>
                                 </div>
@@ -811,19 +825,21 @@ include 'includes/header.php';
                                 <div class="faceplate-row">
                                     <?php foreach ($copper_row2 as $p): ?>
                                         <?php
-                                            $pStatusClass = match($p['status']) {
-                                                'up' => ($p['stp_state'] === 'blocking' ? 'fp-port-blocking' : 'fp-port-up'),
+                                            $raw_st = strtolower((string)($p['status'] ?? 'down'));
+                                            $pStatusClass = match($raw_st) {
+                                                'up' => (!empty($p['stp_state']) && $p['stp_state'] === 'blocking' ? 'fp-port-blocking' : 'fp-port-up'),
                                                 'dormant' => 'fp-port-dormant',
                                                 default => 'fp-port-down'
                                             };
+                                            $p_title = (string)$p['name'] . ' (' . strtoupper($raw_st) . ')' . (!empty($p['alias']) ? ' - ' . $p['alias'] : '');
                                         ?>
                                         <button type="button" 
                                                 class="fp-port-btn <?php echo $pStatusClass; ?>" 
-                                                data-port-id="<?php echo htmlspecialchars($p['id']); ?>"
-                                                onclick="inspectPort('<?php echo htmlspecialchars($p['id'], ENT_QUOTES); ?>')"
-                                                title="<?php echo htmlspecialchars($p['name'] . ' (' . strtoupper($p['status']) . ')' . ($p['alias'] ? ' - ' . $p['alias'] : '')); ?>">
+                                                data-port-id="<?php echo htmlspecialchars((string)$p['id'], ENT_QUOTES, 'UTF-8'); ?>"
+                                                onclick="inspectPort('<?php echo htmlspecialchars((string)$p['id'], ENT_QUOTES, 'UTF-8'); ?>')"
+                                                title="<?php echo htmlspecialchars($p_title, ENT_QUOTES, 'UTF-8'); ?>">
                                             <span class="fp-port-led"></span>
-                                            <span class="fp-port-num"><?php echo htmlspecialchars($p['label']); ?></span>
+                                            <span class="fp-port-num"><?php echo htmlspecialchars((string)$p['label'], ENT_QUOTES, 'UTF-8'); ?></span>
                                         </button>
                                     <?php endforeach; ?>
                                 </div>
@@ -838,19 +854,21 @@ include 'includes/header.php';
                                 <div class="faceplate-row">
                                     <?php foreach ($sfp_row1 as $p): ?>
                                         <?php
-                                            $pStatusClass = match($p['status']) {
-                                                'up' => ($p['stp_state'] === 'blocking' ? 'fp-port-blocking' : 'fp-port-up'),
+                                            $raw_st = strtolower((string)($p['status'] ?? 'down'));
+                                            $pStatusClass = match($raw_st) {
+                                                'up' => (!empty($p['stp_state']) && $p['stp_state'] === 'blocking' ? 'fp-port-blocking' : 'fp-port-up'),
                                                 'dormant' => 'fp-port-dormant',
                                                 default => 'fp-port-down'
                                             };
+                                            $p_title = 'SFP Optical: ' . (string)$p['name'] . ' (' . strtoupper($raw_st) . ')' . (!empty($p['alias']) ? ' - ' . $p['alias'] : '');
                                         ?>
                                         <button type="button" 
                                                 class="fp-port-btn fp-port-sfp <?php echo $pStatusClass; ?>" 
-                                                data-port-id="<?php echo htmlspecialchars($p['id']); ?>"
-                                                onclick="inspectPort('<?php echo htmlspecialchars($p['id'], ENT_QUOTES); ?>')"
-                                                title="SFP Optical: <?php echo htmlspecialchars($p['name'] . ' (' . strtoupper($p['status']) . ')'); ?>">
+                                                data-port-id="<?php echo htmlspecialchars((string)$p['id'], ENT_QUOTES, 'UTF-8'); ?>"
+                                                onclick="inspectPort('<?php echo htmlspecialchars((string)$p['id'], ENT_QUOTES, 'UTF-8'); ?>')"
+                                                title="<?php echo htmlspecialchars($p_title, ENT_QUOTES, 'UTF-8'); ?>">
                                             <span class="fp-port-led"></span>
-                                            <span class="fp-port-num"><?php echo htmlspecialchars($p['label']); ?></span>
+                                            <span class="fp-port-num"><?php echo htmlspecialchars((string)$p['label'], ENT_QUOTES, 'UTF-8'); ?></span>
                                         </button>
                                     <?php endforeach; ?>
                                 </div>
@@ -858,19 +876,21 @@ include 'includes/header.php';
                                 <div class="faceplate-row">
                                     <?php foreach ($sfp_row2 as $p): ?>
                                         <?php
-                                            $pStatusClass = match($p['status']) {
-                                                'up' => ($p['stp_state'] === 'blocking' ? 'fp-port-blocking' : 'fp-port-up'),
+                                            $raw_st = strtolower((string)($p['status'] ?? 'down'));
+                                            $pStatusClass = match($raw_st) {
+                                                'up' => (!empty($p['stp_state']) && $p['stp_state'] === 'blocking' ? 'fp-port-blocking' : 'fp-port-up'),
                                                 'dormant' => 'fp-port-dormant',
                                                 default => 'fp-port-down'
                                             };
+                                            $p_title = 'SFP Optical: ' . (string)$p['name'] . ' (' . strtoupper($raw_st) . ')' . (!empty($p['alias']) ? ' - ' . $p['alias'] : '');
                                         ?>
                                         <button type="button" 
                                                 class="fp-port-btn fp-port-sfp <?php echo $pStatusClass; ?>" 
-                                                data-port-id="<?php echo htmlspecialchars($p['id']); ?>"
-                                                onclick="inspectPort('<?php echo htmlspecialchars($p['id'], ENT_QUOTES); ?>')"
-                                                title="SFP Optical: <?php echo htmlspecialchars($p['name'] . ' (' . strtoupper($p['status']) . ')'); ?>">
+                                                data-port-id="<?php echo htmlspecialchars((string)$p['id'], ENT_QUOTES, 'UTF-8'); ?>"
+                                                onclick="inspectPort('<?php echo htmlspecialchars((string)$p['id'], ENT_QUOTES, 'UTF-8'); ?>')"
+                                                title="<?php echo htmlspecialchars($p_title, ENT_QUOTES, 'UTF-8'); ?>">
                                             <span class="fp-port-led"></span>
-                                            <span class="fp-port-num"><?php echo htmlspecialchars($p['label']); ?></span>
+                                            <span class="fp-port-num"><?php echo htmlspecialchars((string)$p['label'], ENT_QUOTES, 'UTF-8'); ?></span>
                                         </button>
                                     <?php endforeach; ?>
                                 </div>
