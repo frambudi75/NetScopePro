@@ -16,7 +16,8 @@ $versions = [
         'Downstream Devices Drawer VLAN Column with Real-time Search Filter (IP, MAC, Vendor, VLAN)',
         'Smart Alcatel Port vs VLAN Disambiguation (Resolves inverted slMacAddressTable tuples & false Port 100 entries)',
         'Physical Port Normalization for Alcatel OmniSwitch (Maps 1..64 to 1/X and purges stale unmapped ports)',
-        'Comprehensive Dummy Sequential MAC Purge & Filter (00:00:00:% eliminated across DB, Cron, and UI)'
+        'Comprehensive Dummy Sequential MAC Purge & Filter (00:00:00:% eliminated across DB, Cron, and UI)',
+        'False-Positive Loop Detection Fix & Flap Threshold Enforcement (Requires >= 3-5 concurrent flapping MACs & cleans stale loop flags)'
     ]],
     ['ver' => '2.32.0', 'date' => '2026-10-07', 'changes' => [
         'L2 Loop Detective & Downstream Root-Cause Investigator (Visual forensic trace: Core ➔ Switch ➔ Access Link ➔ Culprit Device)',

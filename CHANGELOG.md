@@ -21,10 +21,12 @@ All major functional changes, enhancements, and critical fixes are documented he
   - Implemented `$fnResolveAlcatelSl` heuristic validator to accurately differentiate between `VLAN.ifIndex.MAC` and `ifIndex.VLAN.MAC` formats across AOS versions.
   - Extended `normalize_port_name()` to map slot 1 physical bridge ports (`1..64`) directly to Alcatel's standard format (`1/X`) instead of unmapped fallback (`Port X`).
   - Automatically purges stale unmapped `"Port %"` records on Alcatel switches to maintain clean interface inventories.
-- **Sequential Dummy MAC Auto-Purge & Filter (`includes/db.php`, `cron_switch_poll.php`, `switch-details.php`, `includes/loop.helper.php`)**:
-  - Expanded fake sequential MAC pattern filter from `00:00:00:00:%` to `00:00:00:%`.
-  - Automatically cleans up over 16,000 legacy dummy bridge sequence counters (e.g. `00:00:00:01:00:00`, `00:00:00:02:00:00`) created by standard bridge MIB index walks on multi-VLAN trunk switches.
-  - Excluded fake MAC entries from downstream device drawer device counts, table rows, and Loop Detective telemetry.
+- **False-Positive Loop Detection Fix & Flap Threshold Enforcement (`cron_switch_poll.php`, `includes/loop.helper.php`, `loop-detective.php`)**:
+  - Eliminated critical false alarm where moving a single laptop, phone, or Wi-Fi roaming client (`access_suspects`) bypassed `loop_flap_threshold` and marked all switches as `loop_detected = 1`.
+  - Enforced strict flap threshold requirement (`>= 3-5` concurrent oscillating MACs on the identical port pair) before triggering an L2 switching loop warning.
+  - Restricted end-device root-cause candidate isolation to confirmed high-frequency flapping pairs or active STP quarantine ports only.
+  - Eliminated false cross-switch flapping alarms in `LoopDetectiveHelper` previously triggered by lifetime cumulative TCN counts (`> 20`).
+  - Added automated database auto-cleanup in `includes/db.php` resetting false `loop_detected` flags and resolving single-flap entries in `ip_conflict_events`.
 
 ## [2.32.0] - 2026-10-07
 ### Added & Enhanced

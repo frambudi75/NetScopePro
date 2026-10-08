@@ -688,5 +688,23 @@ function run_auto_migrations($db) {
     try {
         $db->exec("DELETE FROM switch_port_map WHERE mac_addr LIKE '00:00:00:%'");
     } catch (Exception $e) {}
+
+    // 27. Auto-clear legacy false-positive loop flags triggered by single-device movements
+    try {
+        $db->exec("
+            UPDATE switches 
+            SET loop_detected = 0, loop_details = NULL 
+            WHERE loop_detected = 1 
+              AND (loop_details LIKE '%End-device thrashing on Access port%' OR loop_details IS NULL)
+              AND id NOT IN (
+                  SELECT DISTINCT switch_id FROM switch_port_map WHERE stp_state = 'blocking' AND LOWER(port_status) = 'up'
+              )
+        ");
+        $db->exec("
+            UPDATE ip_conflict_events 
+            SET status = 'resolved', resolved_at = NOW(), resolved_by = 'system_anti_false_positive' 
+            WHERE event_type = 'flapping' AND status = 'active' AND flap_count <= 1
+        ");
+    } catch (Exception $e) {}
 }
 }
