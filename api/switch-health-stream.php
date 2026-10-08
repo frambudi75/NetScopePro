@@ -10,6 +10,7 @@
 
 require_once '../includes/config.php';
 require_once '../includes/db.php';
+require_once '../includes/vendor.helper.php';
 
 session_start();
 if (!isset($_SESSION['user_id'])) {
@@ -197,12 +198,13 @@ while (true) {
 
     if (!empty($send_db_data)) {
         // Fallback: read from DB
-        $row = $db->prepare("SELECT cpu_usage, memory_usage, last_poll FROM switches WHERE id = ?");
+        $row = $db->prepare("SELECT cpu_usage, memory_usage, temperature, last_poll FROM switches WHERE id = ?");
         $row->execute([$id]);
         $data = $row->fetch();
         $payload = [
             'cpu'       => (int)($data['cpu_usage'] ?? 0),
             'mem'       => (int)($data['memory_usage'] ?? 0),
+            'temp'      => isset($data['temperature']) && $data['temperature'] !== null ? (int)$data['temperature'] : null,
             'last_poll' => $data['last_poll'] ? date('H:i:s', strtotime($data['last_poll'])) : '-',
             'source'    => 'db',
         ];
@@ -217,6 +219,14 @@ while (true) {
             $source = 'redis_cache';
         } else {
             $health = poll_live_health($ip, $community, $switch['model'] ?? 'Generic');
+            $temp = class_exists('VendorDetector') 
+                ? VendorDetector::pollTemperature($ip, $community, $switch['model'] ?? '', $switch['system_info'] ?? '')
+                : null;
+            if ($temp !== null) {
+                $health['temp'] = $temp;
+            } else {
+                $health['temp'] = isset($switch['temperature']) && $switch['temperature'] !== null ? (int)$switch['temperature'] : null;
+            }
             // Cache results for 4 seconds (Stream polls every 5s)
             if ($redis) $redis->setex($cache_key, 4, json_encode($health));
             $source = 'live_snmp';
@@ -225,6 +235,7 @@ while (true) {
         $payload = [
             'cpu'       => $health['cpu'],
             'mem'       => $health['mem'],
+            'temp'      => $health['temp'] ?? (isset($switch['temperature']) ? (int)$switch['temperature'] : null),
             'last_poll' => date('H:i:s'),
             'source'    => $source,
         ];

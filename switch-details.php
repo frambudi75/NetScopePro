@@ -124,6 +124,109 @@ foreach ($ports as $p) {
     }
 }
 
+// Natural sort ports so Port 2 comes before Port 10, GigabitEthernet0/1 comes before GigabitEthernet0/10
+uksort($grouped_ports, 'strnatcasecmp');
+
+$faceplate_copper = [];
+$faceplate_sfp = [];
+$faceplate_online_count = 0;
+$faceplate_total_count = count($grouped_ports);
+
+foreach ($grouped_ports as $pname => $port) {
+    $status = $port['port_status'] ?? 'down';
+    if ($status === 'up') {
+        $faceplate_online_count++;
+    }
+
+    // Extract clean display label (trailing port number or short code)
+    $label = $pname;
+    if (preg_match('/(?:^|[^\d])(\d+)$/', $pname, $m)) {
+        $label = $m[1];
+    } elseif (preg_match('/(?:sfp|ge|fe|fa|gi|te|xe|po|ether)[\s\/\-\.]*(\d+)/i', $pname, $m)) {
+        $label = $m[1];
+    }
+
+    $is_sfp = !empty($port['sfp_vendor']) || preg_match('/(sfp|fiber|optical|uplink|ten)/i', $pname);
+    $tagged_str = $tagged_vlans_per_port[$pname] ?? '';
+
+    $port_entry = [
+        'id'          => $pname,
+        'label'       => $label,
+        'name'        => $pname,
+        'status'      => $status,
+        'stp_state'   => $port['stp_state'] ?? null,
+        'port_type'   => $port['port_type'] ?? null,
+        'port_speed'  => $port['port_speed'] ?? null,
+        'port_alias'  => $port['port_alias'] ?? null,
+        'vlan_id'     => $port['vlan_id'] ?? null,
+        'vlan_name'   => $port['vlan_name'] ?? null,
+        'tagged_vlans'=> $tagged_str,
+        'sfp_vendor'  => $port['sfp_vendor'] ?? null,
+        'sfp_part'    => $port['sfp_part'] ?? null,
+        'sfp_serial'  => $port['sfp_serial'] ?? null,
+        'sfp_rx_power'=> $port['sfp_rx_power'] ?? null,
+        'sfp_tx_power'=> $port['sfp_tx_power'] ?? null,
+        'last_seen'   => $port['last_seen_on_port'] ?? null,
+        'devices'     => $port['devices'],
+        'dev_count'   => count($port['devices']),
+        'is_sfp'      => $is_sfp
+    ];
+
+    if ($is_sfp) {
+        $faceplate_sfp[] = $port_entry;
+    } else {
+        $faceplate_copper[] = $port_entry;
+    }
+}
+
+// Split into 2 physical rows (first half top, second half bottom)
+$copper_count = count($faceplate_copper);
+$copper_half = (int)ceil($copper_count / 2);
+$copper_row1 = array_slice($faceplate_copper, 0, $copper_half);
+$copper_row2 = array_slice($faceplate_copper, $copper_half);
+
+$sfp_count = count($faceplate_sfp);
+$sfp_half = (int)ceil($sfp_count / 2);
+$sfp_row1 = array_slice($faceplate_sfp, 0, $sfp_half);
+$sfp_row2 = array_slice($faceplate_sfp, $sfp_half);
+
+// Pick initial port to inspect (first UP port or first available port)
+$initial_port_id = null;
+foreach ($grouped_ports as $pname => $port) {
+    if (($port['port_status'] ?? '') === 'up') {
+        $initial_port_id = $pname;
+        break;
+    }
+}
+if ($initial_port_id === null && !empty($grouped_ports)) {
+    $initial_port_id = array_key_first($grouped_ports);
+}
+
+// JSON payload for high-speed client-side inspector
+$faceplate_json_data = [];
+foreach ($grouped_ports as $pname => $port) {
+    $faceplate_json_data[$pname] = [
+        'name'        => $pname,
+        'status'      => $port['port_status'] ?? 'down',
+        'stp_state'   => $port['stp_state'] ?? null,
+        'type'        => $port['port_type'] ?? null,
+        'speed'       => $port['port_speed'] ?? null,
+        'alias'       => $port['port_alias'] ?? null,
+        'vlan_id'     => $port['vlan_id'] ?? null,
+        'vlan_name'   => $port['vlan_name'] ?? null,
+        'tagged_vlans'=> $tagged_vlans_per_port[$pname] ?? '',
+        'sfp_vendor'  => $port['sfp_vendor'] ?? null,
+        'sfp_part'    => $port['sfp_part'] ?? null,
+        'sfp_serial'  => $port['sfp_serial'] ?? null,
+        'sfp_rx_power'=> $port['sfp_rx_power'] ?? null,
+        'sfp_tx_power'=> $port['sfp_tx_power'] ?? null,
+        'last_seen'   => $port['last_seen_on_port'] ?? null,
+        'devices'     => $port['devices'],
+        'dev_count'   => count($port['devices']),
+        'is_sfp'      => !empty($port['sfp_vendor']) || preg_match('/(sfp|fiber|optical|uplink|ten)/i', $pname)
+    ];
+}
+
 $page_title = "Switch: " . $switch['name'];
 include 'includes/header.php';
 ?>
@@ -297,6 +400,200 @@ include 'includes/header.php';
     white-space: nowrap;
     flex: 1;
 }
+
+/* Switch Faceplate Visualizer Styles */
+.faceplate-tag {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: #10b981;
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+.faceplate-online-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #10b981;
+}
+.faceplate-view-toggle {
+    display: inline-flex;
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px;
+    gap: 3px;
+}
+.faceplate-toggle-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.faceplate-toggle-btn:hover {
+    color: var(--text);
+}
+.faceplate-toggle-btn.active {
+    background: var(--primary);
+    color: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.faceplate-chassis {
+    background: #080d19;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 14px 18px;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.7), 0 4px 14px rgba(0, 0, 0, 0.25);
+    overflow-x: auto;
+}
+.faceplate-bezel-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.faceplate-bezel-title {
+    color: #38bdf8;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.faceplate-bezel-hint {
+    color: #64748b;
+    font-size: 0.72rem;
+}
+.faceplate-matrix {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    min-width: max-content;
+    padding: 4px 0 6px 0;
+}
+.faceplate-bay {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.faceplate-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.fp-port-btn {
+    width: 44px;
+    height: 38px;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 0.82rem;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+    padding: 0;
+    position: relative;
+}
+.fp-port-btn:hover {
+    filter: brightness(1.22);
+    transform: translateY(-1px);
+}
+.fp-port-up {
+    background: #059669;
+    color: #ffffff;
+    border-color: #10b981;
+    box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
+}
+.fp-port-down {
+    background: #1e293b;
+    color: #475569;
+    border-color: #334155;
+}
+.fp-port-dormant {
+    background: #854d0e;
+    color: #fef08a;
+    border-color: #eab308;
+}
+.fp-port-blocking {
+    background: #991b1b;
+    color: #fee2e2;
+    border-color: #ef4444;
+}
+.fp-port-sfp {
+    border-style: dashed !important;
+}
+.fp-port-active {
+    background: #d97706 !important;
+    color: #ffffff !important;
+    border: 2px solid #fbbf24 !important;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.75) !important;
+    transform: scale(1.06);
+    z-index: 2;
+}
+.fp-port-num {
+    line-height: 1;
+    font-size: 0.8rem;
+}
+.fp-port-led {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    margin-bottom: 2px;
+}
+.fp-port-up .fp-port-led {
+    background: #34d399;
+    box-shadow: 0 0 4px #34d399;
+}
+.fp-port-down .fp-port-led {
+    background: #334155;
+}
+.fp-port-active .fp-port-led {
+    background: #fef08a;
+    box-shadow: 0 0 5px #fef08a;
+}
+.fp-port-blocking .fp-port-led {
+    background: #f87171;
+    box-shadow: 0 0 4px #f87171;
+}
+.faceplate-divider {
+    width: 2px;
+    height: 82px;
+    background: repeating-linear-gradient(to bottom, #334155, #334155 4px, transparent 4px, transparent 8px);
+    margin: 0 4px;
+}
+.port-inspector-panel {
+    margin-top: 1.25rem;
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    animation: inspectorFadeIn 0.2s ease;
+}
+@keyframes inspectorFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 </style>
 
 <div style="margin-bottom: 2rem;">
@@ -339,13 +636,33 @@ include 'includes/header.php';
             </div>
         </div>
 
-        <div style="margin-bottom: 2rem;">
+        <div style="margin-bottom: 1.5rem;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.875rem;">
                 <span>Memory Usage</span>
                 <span id="mem-val" style="font-weight: 700;"><?php echo (int)($switch['memory_usage'] ?? 0); ?>%</span>
             </div>
             <div style="height: 10px; background: var(--border); border-radius: 5px; overflow: hidden;">
                 <div id="mem-bar" style="width: <?php echo (int)($switch['memory_usage'] ?? 0); ?>%; height: 100%; background: var(--success); transition: width 0.8s ease;"></div>
+            </div>
+        </div>
+
+        <?php
+            $temp_val = $switch['temperature'] ?? null;
+            $temp_pct = $temp_val !== null ? min(100, max(0, (int)$temp_val)) : 0;
+            $temp_color = ($temp_val !== null && $temp_val > 65) ? 'var(--danger)' : (($temp_val !== null && $temp_val > 50) ? '#f59e0b' : '#10b981');
+        ?>
+        <div style="margin-bottom: 2rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.875rem;">
+                <span style="display: flex; align-items: center; gap: 4px;">
+                    <i data-lucide="thermometer" style="width: 14px; height: 14px; color: <?php echo $temp_color; ?>;"></i>
+                    Chassis Temp
+                </span>
+                <span id="temp-val" style="font-weight: 700;">
+                    <?php echo ($temp_val !== null) ? (int)$temp_val . '°C' : '<span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">Unsupported</span>'; ?>
+                </span>
+            </div>
+            <div style="height: 10px; background: var(--border); border-radius: 5px; overflow: hidden;">
+                <div id="temp-bar" style="width: <?php echo $temp_pct; ?>%; height: 100%; background: <?php echo $temp_color; ?>; transition: width 0.8s ease;"></div>
             </div>
         </div>
 
@@ -357,6 +674,16 @@ include 'includes/header.php';
             <div style="display: flex; justify-content: space-between;">
                 <span style="color:var(--text-muted)">Uptime:</span>
                 <span style="font-weight: 600; text-align: right;"><?php echo htmlspecialchars($switch['uptime'] ?? '-'); ?></span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span style="color:var(--text-muted)">Temperature:</span>
+                <span id="temp-badge" style="font-weight: 600; text-align: right;">
+                    <?php if ($temp_val !== null): ?>
+                        <span style="color: <?php echo $temp_color; ?>;"><?php echo (int)$temp_val; ?>°C</span>
+                    <?php else: ?>
+                        <span style="color: var(--text-muted); font-size: 0.78rem;">Unsupported / N/A</span>
+                    <?php endif; ?>
+                </span>
             </div>
             <?php if (isset($switch['total_ports']) && $switch['total_ports'] > 0): ?>
             <div style="display: flex; justify-content: space-between;">
@@ -411,19 +738,273 @@ include 'includes/header.php';
         <?php endif; ?>
     </div>
 
-    <!-- Port Mapping Table -->
-    <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; flex-wrap: wrap; gap: 0.75rem;">
+    <!-- Switch Front Panel Faceplate & Interface Inventory -->
+    <div class="card" id="switch-ports-main-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; flex-wrap: wrap; gap: 0.75rem;">
             <div>
-                <h3 style="font-size: 1rem; margin: 0; font-weight: 700;">Physical Interface Inventory & Connected Hosts</h3>
-                <span style="font-size: 0.75rem; color: var(--text-muted);"><?php echo count($grouped_ports); ?> Interfaces • <?php echo count($ports); ?> MAC records</span>
+                <div class="faceplate-tag"><?php echo htmlspecialchars($switch['model'] ? 'MANAGED NETWORK SWITCH' : 'SWITCH FRONT PANEL'); ?></div>
+                <h3 style="font-size: 1.25rem; margin: 0; font-weight: 700; color: var(--text);">
+                    <?php echo htmlspecialchars($switch['name']); ?>
+                    <span style="font-weight: 400; color: var(--text-muted); font-size: 1rem;">· <?php echo htmlspecialchars($switch['model'] ?: 'Generic'); ?></span>
+                </h3>
+                <span style="font-size: 0.75rem; color: var(--text-muted);"><?php echo $faceplate_online_count; ?> of <?php echo $faceplate_total_count; ?> ports online • <?php echo count($ports); ?> MAC entries</span>
             </div>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="text" id="portSearch" placeholder="Filter interface / MAC / IP / VLAN..." class="input-control" style="width: 250px; padding: 6px 12px; font-size: 0.8rem;">
+            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                <span class="faceplate-online-badge">
+                    <i data-lucide="check-circle-2" style="width: 13px; height: 13px;"></i>
+                    <?php echo $faceplate_online_count; ?>/<?php echo $faceplate_total_count; ?> Online
+                </span>
+                <div class="faceplate-view-toggle">
+                    <button type="button" class="faceplate-toggle-btn active" id="btn-mode-faceplate" onclick="switchViewMode('faceplate')">
+                        <i data-lucide="layout-grid" style="width: 14px; height: 14px;"></i> Faceplate Inspector
+                    </button>
+                    <button type="button" class="faceplate-toggle-btn" id="btn-mode-table" onclick="switchViewMode('table')">
+                        <i data-lucide="list" style="width: 14px; height: 14px;"></i> Full Table
+                    </button>
+                </div>
             </div>
         </div>
-        <div class="table-responsive">
-            <table style="width: 100%; border-collapse: collapse;" id="portTable">
+
+        <!-- Mode 1: Interactive Faceplate Visualizer & Port Inspector -->
+        <div id="faceplate-view-container">
+            <!-- Physical Bezel Container -->
+            <div class="faceplate-chassis">
+                <div class="faceplate-bezel-bar">
+                    <span class="faceplate-bezel-title">
+                        <i data-lucide="cpu" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>
+                        Interfaces (1 - <?php echo $faceplate_total_count; ?>)
+                    </span>
+                    <span class="faceplate-bezel-hint">
+                        <i data-lucide="mouse-pointer" style="width: 11px; height: 11px; display: inline-block; vertical-align: middle; margin-right: 2px;"></i>
+                        Click port to inspect details &amp; connected hosts
+                    </span>
+                </div>
+
+                <div class="faceplate-matrix">
+                    <?php if (empty($grouped_ports)): ?>
+                        <div style="padding: 1.5rem; color: var(--text-muted); font-size: 0.85rem; font-family: monospace;">No ports discovered. Run Force Poll to discover switch interfaces.</div>
+                    <?php else: ?>
+                        <!-- Copper / Ethernet Bay -->
+                        <?php if (!empty($faceplate_copper)): ?>
+                            <div class="faceplate-bay">
+                                <!-- Row 1 -->
+                                <div class="faceplate-row">
+                                    <?php foreach ($copper_row1 as $p): ?>
+                                        <?php
+                                            $pStatusClass = match($p['status']) {
+                                                'up' => ($p['stp_state'] === 'blocking' ? 'fp-port-blocking' : 'fp-port-up'),
+                                                'dormant' => 'fp-port-dormant',
+                                                default => 'fp-port-down'
+                                            };
+                                        ?>
+                                        <button type="button" 
+                                                class="fp-port-btn <?php echo $pStatusClass; ?>" 
+                                                data-port-id="<?php echo htmlspecialchars($p['id']); ?>"
+                                                onclick="inspectPort('<?php echo htmlspecialchars($p['id'], ENT_QUOTES); ?>')"
+                                                title="<?php echo htmlspecialchars($p['name'] . ' (' . strtoupper($p['status']) . ')' . ($p['alias'] ? ' - ' . $p['alias'] : '')); ?>">
+                                            <span class="fp-port-led"></span>
+                                            <span class="fp-port-num"><?php echo htmlspecialchars($p['label']); ?></span>
+                                        </button>
+                                    <?php endforeach; ?>
+                                </div>
+                                <!-- Row 2 -->
+                                <div class="faceplate-row">
+                                    <?php foreach ($copper_row2 as $p): ?>
+                                        <?php
+                                            $pStatusClass = match($p['status']) {
+                                                'up' => ($p['stp_state'] === 'blocking' ? 'fp-port-blocking' : 'fp-port-up'),
+                                                'dormant' => 'fp-port-dormant',
+                                                default => 'fp-port-down'
+                                            };
+                                        ?>
+                                        <button type="button" 
+                                                class="fp-port-btn <?php echo $pStatusClass; ?>" 
+                                                data-port-id="<?php echo htmlspecialchars($p['id']); ?>"
+                                                onclick="inspectPort('<?php echo htmlspecialchars($p['id'], ENT_QUOTES); ?>')"
+                                                title="<?php echo htmlspecialchars($p['name'] . ' (' . strtoupper($p['status']) . ')' . ($p['alias'] ? ' - ' . $p['alias'] : '')); ?>">
+                                            <span class="fp-port-led"></span>
+                                            <span class="fp-port-num"><?php echo htmlspecialchars($p['label']); ?></span>
+                                        </button>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Uplink / SFP Optical Bay -->
+                        <?php if (!empty($faceplate_sfp)): ?>
+                            <div class="faceplate-divider" title="Optical / SFP Transceiver Bay"></div>
+                            <div class="faceplate-bay">
+                                <!-- SFP Row 1 -->
+                                <div class="faceplate-row">
+                                    <?php foreach ($sfp_row1 as $p): ?>
+                                        <?php
+                                            $pStatusClass = match($p['status']) {
+                                                'up' => ($p['stp_state'] === 'blocking' ? 'fp-port-blocking' : 'fp-port-up'),
+                                                'dormant' => 'fp-port-dormant',
+                                                default => 'fp-port-down'
+                                            };
+                                        ?>
+                                        <button type="button" 
+                                                class="fp-port-btn fp-port-sfp <?php echo $pStatusClass; ?>" 
+                                                data-port-id="<?php echo htmlspecialchars($p['id']); ?>"
+                                                onclick="inspectPort('<?php echo htmlspecialchars($p['id'], ENT_QUOTES); ?>')"
+                                                title="SFP Optical: <?php echo htmlspecialchars($p['name'] . ' (' . strtoupper($p['status']) . ')'); ?>">
+                                            <span class="fp-port-led"></span>
+                                            <span class="fp-port-num"><?php echo htmlspecialchars($p['label']); ?></span>
+                                        </button>
+                                    <?php endforeach; ?>
+                                </div>
+                                <!-- SFP Row 2 -->
+                                <div class="faceplate-row">
+                                    <?php foreach ($sfp_row2 as $p): ?>
+                                        <?php
+                                            $pStatusClass = match($p['status']) {
+                                                'up' => ($p['stp_state'] === 'blocking' ? 'fp-port-blocking' : 'fp-port-up'),
+                                                'dormant' => 'fp-port-dormant',
+                                                default => 'fp-port-down'
+                                            };
+                                        ?>
+                                        <button type="button" 
+                                                class="fp-port-btn fp-port-sfp <?php echo $pStatusClass; ?>" 
+                                                data-port-id="<?php echo htmlspecialchars($p['id']); ?>"
+                                                onclick="inspectPort('<?php echo htmlspecialchars($p['id'], ENT_QUOTES); ?>')"
+                                                title="SFP Optical: <?php echo htmlspecialchars($p['name'] . ' (' . strtoupper($p['status']) . ')'); ?>">
+                                            <span class="fp-port-led"></span>
+                                            <span class="fp-port-num"><?php echo htmlspecialchars($p['label']); ?></span>
+                                        </button>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Chassis Legend -->
+                <div style="display: flex; gap: 14px; margin-top: 12px; font-size: 0.7rem; color: #94a3b8; align-items: center; flex-wrap: wrap; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px;">
+                    <span style="display: inline-flex; align-items: center; gap: 4px;">
+                        <span style="width: 8px; height: 8px; border-radius: 2px; background: #059669; border: 1px solid #10b981; display: inline-block;"></span> Online / Up
+                    </span>
+                    <span style="display: inline-flex; align-items: center; gap: 4px;">
+                        <span style="width: 8px; height: 8px; border-radius: 2px; background: #1e293b; border: 1px solid #334155; display: inline-block;"></span> Down / Idle
+                    </span>
+                    <span style="display: inline-flex; align-items: center; gap: 4px;">
+                        <span style="width: 8px; height: 8px; border-radius: 2px; background: #d97706; border: 1px solid #fbbf24; display: inline-block;"></span> Selected (Inspecting)
+                    </span>
+                    <span style="display: inline-flex; align-items: center; gap: 4px;">
+                        <span style="width: 8px; height: 8px; border-radius: 2px; background: #991b1b; border: 1px solid #ef4444; display: inline-block;"></span> STP Blocked
+                    </span>
+                    <?php if (!empty($faceplate_sfp)): ?>
+                    <span style="display: inline-flex; align-items: center; gap: 4px;">
+                        <span style="width: 8px; height: 8px; border-radius: 2px; border: 1px dashed #38bdf8; display: inline-block;"></span> SFP Cage
+                    </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Active Port Inspector Card -->
+            <div class="port-inspector-panel" id="port-inspector-panel">
+                <!-- Inspector Header Bar -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; flex-wrap: wrap; gap: 0.75rem;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;" id="insp-port-title">
+                            <span style="font-size: 1.15rem; font-weight: 700; color: var(--text);">Port Inspector</span>
+                        </div>
+                        <div id="insp-port-alias" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; display: none;"></div>
+                        <div style="display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap;">
+                            <span id="insp-status-badge" style="display: none; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; align-items: center; gap: 4px;"></span>
+                            <span id="insp-stp-badge" style="display: none; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; align-items: center; gap: 4px;"></span>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-primary btn-sm" onclick="selectPort(currentInspectorPort)" style="padding: 5px 12px; font-size: 0.78rem;">
+                            <i data-lucide="activity" style="width: 14px; height: 14px;"></i> Live Traffic Graph
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="findPortInTable(currentInspectorPort)" style="padding: 5px 12px; font-size: 0.78rem;">
+                            <i data-lucide="list" style="width: 14px; height: 14px;"></i> Find in Full Table
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Inspector 2-Column Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem;">
+                    <!-- Column 1: Interface & VLAN Configuration -->
+                    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.1rem; display: flex; flex-direction: column; gap: 0.85rem;">
+                        <h4 style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin: 0; display: flex; align-items: center; gap: 6px;">
+                            <i data-lucide="sliders" style="width: 13px; height: 13px; color: var(--primary);"></i>
+                            Port Configuration &amp; VLANs
+                        </h4>
+                        
+                        <div style="display: flex; justify-content: space-between; font-size: 0.82rem; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 0.4rem;">
+                            <span style="color: var(--text-muted);">Speed / Duplex:</span>
+                            <span id="insp-speed" style="font-weight: 600; color: var(--text);">-</span>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; font-size: 0.82rem; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 0.4rem;">
+                            <span style="color: var(--text-muted);">Port Type:</span>
+                            <span id="insp-type" style="font-weight: 600; color: var(--text);">-</span>
+                        </div>
+
+                        <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 0.5rem;">
+                            <span style="color: var(--text-muted);">Native VLAN (Untagged):</span>
+                            <div id="insp-native-vlan" style="margin-top: 2px;"></div>
+                        </div>
+
+                        <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem;">
+                            <span style="color: var(--text-muted);">Tagged VLANs:</span>
+                            <div id="insp-tagged-vlans"></div>
+                        </div>
+
+                        <!-- SFP DOM Section (Shown if SFP module present) -->
+                        <div id="insp-sfp-section" style="display: none; margin-top: 0.5rem; padding-top: 0.6rem; border-top: 1px dashed var(--border); font-size: 0.78rem;">
+                            <div style="color: var(--warning); font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                                <i data-lucide="zap" style="width: 12px; height: 12px;"></i> SFP Optical Diagnostics
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; color: var(--text-muted);">
+                                <div>Vendor: <span id="insp-sfp-vendor" style="color: var(--text); font-weight: 600;">-</span></div>
+                                <div>Part: <span id="insp-sfp-part" style="color: var(--text); font-weight: 600;">-</span></div>
+                                <div>S/N: <span id="insp-sfp-serial" style="color: var(--text); font-weight: 600;">-</span></div>
+                                <div style="grid-column: span 2;">Optical: <span id="insp-sfp-power" style="color: var(--text); font-weight: 600;">-</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Connected Downstream Hosts -->
+                    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.1rem; display: flex; flex-direction: column; gap: 0.85rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h4 style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin: 0; display: flex; align-items: center; gap: 6px;">
+                                <i data-lucide="network" style="width: 13px; height: 13px; color: var(--success);"></i>
+                                Connected Hosts
+                            </h4>
+                            <span id="insp-dev-count-badge" style="font-size: 0.7rem; font-weight: 700; background: rgba(56,189,248,0.12); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 20px; padding: 2px 8px;">
+                                0 Devices
+                            </span>
+                        </div>
+
+                        <!-- Search filter if multiple downstream devices -->
+                        <div id="insp-dev-search-wrap" style="display: none;">
+                            <input type="text" placeholder="Filter MAC / IP / Hostname on this port..." class="input-control" onkeyup="filterInspectorDevices(this)" style="padding: 4px 10px; font-size: 0.75rem; width: 100%; border-radius: 4px;">
+                        </div>
+
+                        <!-- Dynamic hosts container -->
+                        <div id="insp-devices-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mode 2: Full Table View -->
+        <div id="table-view-container" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; flex-wrap: wrap; gap: 0.75rem;">
+                <div>
+                    <h4 style="font-size: 0.95rem; margin: 0; font-weight: 700;">Physical Interface Inventory &amp; Connected Hosts</h4>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);"><?php echo count($grouped_ports); ?> Interfaces • <?php echo count($ports); ?> MAC records</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="text" id="portSearch" placeholder="Filter interface / MAC / IP / VLAN..." class="input-control" style="width: 260px; padding: 6px 12px; font-size: 0.8rem;">
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table style="width: 100%; border-collapse: collapse;" id="portTable">
                 <thead>
                     <tr style="border-bottom: 1px solid var(--border); text-align: left;">
                         <th style="padding: 1rem; color: var(--text-muted); font-size: 0.8rem;">Interface</th>
@@ -766,8 +1347,9 @@ include 'includes/header.php';
                 </tbody>
             </table>
         </div>
-    </div>
-</div>
+    </div> <!-- /#table-view-container -->
+</div> <!-- /#switch-ports-main-card -->
+</div> <!-- /.grid-side-detail -->
 
 <!-- History Charts Section -->
 <div style="margin-top: 3rem;">
@@ -875,6 +1457,313 @@ include 'includes/header.php';
 </div>
 
 <script>
+// --- Switch Faceplate Inspector Data & Functions ---
+const FACEPLATE_PORTS = <?php echo json_encode($faceplate_json_data, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;
+let currentInspectorPort = null;
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, function(m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+    });
+}
+
+function formatTimestamp(ts) {
+    if (!ts) return '-';
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return ts;
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ', ' + d.toLocaleDateString([], { day: '2-digit', month: 'short' });
+}
+
+window.switchViewMode = function(mode) {
+    const fpView = document.getElementById('faceplate-view-container');
+    const tbView = document.getElementById('table-view-container');
+    const btnFp  = document.getElementById('btn-mode-faceplate');
+    const btnTb  = document.getElementById('btn-mode-table');
+    
+    if (mode === 'table') {
+        if (fpView) fpView.style.display = 'none';
+        if (tbView) tbView.style.display = 'block';
+        if (btnTb) btnTb.classList.add('active');
+        if (btnFp) btnFp.classList.remove('active');
+        localStorage.setItem('switch_view_mode', 'table');
+    } else {
+        if (fpView) fpView.style.display = 'block';
+        if (tbView) tbView.style.display = 'none';
+        if (btnFp) btnFp.classList.add('active');
+        if (btnTb) btnTb.classList.remove('active');
+        localStorage.setItem('switch_view_mode', 'faceplate');
+    }
+    if (window.lucide) lucide.createIcons();
+};
+
+window.findPortInTable = function(portName) {
+    switchViewMode('table');
+    const searchInput = document.getElementById('portSearch');
+    if (searchInput) {
+        searchInput.value = portName;
+        searchInput.dispatchEvent(new Event('input'));
+    }
+    const targetRow = document.querySelector(`.port-row[data-port-name="${CSS.escape(portName)}"]`);
+    if (targetRow) {
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetRow.style.background = 'rgba(245, 158, 11, 0.2)';
+        setTimeout(() => { targetRow.style.background = ''; }, 3000);
+    }
+};
+
+window.inspectPort = function(portName) {
+    currentInspectorPort = portName;
+    const data = FACEPLATE_PORTS[portName];
+    if (!data) return;
+
+    // 1. Highlight active button on faceplate
+    document.querySelectorAll('.fp-port-btn').forEach(btn => {
+        if (btn.getAttribute('data-port-id') === portName) {
+            btn.classList.add('fp-port-active');
+        } else {
+            btn.classList.remove('fp-port-active');
+        }
+    });
+
+    // 2. Header
+    const portTitleEl = document.getElementById('insp-port-title');
+    const portAliasEl = document.getElementById('insp-port-alias');
+    const statusBadgeEl = document.getElementById('insp-status-badge');
+    const stpBadgeEl = document.getElementById('insp-stp-badge');
+
+    if (portTitleEl) {
+        const isUplink = data.dev_count > 3 || /(-to-|-sw|uplink|trunk|core|dist|po\d+|bond|ae\d+|sfp)/i.test(data.name);
+        portTitleEl.innerHTML = `
+            <span style="font-family:'JetBrains Mono',monospace;font-size:1.15rem;font-weight:700;color:var(--text);">${escapeHtml(data.name)}</span>
+            ${isUplink ? '<span style="font-size:0.65rem;background:var(--brand-soft);color:var(--primary);padding:2px 6px;border-radius:4px;font-weight:800;letter-spacing:0.5px;">UPLINK</span>' : ''}
+            ${data.is_sfp ? '<span style="font-size:0.65rem;background:rgba(245,158,11,0.15);color:#f59e0b;padding:2px 6px;border-radius:4px;font-weight:800;letter-spacing:0.5px;">SFP FIBER</span>' : ''}
+        `;
+    }
+
+    if (portAliasEl) {
+        if (data.alias) {
+            portAliasEl.style.display = 'block';
+            portAliasEl.textContent = `Alias: "${data.alias}"`;
+        } else {
+            portAliasEl.style.display = 'none';
+        }
+    }
+
+    if (statusBadgeEl) {
+        const isUp = data.status === 'up';
+        statusBadgeEl.style.display = 'inline-flex';
+        statusBadgeEl.style.background = isUp ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)';
+        statusBadgeEl.style.color = isUp ? 'var(--success)' : 'var(--danger)';
+        statusBadgeEl.innerHTML = `
+            <i data-lucide="${isUp ? 'circle-check' : 'circle-x'}" style="width:12px;height:12px;"></i>
+            ${data.status.toUpperCase()}
+        `;
+    }
+
+    if (stpBadgeEl) {
+        if (data.stp_state && data.status === 'up' && data.stp_state !== 'disabled') {
+            stpBadgeEl.style.display = 'inline-flex';
+            if (data.stp_state === 'blocking') {
+                stpBadgeEl.style.background = 'rgba(239,68,68,0.2)';
+                stpBadgeEl.style.color = '#ef4444';
+                stpBadgeEl.innerHTML = '<i data-lucide="shield-alert" style="width:11px;height:11px;"></i> STP: BLOCKING';
+            } else if (data.stp_state === 'forwarding') {
+                stpBadgeEl.style.background = 'rgba(16,185,129,0.1)';
+                stpBadgeEl.style.color = 'var(--success)';
+                stpBadgeEl.innerHTML = 'STP: FWD';
+            } else {
+                stpBadgeEl.style.background = 'rgba(148,163,184,0.1)';
+                stpBadgeEl.style.color = 'var(--text-muted)';
+                stpBadgeEl.innerHTML = `STP: ${escapeHtml(data.stp_state)}`;
+            }
+        } else {
+            stpBadgeEl.style.display = 'none';
+        }
+    }
+
+    // 3. Port Configuration & VLANs
+    const speedEl = document.getElementById('insp-speed');
+    const typeEl  = document.getElementById('insp-type');
+    if (speedEl) speedEl.textContent = data.speed || 'Auto / Negotiated';
+    if (typeEl)  typeEl.textContent  = (data.type && data.type !== 'other') ? data.type : 'Ethernet CSMA/CD';
+
+    // Native Untagged VLAN
+    const nativeVlanEl = document.getElementById('insp-native-vlan');
+    if (nativeVlanEl) {
+        if (data.vlan_id) {
+            nativeVlanEl.innerHTML = `
+                <div style="display:inline-flex;align-items:center;gap:4px;">
+                    <span class="vlan-chip" style="font-size:0.75rem;padding:2px 8px;">
+                        ID: ${data.vlan_id}
+                    </span>
+                    <span style="font-weight:600;color:var(--text);">${escapeHtml(data.vlan_name || 'VLAN ' + data.vlan_id)}</span>
+                    <span style="color:var(--text-muted);font-size:0.7rem;">(Untagged PVID)</span>
+                </div>
+            `;
+        } else {
+            nativeVlanEl.innerHTML = '<span style="color:var(--text-muted);font-size:0.8rem;">None / Default</span>';
+        }
+    }
+
+    // Tagged VLANs Chips
+    const taggedVlanContainer = document.getElementById('insp-tagged-vlans');
+    if (taggedVlanContainer) {
+        if (data.tagged_vlans && data.tagged_vlans.trim() !== '') {
+            const items = data.tagged_vlans.split(',');
+            let chipsHtml = '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;">';
+            items.forEach(it => {
+                if (!it.trim()) return;
+                const parts = it.split(':', 2);
+                const vid = parts[0];
+                const vname = parts[1] || '';
+                chipsHtml += `<span class="vlan-chip" style="font-size:0.7rem;padding:2px 7px;" title="${escapeHtml(vname)}">VLAN ${escapeHtml(vid)}${vname ? ': ' + escapeHtml(vname) : ''}</span>`;
+            });
+            chipsHtml += '</div>';
+            taggedVlanContainer.innerHTML = chipsHtml;
+        } else {
+            taggedVlanContainer.innerHTML = '<span style="color:var(--text-muted);font-size:0.75rem;">None (Access Port)</span>';
+        }
+    }
+
+    // SFP Diagnostics
+    const sfpContainer = document.getElementById('insp-sfp-section');
+    if (sfpContainer) {
+        if (data.sfp_vendor) {
+            sfpContainer.style.display = 'block';
+            document.getElementById('insp-sfp-vendor').textContent = data.sfp_vendor;
+            document.getElementById('insp-sfp-part').textContent = data.sfp_part || '-';
+            document.getElementById('insp-sfp-serial').textContent = data.sfp_serial || '-';
+            document.getElementById('insp-sfp-power').textContent = `RX: ${data.sfp_rx_power || 'N/A'} | TX: ${data.sfp_tx_power || 'N/A'}`;
+        } else {
+            sfpContainer.style.display = 'none';
+        }
+    }
+
+    // 4. Downstream Connected Hosts
+    const devCountBadge = document.getElementById('insp-dev-count-badge');
+    const devicesContainer = document.getElementById('insp-devices-container');
+    const devSearchWrap = document.getElementById('insp-dev-search-wrap');
+    
+    if (devCountBadge) devCountBadge.textContent = `${data.dev_count} Device${data.dev_count === 1 ? '' : 's'}`;
+
+    if (devicesContainer) {
+        if (data.dev_count === 0) {
+            if (devSearchWrap) devSearchWrap.style.display = 'none';
+            devicesContainer.innerHTML = `
+                <div style="padding: 2rem 1rem; text-align: center; color: var(--text-muted); background: var(--surface); border-radius: 6px; border: 1px dashed var(--border);">
+                    <i data-lucide="plug-2" style="width:24px;height:24px;margin-bottom:6px;opacity:0.4;"></i>
+                    <div style="font-size: 0.85rem; font-weight: 600;">No Active Devices Connected</div>
+                    <div style="font-size: 0.75rem; opacity: 0.7; margin-top: 2px;">No MAC table records active on this interface.</div>
+                </div>
+            `;
+        } else if (data.dev_count === 1) {
+            if (devSearchWrap) devSearchWrap.style.display = 'none';
+            const dev = data.devices[0];
+            devicesContainer.innerHTML = `
+                <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+                        <div style="font-family:'JetBrains Mono',monospace; font-size:0.9rem; font-weight:700; color:var(--text); display:flex; align-items:center; gap:6px;">
+                            <i data-lucide="laptop" style="width:14px;color:var(--primary);"></i>
+                            ${escapeHtml(dev.mac_addr)}
+                        </div>
+                        <span style="font-size:0.7rem; color:var(--text-muted);">
+                            ${dev.last_seen_on_port ? 'Seen: ' + formatTimestamp(dev.last_seen_on_port) : ''}
+                        </span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.8rem;">
+                        <div>
+                            <div style="color:var(--text-muted);font-size:0.7rem;">IP Address</div>
+                            <div style="margin-top:2px;">
+                                ${dev.ip_addr ? `<a href="javascript:void(0)" onclick="openIpIntelligence('${escapeHtml(dev.ip_addr)}')" style="color:var(--primary);text-decoration:none;font-weight:700;border-bottom:1px dashed var(--primary);cursor:pointer;">${escapeHtml(dev.ip_addr)}</a>` : '<span style="opacity:0.4;">Not in IPAM</span>'}
+                            </div>
+                        </div>
+                        <div>
+                            <div style="color:var(--text-muted);font-size:0.7rem;">Hostname</div>
+                            <div style="font-weight:600;margin-top:2px;">${escapeHtml(dev.hostname || '-')}</div>
+                        </div>
+                        <div>
+                            <div style="color:var(--text-muted);font-size:0.7rem;">Vendor / Hardware</div>
+                            <div style="color:var(--text-muted);margin-top:2px;">${escapeHtml(dev.vendor || 'Unknown')}</div>
+                        </div>
+                        <div>
+                            <div style="color:var(--text-muted);font-size:0.7rem;">VLAN</div>
+                            <div style="margin-top:2px;">
+                                ${dev.vlan_id ? `<span class="vlan-chip" style="font-size:0.7rem;">ID: ${escapeHtml(dev.vlan_id)}</span>` : '<span style="opacity:0.4;">-</span>'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Multiple devices
+            if (devSearchWrap) devSearchWrap.style.display = 'block';
+            let tableRows = '';
+            data.devices.forEach((dev) => {
+                tableRows += `
+                    <tr class="insp-dev-row" style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                        <td style="padding:6px 10px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; font-weight:600; color:var(--text);">
+                            ${escapeHtml(dev.mac_addr)}
+                        </td>
+                        <td style="padding:6px 10px;">
+                            ${dev.ip_addr ? `<a href="javascript:void(0)" onclick="openIpIntelligence('${escapeHtml(dev.ip_addr)}')" style="color:var(--primary);text-decoration:none;font-weight:700;border-bottom:1px dashed var(--primary);cursor:pointer;">${escapeHtml(dev.ip_addr)}</a>` : '<span style="opacity:0.35;font-size:0.7rem;">Not in IPAM</span>'}
+                        </td>
+                        <td style="padding:6px 10px; font-size:0.75rem; color:var(--text);">
+                            ${escapeHtml(dev.hostname || '-')}
+                        </td>
+                        <td style="padding:6px 10px; font-size:0.72rem; color:var(--text-muted);">
+                            ${escapeHtml(dev.vendor || '-')}
+                        </td>
+                        <td style="padding:6px 10px; text-align:right; font-size:0.72rem; color:var(--text-muted);">
+                            ${dev.last_seen_on_port ? formatTimestamp(dev.last_seen_on_port) : '-'}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            devicesContainer.innerHTML = `
+                <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--surface);">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.8rem;" id="insp-devices-table">
+                        <thead>
+                            <tr style="background:rgba(0,0,0,0.3); position:sticky; top:0; z-index:2; border-bottom:1px solid var(--border); text-align:left;">
+                                <th style="padding:6px 10px; color:var(--text-muted); font-size:0.72rem;">MAC Address</th>
+                                <th style="padding:6px 10px; color:var(--text-muted); font-size:0.72rem;">IP Address</th>
+                                <th style="padding:6px 10px; color:var(--text-muted); font-size:0.72rem;">Hostname</th>
+                                <th style="padding:6px 10px; color:var(--text-muted); font-size:0.72rem;">Vendor</th>
+                                <th style="padding:6px 10px; color:var(--text-muted); font-size:0.72rem; text-align:right;">Last Seen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+    }
+
+    if (window.lucide) lucide.createIcons();
+};
+
+window.filterInspectorDevices = function(input) {
+    const q = input.value.toLowerCase().trim();
+    document.querySelectorAll('.insp-dev-row').forEach(row => {
+        row.style.display = (!q || row.textContent.toLowerCase().includes(q)) ? '' : 'none';
+    });
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Restore or set initial view mode
+    const savedMode = localStorage.getItem('switch_view_mode') || 'faceplate';
+    switchViewMode(savedMode);
+
+    // Initial inspect port
+    const initialPort = <?php echo json_encode($initial_port_id); ?>;
+    if (initialPort && FACEPLATE_PORTS[initialPort]) {
+        inspectPort(initialPort);
+    }
+});
+
 // Drawer toggle for multi-MAC ports
 window.togglePortDrawer = function(drawerId) {
     const drawer = document.getElementById(drawerId);
@@ -947,9 +1836,13 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
     const cpuBar   = document.getElementById('cpu-bar');
     const memVal   = document.getElementById('mem-val');
     const memBar   = document.getElementById('mem-bar');
+    const tempVal  = document.getElementById('temp-val');
+    const tempBar  = document.getElementById('temp-bar');
+    const tempBadge = document.getElementById('temp-badge');
     const lastPoll = document.getElementById('last-poll-val');
 
     function setBar(bar, val, dangerThreshold, dangerColor, normalColor) {
+        if (!bar) return;
         bar.style.width = val + '%';
         bar.style.background = val > dangerThreshold ? dangerColor : normalColor;
     }
@@ -970,11 +1863,22 @@ document.getElementById('portSearch')?.addEventListener('input', function() {
     es.onmessage = function(e) {
         try {
             const d = JSON.parse(e.data);
-            cpuVal.textContent = d.cpu + '%';
+            if (cpuVal) cpuVal.textContent = d.cpu + '%';
             setBar(cpuBar, d.cpu, 80, 'var(--danger)', 'var(--primary)');
-            memVal.textContent = d.mem + '%';
+            if (memVal) memVal.textContent = d.mem + '%';
             setBar(memBar, d.mem, 90, 'var(--danger)', 'var(--success)');
-            lastPoll.textContent = d.last_poll;
+            if (d.temp !== undefined && d.temp !== null) {
+                if (tempVal) tempVal.textContent = d.temp + '°C';
+                if (tempBar) {
+                    tempBar.style.width = Math.min(100, Math.max(0, d.temp)) + '%';
+                    tempBar.style.background = d.temp > 65 ? 'var(--danger)' : (d.temp > 50 ? '#f59e0b' : '#10b981');
+                }
+                if (tempBadge) {
+                    const color = d.temp > 65 ? 'var(--danger)' : (d.temp > 50 ? '#f59e0b' : '#10b981');
+                    tempBadge.innerHTML = `<span style="color: ${color};">${d.temp}°C</span>`;
+                }
+            }
+            if (lastPoll) lastPoll.textContent = d.last_poll;
         } catch(err) { console.warn('SSE parse error', err); }
     };
 

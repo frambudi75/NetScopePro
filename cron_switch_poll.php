@@ -222,20 +222,25 @@ foreach ($switches as $switch) {
         $uptime_raw = trim((string)$sys_uptime);
         $uptime_str = format_uptime_ticks($uptime_raw);
 
-        // Smart Vendor Detection for CPU/RAM (30+ vendors supported)
+        // Smart Vendor Detection for CPU/RAM/Temperature (30+ vendors supported)
         $vendor_result = VendorDetector::detect($ip, $community, $system_info);
         $model = $vendor_result['model'];
         $cpu = $vendor_result['cpu'];
         $mem = $vendor_result['mem'];
-        echo "  Detected: $model (CPU: {$cpu}%, MEM: {$mem}%)\n";
+        $temp = isset($vendor_result['temp']) ? (int)$vendor_result['temp'] : null;
+        if ($temp !== null && ($temp < -20 || $temp > 150)) {
+            $temp = null;
+        }
+        $temp_str = ($temp !== null) ? ", TEMP: {$temp}°C" : "";
+        echo "  Detected: $model (CPU: {$cpu}%, MEM: {$mem}%{$temp_str})\n";
 
         // Safety Bounds
         $cpu = min(100, max(0, (int)$cpu));
         $mem = min(100, max(0, (int)$mem));
         
         // Save System Stats
-        $db->prepare("UPDATE switches SET model = ?, uptime = ?, cpu_usage = ?, memory_usage = ?, system_info = ? WHERE id = ?")
-           ->execute([$model, $uptime_str, $cpu, $mem, $system_info, $switch['id']]);
+        $db->prepare("UPDATE switches SET model = ?, uptime = ?, cpu_usage = ?, memory_usage = ?, temperature = ?, system_info = ? WHERE id = ?")
+           ->execute([$model, $uptime_str, $cpu, $mem, $temp, $system_info, $switch['id']]);
 
         // Save to History (for graphs) - cleanup handled by retention policy
         $db->prepare("INSERT INTO switch_health_history (switch_id, cpu_usage, memory_usage) VALUES (?, ?, ?)")
