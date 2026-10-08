@@ -532,6 +532,71 @@ foreach ($switches as $s) {
                     </div>
                 <?php endforeach; ?>
             </div>
+    </div>
+
+    <!-- Evidence Reasoning & Transparency Panel (v2.32.6) -->
+    <?php
+    $status_tag = $analysis['status_tag'] ?? 'NORMAL';
+    $conf_lvl   = $analysis['confidence_level'] ?? 'LOW';
+    $conf_score = (int)($analysis['confidence_score'] ?? 0);
+    $ev_list    = $analysis['evidences'] ?? [];
+    $ex_list    = $analysis['exclusions'] ?? [];
+
+    $tag_badge = match($status_tag) {
+        'ACTIVE'    => ['label' => '🔴 ACTIVE LOOP (UNMITIGATED)', 'color' => '#ef4444', 'bg' => 'rgba(239, 68, 68, 0.15)', 'border' => 'rgba(239, 68, 68, 0.4)'],
+        'MITIGATED' => ['label' => '🔵 LOOP MITIGATED (STP PROTECTED)', 'color' => '#3b82f6', 'bg' => 'rgba(59, 130, 246, 0.15)', 'border' => 'rgba(59, 130, 246, 0.4)'],
+        'SUSPECTED' => ['label' => '🟡 SUSPECTED LOOP (OBSERVING)', 'color' => '#eab308', 'bg' => 'rgba(234, 179, 8, 0.15)', 'border' => 'rgba(234, 179, 8, 0.4)'],
+        default     => ['label' => '🟢 STABLE (CLEAN)', 'color' => '#22c55e', 'bg' => 'rgba(34, 197, 94, 0.15)', 'border' => 'rgba(34, 197, 94, 0.4)']
+    };
+    ?>
+    <div class="detective-card" style="margin-bottom: 1.5rem; border: 1px solid <?php echo $tag_badge['border']; ?>; background: linear-gradient(180deg, <?php echo $tag_badge['bg']; ?> 0%, var(--surface) 120px);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <span class="badge" style="background: <?php echo $tag_badge['bg']; ?>; color: <?php echo $tag_badge['color']; ?>; border: 1px solid <?php echo $tag_badge['border']; ?>; font-weight: 700; font-size: 0.8rem; padding: 4px 10px; letter-spacing: 0.03em;">
+                    <?php echo $tag_badge['label']; ?>
+                </span>
+                <span style="font-size: 0.85rem; font-weight: 700; color: var(--text); letter-spacing: 0.03em; text-transform: uppercase;">
+                    Multi-Evidence Correlation Matrix
+                </span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem;">
+                <span style="color: var(--text-muted); font-weight: 500;">Confidence Engine:</span>
+                <span class="badge" style="background: rgba(255, 255, 255, 0.08); color: var(--text); font-family: 'JetBrains Mono', monospace; font-weight: 700; padding: 3px 8px; border: 1px solid rgba(255, 255, 255, 0.15);">
+                    <?php echo $conf_lvl; ?> (<?php echo $conf_score; ?>/100)
+                </span>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem;">
+            <!-- Column 1: Evidence Checklist -->
+            <div style="background: rgba(0, 0, 0, 0.2); border-radius: var(--radius-sm); padding: 1rem; border: 1px solid rgba(255, 255, 255, 0.05);">
+                <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.65rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <i data-lucide="check-circle-2" style="width: 14px; color: var(--success);"></i> Correlated Evidence Checklist (Why Flagged)
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.82rem;">
+                    <?php foreach ($ev_list as $ev_item): ?>
+                        <div style="display: flex; align-items: flex-start; gap: 0.5rem; line-height: 1.4;">
+                            <span style="color: var(--success); font-weight: 700; font-family: 'JetBrains Mono', monospace;">✓</span>
+                            <span style="color: var(--text);"><?php echo htmlspecialchars($ev_item); ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <!-- Column 2: Safely Disqualified / Excluded Filters -->
+            <div style="background: rgba(0, 0, 0, 0.2); border-radius: var(--radius-sm); padding: 1rem; border: 1px solid rgba(255, 255, 255, 0.05);">
+                <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.65rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <i data-lucide="shield-check" style="width: 14px; color: #38bdf8;"></i> Safely Disqualified Anomaly Filters (Anti-Noise)
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.82rem;">
+                    <?php foreach ($ex_list as $ex_item): ?>
+                        <div style="display: flex; align-items: flex-start; gap: 0.5rem; line-height: 1.4;">
+                            <span style="color: #38bdf8; font-weight: 700; font-family: 'JetBrains Mono', monospace;">✓</span>
+                            <span style="color: var(--text-muted);"><?php echo htmlspecialchars($ex_item); ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -640,13 +705,19 @@ foreach ($switches as $s) {
                             <?php echo htmlspecialchars($sw['model'] ?: 'Generic Switch'); ?>
                         </td>
                         <td>
-                            <?php if ($blocked_cnt > 0): ?>
-                                <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: var(--danger); font-size: 0.75rem;">
-                                    Quarantined (<?php echo $blocked_cnt; ?>)
+                            <?php 
+                            $details = $sw['loop_details'] ?? '';
+                            if (stripos($details, '[MITIGATED]') !== false || $blocked_cnt > 0): ?>
+                                <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6; font-size: 0.75rem; border: 1px solid rgba(59, 130, 246, 0.3);">
+                                    🔵 STP Mitigated <?php echo $blocked_cnt > 0 ? "($blocked_cnt)" : ""; ?>
                                 </span>
-                            <?php elseif (!empty($sw['loop_detected'])): ?>
-                                <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: var(--danger); font-size: 0.75rem;">
-                                    MAC Thrashing
+                            <?php elseif (stripos($details, '[ACTIVE]') !== false || !empty($sw['loop_detected'])): ?>
+                                <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: var(--danger); font-size: 0.75rem; border: 1px solid rgba(239, 68, 68, 0.3);">
+                                    🔴 Active Loop
+                                </span>
+                            <?php elseif (stripos($details, '[SUSPECTED]') !== false): ?>
+                                <span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #eab308; font-size: 0.75rem; border: 1px solid rgba(234, 179, 8, 0.3);">
+                                    🟡 Suspected
                                 </span>
                             <?php elseif (isset($sw['stp_enabled']) && (int)$sw['stp_enabled'] === 0): ?>
                                 <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: var(--text-muted); font-size: 0.75rem;">

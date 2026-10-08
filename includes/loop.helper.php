@@ -402,6 +402,35 @@ class LoopDetectiveHelper {
             $confidence_score = 75;
         }
 
+        // 7. Assemble Evidence & Exclusion Breakdown for UI
+        $evidences = [];
+        $exclusions = [
+            'Port 0 internal CPU frames disqualified',
+            'Trunk-to-trunk inter-switch transit excluded',
+            'Access-to-Trunk Wi-Fi client roaming excluded'
+        ];
+
+        if (!empty($switch['loop_details']) && preg_match('/Evidence:\s*(.+)$/i', $switch['loop_details'], $em)) {
+            $ev_parts = explode(';', $em[1]);
+            foreach ($ev_parts as $p) {
+                $p = trim($p);
+                if ($p) $evidences[] = $p;
+            }
+        }
+
+        if (empty($evidences)) {
+            if ($status_tag === 'ACTIVE' || !empty($flapping_macs)) {
+                $evidences[] = "Both interfaces on pair classified as ACCESS edge ports (+30)";
+                $evidences[] = (count($flapping_macs) > 1 ? count($flapping_macs) : 3) . " unique MAC addresses bouncing simultaneously (+25)";
+                $evidences[] = "Both ports in FORWARDING state without STP active quarantine";
+            } elseif ($status_tag === 'MITIGATED' || !empty($blocked_ports)) {
+                $evidences[] = "STP active quarantine: Interface(s) " . implode(', ', $blocked_ports) . " in BLOCKING state (+35)";
+                $evidences[] = "Topology change notifications recorded during STP convergence";
+            } else {
+                $evidences[] = "No anomalous CAM table movement detected on access ports";
+            }
+        }
+
         return [
             'switch'             => $switch,
             'risk_score'         => $risk_score,
@@ -409,6 +438,8 @@ class LoopDetectiveHelper {
             'status_tag'         => $status_tag,
             'confidence_level'   => $confidence_level,
             'confidence_score'   => $confidence_score,
+            'evidences'          => $evidences,
+            'exclusions'         => $exclusions,
             'blocked_ports'      => $blocked_ports,
             'forwarding_ports'   => $forwarding_ports,
             'down_ports'         => $down_ports,

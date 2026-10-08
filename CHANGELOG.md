@@ -2,8 +2,12 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
-## [2.32.3] - 2026-10-08
+## [2.32.6] - 2026-10-08
 ### Added & Enhanced
+- **Evidence Reasoning & Transparency Matrix (`loop-detective.php`)**:
+  - Added dedicated forensic panel showing live composite status (`🔴 ACTIVE LOOP`, `🔵 STP MITIGATED`, `🟡 SUSPECTED LOOP`, `🟢 STABLE`).
+  - Integrated dual-column Evidence Checklist ("Why this was flagged") alongside Anti-Noise Disqualified Filters ("What was excluded: Port 0, Trunk transit, Wi-Fi roaming").
+  - Added confidence level scoring meter (`VERY_HIGH`, `HIGH`, `MEDIUM`, `LOW`) and status pill badges in global switch STP matrix.
 - **L2 Multi-Evidence Correlation Engine (`includes/loop.evidence.php`)**:
   - Enforced fundamental architecture rule: *FDB alone must NEVER trigger LOOP_DETECTED*. FDB table is strictly a candidate trigger.
   - Telemetry Correlator synthesizes port role context (Access vs Trunk/Uplink vs LAG), MAC bouncing frequency, STP states, TCN delta, and exclusion tracking.
