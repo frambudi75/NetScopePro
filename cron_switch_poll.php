@@ -18,6 +18,7 @@ require_once __DIR__ . '/includes/network.php';
 require_once __DIR__ . '/includes/audit.helper.php';
 require_once __DIR__ . '/includes/vendor.helper.php';
 require_once __DIR__ . '/includes/notifications.php';
+require_once __DIR__ . '/includes/loop.evidence.php';
 
 $is_cli = (php_sapi_name() === 'cli');
 
@@ -935,36 +936,80 @@ foreach ($switches as $switch) {
                 }
             }
 
-            // Flap sensitivity threshold: minimum distinct MACs flapping on the EXACT same port pair
-            $flap_threshold = max(3, (int)Settings::get('loop_flap_threshold', 5));
+            // Fetch Tagged Ports for this switch to assist infrastructure link classification
+            $tagged_ports_list = [];
+            try {
+                $tpStmt = $db->prepare("SELECT DISTINCT port_name FROM switch_port_vlans WHERE switch_id = ? AND is_tagged = 1");
+                $tpStmt->execute([$switch['id']]);
+                $tagged_ports_list = $tpStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+            } catch (Exception $e) {}
 
-            // Differentiate Access-to-Access loop (physical cable loop) vs Access-to-Uplink (normal Wi-Fi AP roaming)
-            $is_access_to_access = false;
-            if ($top_pair !== null && strpos($top_pair, ' <-> ') !== false) {
-                list($tp1, $tp2) = explode(' <-> ', $top_pair);
-                $tp1_up = $fnIsUplink(trim($tp1));
-                $tp2_up = $fnIsUplink(trim($tp2));
-                $is_access_to_access = (!$tp1_up && !$tp2_up);
+            // Build port telemetry map
+            $telemetry_ports = [];
+            foreach ($port_mac_counts as $pName => $pCnt) {
+                $telemetry_ports[$pName] = [
+                    'mac_count' => $pCnt,
+                    'stp_state' => isset($stp_blocked_ports[$pName]) ? 'blocking' : 'forwarding',
+                    'alias'     => $name_map_ifalias[$pName] ?? ''
+                ];
             }
-
-            // Real Loop Evaluation:
-            // 1. True Cable Loop: 2 Access ports looping frames back-to-back (>= flap_threshold)
-            // 2. Uplink Roaming vs Storm: If an uplink/trunk is involved, require massive flood (>= 20 MACs)
-            //    to avoid false positives caused by normal mobile Wi-Fi client roaming across APs.
-            $is_real_flapping_loop = false;
-            if ($top_pair !== null) {
-                if ($is_access_to_access && $max_pair_flaps >= $flap_threshold) {
-                    $is_real_flapping_loop = true;
-                } elseif ($max_pair_flaps >= 20) {
-                    $is_real_flapping_loop = true;
+            foreach ($stp_blocked_ports as $bpName) {
+                if (!isset($telemetry_ports[$bpName])) {
+                    $telemetry_ports[$bpName] = [
+                        'mac_count' => 0,
+                        'stp_state' => 'blocking',
+                        'alias'     => $name_map_ifalias[$bpName] ?? ''
+                    ];
                 }
             }
 
-            // Identify Root-Cause End Device on Access port if a REAL loop or blocked port is confirmed
+            $prev_tcn = (int)($switch['stp_topology_changes'] ?? 0);
+            $tcn_delta = max(0, $stp_top_changes - $prev_tcn);
+            $prev_loop_detected = (int)($switch['loop_detected'] ?? 0);
+            $prev_loop_details = (string)($switch['loop_details'] ?? '');
+            $cycles_persisted = ($prev_loop_detected > 0) ? 2 : 1;
+            $flap_threshold = max(3, (int)Settings::get('loop_flap_threshold', 5));
+
+            // Multi-Evidence Evaluation via LoopEvidenceEngine (Candidate-Only Correlation)
+            $eval = LoopEvidenceEngine::evaluate([
+                'ports'            => $telemetry_ports,
+                'flaps'            => $mac_flaps,
+                'tagged_ports'     => $tagged_ports_list,
+                'tcn_delta'        => $tcn_delta,
+                'cycles_persisted' => $cycles_persisted,
+                'flap_threshold'   => $flap_threshold
+            ]);
+
+            $top_pair = $eval['top_pair'];
+            $max_pair_flaps = $eval['unique_mac_count'];
+            $is_candidate = $eval['is_candidate'];
+            $confidence_score = $eval['confidence_score'];
+            $confidence_level = $eval['confidence_level'];
+
+            // Orthogonal State Evaluation
+            $loop_state = 'NORMAL';
+            if ($is_candidate) {
+                $loop_state = ($cycles_persisted >= 2 || !empty($stp_blocked_ports)) ? 'CONFIRMED' : 'SUSPECTED';
+            }
+
+            $protection_state = !empty($stp_blocked_ports) ? 'STP_BLOCKING' : 'NONE';
+
+            $impact_state = 'NORMAL';
+            if ($loop_state === 'CONFIRMED' || $loop_state === 'SUSPECTED') {
+                if ($protection_state === 'STP_BLOCKING') {
+                    $impact_state = 'MITIGATED';
+                } else {
+                    $impact_state = ($loop_state === 'CONFIRMED') ? 'ACTIVE' : 'SUSPECTED';
+                }
+            }
+
+            $is_real_flapping_loop = ($impact_state === 'ACTIVE');
+
+            // Identify Root-Cause End Device on Access port if loop candidate or blocked port is confirmed
             $culprit_info = null;
             if (!empty($access_suspects) && ($is_real_flapping_loop || !empty($stp_blocked_ports))) {
                 $matched_suspect = null;
-                if ($is_real_flapping_loop) {
+                if ($is_real_flapping_loop && $top_pair) {
                     foreach ($access_suspects as $as) {
                         $p_key = ($as['access_port'] < $as['transit_port'])
                             ? "{$as['access_port']} <-> {$as['transit_port']}"
@@ -1000,7 +1045,7 @@ foreach ($switches as $switch) {
                         'transit_port' => $matched_suspect['transit_port']
                     ];
 
-                    // Log into ip_conflict_events table ONLY for confirmed high-frequency loop events
+                    // Log into ip_conflict_events table ONLY for confirmed active loop events
                     if ($is_real_flapping_loop) {
                         try {
                             $ceStmt = $db->prepare("
@@ -1014,7 +1059,7 @@ foreach ($switches as $switch) {
                                 $s_vendor,
                                 $matched_suspect['access_port'],
                                 $matched_suspect['transit_port'],
-                                "MAC thrashing ($max_pair_flaps MACs) on Access port {$matched_suspect['access_port']} bouncing to {$matched_suspect['transit_port']}",
+                                "MAC thrashing ($max_pair_flaps MACs) on Access port {$matched_suspect['access_port']} bouncing to {$matched_suspect['transit_port']} [Confidence: {$confidence_level}]",
                                 $max_pair_flaps
                             ]);
                         } catch (Exception $e) {}
@@ -1022,31 +1067,30 @@ foreach ($switches as $switch) {
                 }
             }
 
-            // Assess Loop Condition
-            $prev_loop_detected = (int)($switch['loop_detected'] ?? 0);
-            $prev_loop_details = (string)($switch['loop_details'] ?? '');
-
-            $loop_detected = 0;
+            // Assemble Loop Details with Evidence Reasoning
+            $loop_detected = ($impact_state === 'ACTIVE' || $impact_state === 'MITIGATED') ? 1 : 0;
             $loop_details = null;
-            if (!empty($stp_blocked_ports)) {
-                $loop_detected = 1;
+
+            if ($impact_state === 'MITIGATED') {
                 $blocked_list = implode(', ', $stp_blocked_ports);
                 if ($culprit_info) {
-                    $loop_details = "STP Loop Quarantined: Port(s) {$blocked_list} in BLOCKING state. Suspect End-Device on Access port {$culprit_info['access_port']}: {$culprit_info['name']} [{$culprit_info['vendor']} - {$culprit_info['mac']}]";
+                    $loop_details = "[MITIGATED] STP Loop Quarantined (Confidence: {$confidence_level} {$confidence_score}/100): Port(s) {$blocked_list} in BLOCKING state. Suspect End-Device on Access port {$culprit_info['access_port']}: {$culprit_info['name']} [{$culprit_info['vendor']} - {$culprit_info['mac']}]";
                 } else {
-                    $loop_details = "STP Loop Prevention Active: Port(s) {$blocked_list} in BLOCKING state to prevent switching loop";
+                    $loop_details = "[MITIGATED] STP Loop Prevention Active (Confidence: {$confidence_level} {$confidence_score}/100): Port(s) {$blocked_list} in BLOCKING state to prevent switching loop";
                 }
-                echo "  ⚠️ [STP LOOP MITIGATED]: $loop_details\n";
-            } elseif ($is_real_flapping_loop) {
-                $loop_detected = 1;
+                echo "  🔵 [STP LOOP MITIGATED]: $loop_details\n";
+            } elseif ($impact_state === 'ACTIVE') {
                 $sample_mac = !empty($pair_flaps[$top_pair]) ? $pair_flaps[$top_pair][0] : null;
                 $sample_str = $sample_mac ? " (e.g. $sample_mac)" : "";
                 if ($culprit_info) {
-                    $loop_details = "L2 Loop Warning: High-frequency MAC thrashing ($max_pair_flaps MACs) between $top_pair. Root-cause origin on Access port {$culprit_info['access_port']} [{$culprit_info['name']} ({$culprit_info['mac']})]";
+                    $loop_details = "[ACTIVE] Confirmed L2 Loop (Confidence: {$confidence_level} {$confidence_score}/100): High-frequency MAC thrashing ($max_pair_flaps MACs) between $top_pair. Root-cause origin on Access port {$culprit_info['access_port']} [{$culprit_info['name']} ({$culprit_info['mac']})]";
                 } else {
-                    $loop_details = "L2 Loop Warning: High-frequency MAC thrashing ($max_pair_flaps MACs) between $top_pair$sample_str";
+                    $loop_details = "[ACTIVE] Confirmed L2 Loop (Confidence: {$confidence_level} {$confidence_score}/100): High-frequency MAC thrashing ($max_pair_flaps MACs) between $top_pair$sample_str";
                 }
-                echo "  ⚠️ [L2 LOOP WARNING]: $loop_details\n";
+                echo "  🔴 [ACTIVE L2 LOOP]: $loop_details\n";
+            } elseif ($loop_state === 'SUSPECTED') {
+                $loop_details = "[SUSPECTED] Candidate MAC thrashing observed between $top_pair ($max_pair_flaps MACs, Confidence: {$confidence_level} {$confidence_score}/100). Awaiting cycle 2 persistence confirmation.";
+                echo "  🟡 [SUSPECTED L2 LOOP]: $loop_details\n";
             }
 
             $db->prepare("UPDATE switches SET last_poll = CURRENT_TIMESTAMP, stp_enabled = ?, stp_protocol = ?, loop_detected = ?, loop_details = ?, stp_topology_changes = ? WHERE id = ?")

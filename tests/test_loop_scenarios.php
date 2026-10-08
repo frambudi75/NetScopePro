@@ -11,6 +11,7 @@
  */
 
 require_once __DIR__ . '/../includes/loop.helper.php';
+require_once __DIR__ . '/../includes/loop.evidence.php';
 
 class LoopRegressionSuite {
 
@@ -53,126 +54,21 @@ class LoopRegressionSuite {
     }
 
     /**
-     * Core evaluation logic matching v2.32.1 baseline engine
+     * Core evaluation logic delegating to LoopEvidenceEngine
      */
     public static function evaluateScenario(array $scenario): array {
-        $ports = $scenario['ports'] ?? []; // ['port_name' => ['type' => 'access'|'trunk', 'mac_count' => N, 'stp_state' => 'forwarding'|'blocking', 'alias' => '']]
-        $flaps = $scenario['flaps'] ?? []; // [['mac' => '...', 'from' => '...', 'to' => '...']]
-        $tagged_ports = $scenario['tagged_ports'] ?? [];
-        $flap_threshold = $scenario['flap_threshold'] ?? 3;
-
-        // Port MAC count map
-        $port_mac_counts = [];
-        foreach ($ports as $pName => $pData) {
-            $port_mac_counts[$pName] = $pData['mac_count'] ?? 1;
-        }
-
-        // Helper: Check if port is Uplink / Trunk
-        $isUplink = function($pName) use ($ports, $port_mac_counts, $tagged_ports) {
-            $clean = preg_match('/\(([^)]+)\)/', $pName, $m) ? $m[1] : $pName;
-            $clean = trim($clean);
-
-            // Explicit port definition
-            if (isset($ports[$clean]['type']) && strtolower($ports[$clean]['type']) === 'trunk') {
-                return true;
-            }
-
-            $cnt = $port_mac_counts[$clean] ?? ($port_mac_counts[$pName] ?? 0);
-            if ($cnt > 3) return true;
-
-            if (!empty($tagged_ports) && in_array($clean, $tagged_ports, true)) return true;
-
-            if (preg_match('/(-to-|-sw|uplink|trunk|core|dist|po\d+|bond|ae\d+|sfp|\/48|\/49|\/50|\/51|\/52|\/24|\/25|\/26)/i', $clean)) return true;
-
-            $alias = $ports[$clean]['alias'] ?? ($ports[$pName]['alias'] ?? '');
-            if (!empty($alias) && preg_match('/(uplink|trunk|core|dist|switch|to\s)/i', $alias)) return true;
-
-            return false;
-        };
-
-        // Group flaps by normalized pair
-        $pair_flaps = [];
-        $disqualified_port0_count = 0;
-        $roaming_count = 0;
-
-        foreach ($flaps as $f) {
-            $p1 = $f['from'] ?? null;
-            $p2 = $f['to'] ?? null;
-            $mac = $f['mac'] ?? null;
-
-            // RFC 1493 / Internal CPU Port 0 disqualification
-            if ($p1 === 'Port 0' || $p2 === 'Port 0' || $p1 === '0' || $p2 === '0') {
-                $disqualified_port0_count++;
-                continue;
-            }
-
-            if (!$p1 || !$p2 || $p1 === $p2) continue;
-
-            $p1_up = $isUplink($p1);
-            $p2_up = $isUplink($p2);
-
-            // Wi-Fi roaming check: Access <-> Uplink movement
-            if (($p1_up && !$p2_up) || (!$p1_up && $p2_up)) {
-                $roaming_count++;
-            }
-
-            $pair_key = ($p1 < $p2) ? "$p1 <-> $p2" : "$p2 <-> $p1";
-            $pair_flaps[$pair_key][] = $mac;
-        }
-
-        // Identify highest flapping pair
-        $top_pair = null;
-        $max_pair_flaps = 0;
-        foreach ($pair_flaps as $pair => $flapped_macs) {
-            $unique_macs = count(array_unique($flapped_macs));
-            if ($unique_macs > $max_pair_flaps) {
-                $max_pair_flaps = $unique_macs;
-                $top_pair = $pair;
-            }
-        }
-
-        // Check if top pair is strictly Access <-> Access
-        $is_access_to_access = false;
-        if ($top_pair !== null && strpos($top_pair, ' <-> ') !== false) {
-            list($tp1, $tp2) = explode(' <-> ', $top_pair);
-            $tp1_up = $isUplink(trim($tp1));
-            $tp2_up = $isUplink(trim($tp2));
-            $is_access_to_access = (!$tp1_up && !$tp2_up);
-        }
-
-        // Check STP blocked ports
-        $stp_blocked_ports = [];
-        foreach ($ports as $pName => $pData) {
-            if (($pData['stp_state'] ?? '') === 'blocking') {
-                $stp_blocked_ports[] = $pName;
-            }
-        }
-
-        // Determine loop candidate & states
-        $loop_candidate = false;
-        if ($top_pair !== null) {
-            if ($is_access_to_access && $max_pair_flaps >= $flap_threshold) {
-                $loop_candidate = true;
-            } elseif ($max_pair_flaps >= 20) {
-                $loop_candidate = true; // Extreme broadcast storm flood
-            }
-        }
-
-        // Detection State
+        $evidence = LoopEvidenceEngine::evaluate($scenario);
+        $loop_candidate = $evidence['is_candidate'];
         $cycles_persisted = $scenario['cycles_persisted'] ?? 1;
+        $stp_blocked_ports = $evidence['stp_blocked_ports'];
+
         $loop_state = 'NORMAL';
-        if ($loop_candidate || !empty($stp_blocked_ports)) {
-            if ($cycles_persisted >= 2 || !empty($stp_blocked_ports)) {
-                $loop_state = 'CONFIRMED';
-            } else {
-                $loop_state = 'SUSPECTED';
-            }
+        if ($loop_candidate) {
+            $loop_state = ($cycles_persisted >= 2 || !empty($stp_blocked_ports)) ? 'CONFIRMED' : 'SUSPECTED';
         }
 
-        // Protection State
         $protection_state = !empty($stp_blocked_ports) ? 'STP_BLOCKING' : 'NONE';
 
-        // Impact State
         $impact_state = 'NORMAL';
         if ($loop_state === 'CONFIRMED' || $loop_state === 'SUSPECTED') {
             if ($protection_state === 'STP_BLOCKING') {
@@ -182,17 +78,37 @@ class LoopRegressionSuite {
             }
         }
 
+        $p0_cnt = 0;
+        foreach ($evidence['exclusions'] as $ex) {
+            if (preg_match('/Port 0.*\((\d+)/', $ex, $m)) {
+                $p0_cnt = (int)$m[1];
+                break;
+            }
+        }
+
+        $roam_cnt = 0;
+        foreach ($evidence['exclusions'] as $ex) {
+            if (preg_match('/roaming.*\((\d+)/', $ex, $m)) {
+                $roam_cnt = (int)$m[1];
+                break;
+            }
+        }
+
         return [
             'loop_candidate'       => $loop_candidate,
             'loop_state'           => $loop_state,
             'protection_state'     => $protection_state,
             'impact_state'         => $impact_state,
-            'top_pair'             => $top_pair,
-            'max_pair_flaps'       => $max_pair_flaps,
-            'is_access_to_access'  => $is_access_to_access,
-            'disqualified_port0'   => $disqualified_port0_count,
-            'roaming_count'        => $roaming_count,
-            'stp_blocked_ports'    => $stp_blocked_ports
+            'confidence_level'     => $evidence['confidence_level'],
+            'confidence_score'     => $evidence['confidence_score'],
+            'top_pair'             => $evidence['top_pair'],
+            'max_pair_flaps'       => $evidence['unique_mac_count'],
+            'is_access_to_access'  => ($evidence['top_pair'] !== null),
+            'disqualified_port0'   => $p0_cnt,
+            'roaming_count'        => $roam_cnt,
+            'stp_blocked_ports'    => $stp_blocked_ports,
+            'evidences'            => $evidence['evidences'],
+            'exclusions'           => $evidence['exclusions']
         ];
     }
 

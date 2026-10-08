@@ -2,6 +2,19 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.32.3] - 2026-10-08
+### Added & Enhanced
+- **L2 Multi-Evidence Correlation Engine (`includes/loop.evidence.php`)**:
+  - Enforced fundamental architecture rule: *FDB alone must NEVER trigger LOOP_DETECTED*. FDB table is strictly a candidate trigger.
+  - Telemetry Correlator synthesizes port role context (Access vs Trunk/Uplink vs LAG), MAC bouncing frequency, STP states, TCN delta, and exclusion tracking.
+  - Multi-tier Confidence Rubric: `LOW` (< 45), `MEDIUM` (45-64), `HIGH` (65-79), `VERY_HIGH` (80+).
+- **Three Orthogonal States Framework (`cron_switch_poll.php`, `includes/loop.helper.php`)**:
+  - Separated concerns into Detection State (`NORMAL` / `SUSPECTED` / `CONFIRMED`), Protection State (`NONE` / `STP_BLOCKING`), and Impact State (`NORMAL` / `MITIGATED` / `ACTIVE`).
+  - Differentiates `[MITIGATED]` (STP actively quarantines loop, preventing storm) vs `[ACTIVE]` (unmitigated loop requiring immediate intervention) vs `[SUSPECTED]` (awaiting cycle 2 persistence).
+- **Automated 11-Scenario Synthetic Regression Test Suite (`tests/test_loop_scenarios.php`)**:
+  - Implemented standalone CLI test runner covering all 11 synthetic topology scenarios: Normal Access, Uplink, Trunk-to-Trunk, LAG, RFC 1493 Port 0, Wi-Fi Roaming, Dumb Hub, Transient Flap, Real Loop (No STP), Physical Loop (STP Protected), and High-density Access (Docking station).
+  - Validated 100% test pass rate ensuring zero regressions against baseline v2.32.1.
+
 ## [2.32.1] - 2026-10-08
 ### Fixed & Enhanced
 - **Alcatel OmniSwitch 802.1Q Tagged Trunk VLAN Resolution (`cron_switch_poll.php`)**:
