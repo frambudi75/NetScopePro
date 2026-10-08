@@ -572,24 +572,17 @@ foreach ($switches as $switch) {
             echo "  Alcatel OmniSwitch detected: querying enterprise Source Learning tables...\n";
             
             $fnResolveAlcatelSl = function($p_a, $p_b) use ($name_map, $vlan_names) {
-                // Check if p_b is port / ifIndex
-                if (isset($name_map[$p_b]) || (isset($name_map[1000 + $p_b]) && $p_b <= 64)) {
-                    $p_idx = isset($name_map[$p_b]) ? $p_b : (1000 + $p_b);
-                    return [$p_idx, $p_a];
-                }
-                // Check if p_a is port / ifIndex
+                // In ALCATEL-IND1-MAC-ADDRESS-MIB, slMacAddressEntry INDEX is { ifIndex, dot1qVlanIndex, slMacAddress }
+                // where $p_a is ifIndex ($parts[$tot - 8]) and $p_b is dot1qVlanIndex ($parts[$tot - 7]).
+                // Primary check: if p_a is a valid port or slot index (1..64 mapped to 1000 + p_a)
                 if (isset($name_map[$p_a]) || (isset($name_map[1000 + $p_a]) && $p_a <= 64)) {
                     $p_idx = isset($name_map[$p_a]) ? $p_a : (1000 + $p_a);
                     return [$p_idx, $p_b];
                 }
-                // Check against known VLAN names
-                if (isset($vlan_names[$p_a]) && !isset($vlan_names[$p_b])) {
-                    $p_idx = ($p_b <= 64 && isset($name_map[1000 + $p_b])) ? (1000 + $p_b) : $p_b;
+                // Only swap if p_b is a known port AND p_a is a known VLAN name
+                if ((isset($name_map[$p_b]) || (isset($name_map[1000 + $p_b]) && $p_b <= 64)) && isset($vlan_names[$p_a]) && !isset($vlan_names[$p_b])) {
+                    $p_idx = isset($name_map[$p_b]) ? $p_b : (1000 + $p_b);
                     return [$p_idx, $p_a];
-                }
-                if (isset($vlan_names[$p_b]) && !isset($vlan_names[$p_a])) {
-                    $p_idx = ($p_a <= 64 && isset($name_map[1000 + $p_a])) ? (1000 + $p_a) : $p_a;
-                    return [$p_idx, $p_b];
                 }
                 // Default fallback: p_a = ifIndex, p_b = VLAN (if p_a <= 64, map to 1000 + p_a)
                 $p_idx = ($p_a <= 64 && isset($name_map[1000 + $p_a])) ? (1000 + $p_a) : $p_a;
@@ -769,13 +762,10 @@ foreach ($switches as $switch) {
                 
                 // Smart VLAN Resolution using PVID for standard bridges
                 if (!$is_alcatel_sl) {
-                    if ($is_alcatel) {
+                    // Only fallback to PVID if VLAN ID was not discovered in 802.1Q dot1qTpFdbPort table
+                    if (!$vlan_id || (int)$vlan_id <= 0) {
                         $pvid_val = $pvid_map[$bridge_port] ?? null;
-                        if ($pvid_val && (int)$pvid_val > 0) {
-                            $vlan_id = (int)$pvid_val;
-                        }
-                    } elseif (!$vlan_id) {
-                        $vlan_id = $pvid_map[$bridge_port] ?? 1;
+                        $vlan_id = ($pvid_val && (int)$pvid_val > 0) ? (int)$pvid_val : 1;
                     }
                 }
 
