@@ -46,9 +46,16 @@ Sistem memanfaatkan MIB standar IEEE 802.1D Spanning Tree MIB (`dot1dStp`):
 
 #### 2. Deteksi FDB MAC Thrashing / Flapping & Anti False-Positive
 Jika STP tidak aktif atau loop terjadi di switch unmanaged (dumb switch/hub) yang terhubung ke port access:
-- Worker memantau Forwarding Database (FDB / CAM Table) dari switch (`dot1dTpFdbPort`).
+- Worker memantau Forwarding Database (FDB / CAM Table) dari switch (`dot1dTpFdbPort` / `dot1qTpFdbPort` / Enterprise Alcatel SL MIB).
+- **Penyaringan Port Internal CPU (`Port 0`)**: Nilai OID RFC 1493 `dot1dTpFdbPort = 0` (alamat internal CPU/management switch) disaring total (`continue;`), mencegah perbandingan palsu antara port fisik dan CPU switch.
+- **Penyaringan MAC Dummy & Multicast**: Menyaring counter dummy bawaan RFC 1493 (`00:00:00:...`), frame broadcast (`FF:FF:FF:FF:FF:FF`), multicast, dan VRRP (`00:00:5E:...`).
 - **Analisis Pasangan Port Spesifik (Pair-Specific Grouping)**: Sistem mengelompokkan perpindahan MAC pada **sepasang port fisik yang persis sama** (`Port A <-> Port B`), bukan menjumlahkan perpindahan acak antar port berlainan di seluruh switch.
-- **Filter Roaming Wi-Fi & Device Move**: Untuk membedakan roaming klien Wi-Fi normal atau laptop berpindah meja dari badai switching loop asli, sistem menerapkan ambang batas (`loop_flap_threshold`, default: 5 MAC serentak pada pasangan port yang sama).
+- **Klasifikasi Tipe Link (Access vs Uplink)**:
+  - **Access ↔ Access (Loop Kabel Fisik Nyata 🚨)**: Jika MAC berosilasi di antara dua port akses lokal (keduanya colokan perangkat pengguna atau dumb switch tanpa STP), ini adalah indikator pasti dari kabel loop fisik. Ambang batas `loop_flap_threshold` (minimal 3–5 MAC serentak) langsung memicu alarm switching loop.
+  - **Access ↔ Uplink (Wi-Fi Roaming / Multi-AP Client Movement 🟢)**: Jika salah satu port adalah jalur Uplink/Trunk ke Core Switch dan yang lainnya adalah port lokal (misal Access Point), sistem mengenali ini sebagai mobilitas normal klien nirkabel (*Wi-Fi roaming*), bukan loop. Sistem tidak akan memicu alarm palsu kecuali terjadi badai banjir masif (>= 20 MAC serentak) atau terdeteksi isolasi port STP.
+- **Sinkronisasi Forensik Loop Detective & Live Telemetry Radar**:
+  - Penyelarasan format parsing pesan thrashing poller dengan radar Loop Detective (`between <PortA> <-> <PortB>`).
+  - Diagram *Investigation Path* membedakan secara presisi antara port yang dikarantina STP (`Quarantined / BLOCKING`) dengan link loop tanpa STP (`Frame Circulation / Unmanaged Loop`), mengeliminasi kontradiksi teks pada switch yang beroperasi normal.
 - **Notifikasi Berbasis Perubahan Status (State-Transition Alerting)**:
   - Notifikasi instan (Telegram, Discord, Slack, Email) hanya dikirim ketika terjadi **event baru** (`normal ➔ loop`) atau saat rincian port loop berubah.
   - Kondisi loop yang belum terselesaikan tidak akan membanjiri notifikasi setiap interval poll (dibatasi pengingat berkala per 6 jam).
