@@ -4,6 +4,8 @@
  * Displays full hardware info and port-to-IP mapping for a specific switch.
  */
 
+@ini_set('memory_limit', '512M');
+
 require_once 'includes/config.php';
 require_once 'includes/db.php';
 
@@ -48,7 +50,12 @@ $query = "
         ip.hostname,
         ip.vendor
     FROM switch_port_map m
-    LEFT JOIN ip_addresses ip ON m.mac_addr = ip.mac_addr
+    LEFT JOIN (
+        SELECT mac_addr, MAX(ip_addr) as ip_addr, MAX(hostname) as hostname, MAX(vendor) as vendor
+        FROM ip_addresses
+        WHERE mac_addr IS NOT NULL AND mac_addr != ''
+        GROUP BY mac_addr
+    ) ip ON m.mac_addr = ip.mac_addr
     WHERE m.switch_id = ?
     ORDER BY m.port_name ASC, m.mac_addr ASC
 ";
@@ -700,7 +707,11 @@ include 'includes/header.php';
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        <?php foreach ($devices as $dev): ?>
+                                                        <?php 
+                                                        $max_display_devs = 200;
+                                                        $displayed_devices = array_slice($devices, 0, $max_display_devs);
+                                                        ?>
+                                                        <?php foreach ($displayed_devices as $dev): ?>
                                                             <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
                                                                 <td style="padding: 6px 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 600; color: var(--text);">
                                                                     <?php echo htmlspecialchars($dev['mac_addr']); ?>
@@ -740,6 +751,11 @@ include 'includes/header.php';
                                                     </tbody>
                                                 </table>
                                             </div>
+                                            <?php if ($dev_count > $max_display_devs): ?>
+                                                <div style="padding: 6px 12px; font-size: 0.72rem; color: var(--text-muted); background: rgba(0,0,0,0.2); border-top: 1px solid var(--border); text-align: center;">
+                                                    Menampilkan <?php echo $max_display_devs; ?> dari <?php echo $dev_count; ?> total perangkat di port ini. Gunakan kolom pencarian di atas untuk memfilter MAC atau IP tertentu.
+                                                </div>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>
