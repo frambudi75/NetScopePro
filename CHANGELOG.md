@@ -4,6 +4,13 @@ All major functional changes, enhancements, and critical fixes are documented he
 
 ## [2.33.1] - 2026-10-09
 ### Enhanced & Fixed
+- **Physical Front-Panel Chassis Isolation (`switch-details.php`)**:
+  - Implemented `is_physical_faceplate_port()` to ensure the interactive chassis faceplate strictly renders real-world front-panel RJ45/SFP jacks (ports 1..52).
+  - Automatically filters out internal SVIs, loopbacks, VLAN router interfaces, and synthetic indices (> 64) such as `Port 265`..`Port 904`.
+  - Accurately recalibrates the chassis status badge (e.g. `36/52 Online` instead of `36/115 Online`) to match physical hardware.
+- **Alcatel-Lucent OmniSwitch FDB Index Resolution (`cron_switch_poll.php`)**:
+  - Upgraded Source Learning index resolver (`fnResolveAlcatelSl`): when OID indexes contain both a VLAN ID (> 64) and a physical bridge port index (1..64), the engine accurately maps MACs to the true physical interface (`1/1`..`1/52`) and preserves genuine 802.1Q VLAN IDs.
+  - Added automated purge of legacy fallback `Port %` and `Vlan%` records upon poll initiation.
 - **Collapsible Desktop Mini-Sidebar Reliability & Hotfix**:
   - Direct inline SVG `<svg id="collapse-icon-close">` and `<svg id="collapse-icon-open">` replacing dynamic icon injection to eliminate missing glyphs or unrendered buttons.
   - Hardened CSS selectors (`html.sidebar-collapsed` and `body.sidebar-collapsed`) applying explicit `width: 68px !important;` and `margin-left: 68px !important;`.

@@ -12,6 +12,8 @@ $versions = [
     ['ver' => '2.33.1', 'date' => '2026-10-09', 'changes' => [
         'Collapsible Desktop Mini-Sidebar / Icon-Rail mode (68px) with persistent localStorage state & +192px workspace expansion',
         'Direct inline SVG collapse/expand icons guaranteeing zero-lag rendering without external font/icon delay',
+        'Physical Front-Panel Chassis Port Filter: Strictly displays genuine hardware RJ45/SFP interfaces on the faceplate, excluding internal SVIs, loopbacks, and VLAN routing indices (> 64)',
+        'Alcatel-Lucent OmniSwitch FDB Resolution Fix: Properly distinguishes VLAN IDs from physical interface indices, eliminating synthetic Port 900+ entries',
         'Cache-busting stylesheet release ensuring immediate browser hydration across all clients'
     ]],
     ['ver' => '2.33.0', 'date' => '2026-10-08', 'changes' => [

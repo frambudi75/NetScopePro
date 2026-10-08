@@ -127,12 +127,56 @@ foreach ($ports as $p) {
 // Natural sort ports so Port 2 comes before Port 10, GigabitEthernet0/1 comes before GigabitEthernet0/10
 uksort($grouped_ports, 'strnatcasecmp');
 
+/**
+ * Filter out virtual, SVI, loopback, and internal ports from the physical switch faceplate
+ */
+function is_physical_faceplate_port($port_name, $port_type = null) {
+    $p = trim((string)$port_name);
+    if (empty($p)) return false;
+
+    // 1. Exclude dummy or scanner placeholder tags
+    if (stripos($p, 'PORT:') !== false || stripos($p, 'dummy') !== false) {
+        return false;
+    }
+
+    // 2. Exclude virtual interface name prefixes across Cisco, Alcatel, MikroTik, HP, Juniper, Huawei
+    // e.g. VLAN 904, Vlan 600, Loopback0, Null0, Tunnel1, CPU, mgmt, Internal, bridge1, docker, br0
+    if (preg_match('/^(?:vlan|vl|loopback|lo|null|tunnel|tun|tap|bridge|br|cpu|mgmt|management|internal|bcm|stack|docker|veth)/i', $p)) {
+        return false;
+    }
+
+    // 3. Exclude non-physical port types if reported by SNMP
+    if (!empty($port_type)) {
+        $pt = strtolower((string)$port_type);
+        if (preg_match('/(?:vlan|virtual|loopback|tunnel|other|software|internal)/i', $pt)) {
+            return false;
+        }
+    }
+
+    // 4. Exclude fallback "Port <X>" or purely numeric "<X>" where X > 64
+    // Standard switch chassis (1U/2U/modular blades) have max 48/52/64 ports per card/slot.
+    // Numbers > 64 like "Port 265", "Port 600", "Port 904", "904" are L3 SVIs / VLAN routing interfaces.
+    if (preg_match('/^Port\s*(\d+)$/i', $p, $m) || preg_match('/^(\d+)$/', $p, $m)) {
+        if ((int)$m[1] > 64) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 $faceplate_copper = [];
 $faceplate_sfp = [];
 $faceplate_online_count = 0;
-$faceplate_total_count = count($grouped_ports);
+$faceplate_total_count = 0;
 
 foreach ($grouped_ports as $pname => $port) {
+    // Only physical front-panel interfaces belong on the hardware chassis faceplate
+    if (!is_physical_faceplate_port($pname, $port['port_type'] ?? null)) {
+        continue;
+    }
+
+    $faceplate_total_count++;
     $raw_status = $port['port_status'] ?? 'down';
     $status = (!empty($raw_status) && is_string($raw_status)) ? strtolower(trim($raw_status)) : 'down';
     if ($status === 'up') {
@@ -205,16 +249,24 @@ $sfp_half = (int)ceil($sfp_count / 2);
 $sfp_row1 = array_slice($faceplate_sfp, 0, $sfp_half);
 $sfp_row2 = array_slice($faceplate_sfp, $sfp_half);
 
-// Pick initial port to inspect (first UP port or first available port)
+// Pick initial port to inspect from physical ports (first UP port or first available copper/SFP)
 $initial_port_id = null;
-foreach ($grouped_ports as $pname => $port) {
-    if (($port['port_status'] ?? '') === 'up') {
-        $initial_port_id = $pname;
+foreach ($faceplate_copper as $p) {
+    if ($p['status'] === 'up') {
+        $initial_port_id = $p['id'];
         break;
     }
 }
-if ($initial_port_id === null && !empty($grouped_ports)) {
-    $initial_port_id = array_key_first($grouped_ports);
+if ($initial_port_id === null) {
+    foreach ($faceplate_sfp as $p) {
+        if ($p['status'] === 'up') {
+            $initial_port_id = $p['id'];
+            break;
+        }
+    }
+}
+if ($initial_port_id === null) {
+    $initial_port_id = $faceplate_copper[0]['id'] ?? ($faceplate_sfp[0]['id'] ?? null);
 }
 
 // JSON payload for high-speed client-side inspector

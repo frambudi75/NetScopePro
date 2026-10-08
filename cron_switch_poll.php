@@ -557,8 +557,8 @@ foreach ($switches as $switch) {
         try {
             $db->prepare("DELETE FROM switch_port_map WHERE switch_id = ? AND mac_addr LIKE '00:00:00:%'")->execute([$switch['id']]);
             if ($is_alcatel) {
-                // Clear any previous unmapped 'Port %' fallback records so physical '1/x' interfaces take precedence
-                $db->prepare("DELETE FROM switch_port_map WHERE switch_id = ? AND port_name LIKE 'Port %'")->execute([$switch['id']]);
+                // Clear any previous unmapped 'Port %' or 'Vlan%' fallback records so physical interfaces take precedence
+                $db->prepare("DELETE FROM switch_port_map WHERE switch_id = ? AND (port_name LIKE 'Port %' OR port_name LIKE 'Vlan%' OR port_name LIKE 'VLAN%')")->execute([$switch['id']]);
             }
         } catch (Exception $e) {}
 
@@ -572,20 +572,27 @@ foreach ($switches as $switch) {
             echo "  Alcatel OmniSwitch detected: querying enterprise Source Learning tables...\n";
             
             $fnResolveAlcatelSl = function($p_a, $p_b) use ($name_map, $vlan_names) {
-                // In ALCATEL-IND1-MAC-ADDRESS-MIB, slMacAddressEntry INDEX is { ifIndex, dot1qVlanIndex, slMacAddress }
-                // where $p_a is ifIndex ($parts[$tot - 8]) and $p_b is dot1qVlanIndex ($parts[$tot - 7]).
-                // Primary check: if p_a is a valid port or slot index (1..64 mapped to 1000 + p_a)
-                if (isset($name_map[$p_a]) || (isset($name_map[1000 + $p_a]) && $p_a <= 64)) {
-                    $p_idx = isset($name_map[$p_a]) ? $p_a : (1000 + $p_a);
-                    return [$p_idx, $p_b];
-                }
-                // Only swap if p_b is a known port AND p_a is a known VLAN name
-                if ((isset($name_map[$p_b]) || (isset($name_map[1000 + $p_b]) && $p_b <= 64)) && isset($vlan_names[$p_a]) && !isset($vlan_names[$p_b])) {
-                    $p_idx = isset($name_map[$p_b]) ? $p_b : (1000 + $p_b);
+                // In ALCATEL-IND1-MAC-ADDRESS-MIB, slMacAddressEntry index has { ifIndex, dot1qVlanIndex, mac }
+                // where one is the physical port (1..64 or 1001..1064) and the other is the VLAN ID (1..4094).
+                // If p_a > 64 and p_b is a valid physical port (1..64), p_a is clearly the VLAN ID and p_b is the port!
+                if ($p_a > 64 && $p_b >= 1 && $p_b <= 64) {
+                    $p_idx = isset($name_map[1000 + $p_b]) ? (1000 + $p_b) : (isset($name_map[$p_b]) ? $p_b : (1000 + $p_b));
                     return [$p_idx, $p_a];
                 }
-                // Default fallback: p_a = ifIndex, p_b = VLAN (if p_a <= 64, map to 1000 + p_a)
-                $p_idx = ($p_a <= 64 && isset($name_map[1000 + $p_a])) ? (1000 + $p_a) : $p_a;
+                // If p_b > 64 and p_a is a valid physical port (1..64), p_a is the port and p_b is the VLAN ID!
+                if ($p_b > 64 && $p_a >= 1 && $p_a <= 64) {
+                    $p_idx = isset($name_map[1000 + $p_a]) ? (1000 + $p_a) : (isset($name_map[$p_a]) ? $p_a : (1000 + $p_a));
+                    return [$p_idx, $p_b];
+                }
+                // If p_a >= 1000 and < 9000 (standard Alcatel chassis bridge port e.g. 1001..1052):
+                if ($p_a >= 1000 && $p_a < 9000) {
+                    return [$p_a, $p_b];
+                }
+                if ($p_b >= 1000 && $p_b < 9000) {
+                    return [$p_b, $p_a];
+                }
+                // Physical port index fallback (1..64 mapped to 1000 + p_a):
+                $p_idx = ($p_a >= 1 && $p_a <= 64) ? (1000 + $p_a) : $p_a;
                 return [$p_idx, $p_b];
             };
 
