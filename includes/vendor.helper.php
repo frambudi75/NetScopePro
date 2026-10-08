@@ -510,35 +510,96 @@ class VendorDetector {
     public static function pollSfpDOM($ip, $community, $model) {
         $sfp_data = [];
         
-        // MikroTik (RouterOS v7 included)
+        // MikroTik (RouterOS v6 & v7 included)
         // mtxrOpticalTable: .1.3.6.1.4.1.14988.1.1.19.1.1
+        // .2: mtxrOpticalName (e.g. sfp-sfpplus8, sfp1)
+        // .3: mtxrOpticalRxLoss (0=false, 1=true)
+        // .4: mtxrOpticalTxFault (0=false, 1=true)
+        // .5: mtxrOpticalWaveLength (nm, e.g. 1310, 850)
+        // .6: mtxrOpticalTemperature (deci-Celsius, e.g. 340 = 34.0 C)
+        // .7: mtxrOpticalSupplyVoltage (mV, e.g. 3300 = 3.3V)
+        // .8: mtxrOpticalTxBiasCurrent (mA)
+        // .9: mtxrOpticalTxPower (millidBm, e.g. -2400 = -2.40 dBm)
+        // .10: mtxrOpticalRxPower (millidBm, e.g. -5100 = -5.10 dBm)
         if (stripos($model, 'MikroTik') !== false || stripos($model, 'RouterOS') !== false) {
-            $vendors = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.3");
-            $parts   = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.4");
-            $serials = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.5");
-            $rx      = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.10"); // in millidBm or direct dBm string
-            $tx      = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.9");
+            $opt_names = [];
+            $walk_names = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.2", 400000, 1);
+            if ($walk_names && is_array($walk_names)) {
+                foreach ($walk_names as $oid => $val) {
+                    $parts = explode('.', $oid);
+                    $opt_names[end($parts)] = trim(str_replace(['STRING: ', '"'], '', $val));
+                }
+            }
 
-            if ($vendors && is_array($vendors)) {
-                foreach ($vendors as $oid => $val) {
-                    $oid_parts = explode('.', $oid);
-                    $idx = end($oid_parts);
-                    $sfp_data[$idx] = [
-                        'vendor'   => trim(str_replace(['STRING: ', '"'], '', $val)),
-                        'part'     => isset($parts[$oid]) ? trim(str_replace(['STRING: ', '"'], '', $parts[$oid])) : null,
-                        'serial'   => isset($serials[$oid]) ? trim(str_replace(['STRING: ', '"'], '', $serials[$oid])) : null,
-                        'rx_power' => null,
-                        'tx_power' => null,
+            $opt_waves = [];
+            $walk_waves = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.5", 400000, 1);
+            if ($walk_waves && is_array($walk_waves)) {
+                foreach ($walk_waves as $oid => $val) {
+                    $parts = explode('.', $oid);
+                    $opt_waves[end($parts)] = (int)trim(str_replace(['INTEGER: ', 'Gauge32: ', '"'], '', $val));
+                }
+            }
+
+            $opt_temps = [];
+            $walk_temps = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.6", 400000, 1);
+            if ($walk_temps && is_array($walk_temps)) {
+                foreach ($walk_temps as $oid => $val) {
+                    $parts = explode('.', $oid);
+                    $raw_t = (int)trim(str_replace(['INTEGER: ', 'Gauge32: ', '"'], '', $val));
+                    if ($raw_t > 0 && $raw_t < 1500) {
+                        $opt_temps[end($parts)] = round($raw_t / 10, 1) . '°C';
+                    }
+                }
+            }
+
+            $opt_tx = [];
+            $walk_tx = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.9", 400000, 1);
+            if ($walk_tx && is_array($walk_tx)) {
+                foreach ($walk_tx as $oid => $val) {
+                    $parts = explode('.', $oid);
+                    $raw_tx = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
+                    if ($raw_tx <= -40000 || $raw_tx >= 100000) {
+                        $opt_tx[end($parts)] = 'No Light';
+                    } else {
+                        $opt_tx[end($parts)] = round($raw_tx / 1000, 2) . ' dBm';
+                    }
+                }
+            }
+
+            $opt_rx = [];
+            $walk_rx = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.14988.1.1.19.1.1.10", 400000, 1);
+            if ($walk_rx && is_array($walk_rx)) {
+                foreach ($walk_rx as $oid => $val) {
+                    $parts = explode('.', $oid);
+                    $raw_rx = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
+                    if ($raw_rx <= -40000 || $raw_rx >= 100000) {
+                        $opt_rx[end($parts)] = 'No Light';
+                    } else {
+                        $opt_rx[end($parts)] = round($raw_rx / 1000, 2) . ' dBm';
+                    }
+                }
+            }
+
+            if (!empty($opt_names)) {
+                foreach ($opt_names as $idx => $pname) {
+                    $wave = $opt_waves[$idx] ?? null;
+                    $wavelength_str = ($wave && $wave > 0) ? $wave . 'nm' : null;
+                    $part_desc = $wavelength_str ? "Optical DDM ({$wavelength_str})" : "Optical DDM Transceiver";
+                    if (isset($opt_temps[$idx])) {
+                        $part_desc .= " • " . $opt_temps[$idx];
+                    }
+
+                    $entry = [
+                        'vendor'   => 'MikroTik / DDM',
+                        'part'     => $part_desc,
+                        'serial'   => $wavelength_str ?: 'DDM Standard',
+                        'rx_power' => $opt_rx[$idx] ?? null,
+                        'tx_power' => $opt_tx[$idx] ?? null,
                     ];
-                    
-                    if (isset($rx[$oid])) {
-                        $raw_rx = trim(str_replace(['INTEGER: ', 'STRING: ', '"'], '', $rx[$oid]));
-                        $sfp_data[$idx]['rx_power'] = is_numeric($raw_rx) ? ($raw_rx / 1000) . ' dBm' : $raw_rx;
-                    }
-                    if (isset($tx[$oid])) {
-                        $raw_tx = trim(str_replace(['INTEGER: ', 'STRING: ', '"'], '', $tx[$oid]));
-                        $sfp_data[$idx]['tx_power'] = is_numeric($raw_tx) ? ($raw_tx / 1000) . ' dBm' : $raw_tx;
-                    }
+
+                    $sfp_data[$idx] = $entry;
+                    $sfp_data[$pname] = $entry;
+                    $sfp_data[strtolower($pname)] = $entry;
                 }
             }
             return $sfp_data;
