@@ -131,7 +131,8 @@ Dijalankan via background daemon / scheduler:
 2. **Deteksi Port Blocking**:
    - Port dengan state `2` (`blocking`) disimpan ke `switch_port_map.stp_state`.
    - Ditampilkan di UI sebagai badge merah `🚫 BLOCKING` dan memicu counter di dashboard NOC.
-3. **Pemantauan Flapping FDB (MAC Thrashing)**:
-   - Membaca tabel bridge forwarding (`dot1dTpFdbPort`).
-   - Mendeteksi jika MAC address berpindah-pindah antar port pada switch fisik yang sama, mengindikasikan loop di switch unmanaged bawahan.
+3. **Pemantauan Flapping FDB (MAC Thrashing & Anti False-Positive)**:
+   - Membaca tabel bridge forwarding (`dot1dTpFdbPort` / `dot1qTpFdbPort` / Enterprise MIB).
+   - Menyaring antrian CPU internal (`Port 0`) dan MAC dummy bridge.
+   - Membedakan antara **Loop Kabel Nyata (Access ↔ Access)** yang memicu alarm loop dengan **Roaming Klien Wi-Fi Normal (Access ↔ Uplink)** yang tidak memicu alarm palsu.
 
