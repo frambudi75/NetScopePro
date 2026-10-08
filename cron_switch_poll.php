@@ -757,6 +757,9 @@ foreach ($switches as $switch) {
                 }
                 
                 $bridge_port = $is_alcatel_sl ? $alcatel_ifindex : trim(str_replace('INTEGER: ', '', $val));
+                if (!$bridge_port || (int)$bridge_port <= 0) {
+                    continue; // RFC 1493 port 0 represents CPU/management/static table, not a physical bridge port
+                }
                 
                 // Smart VLAN Resolution using PVID for standard bridges
                 if (!$is_alcatel_sl) {
@@ -1015,10 +1018,12 @@ foreach ($switches as $switch) {
                 echo "  ⚠️ [STP LOOP MITIGATED]: $loop_details\n";
             } elseif ($is_real_flapping_loop) {
                 $loop_detected = 1;
+                $sample_mac = !empty($pair_flaps[$top_pair]) ? $pair_flaps[$top_pair][0] : null;
+                $sample_str = $sample_mac ? " (e.g. $sample_mac)" : "";
                 if ($culprit_info) {
                     $loop_details = "L2 Loop Warning: High-frequency MAC thrashing ($max_pair_flaps MACs) between $top_pair. Root-cause origin on Access port {$culprit_info['access_port']} [{$culprit_info['name']} ({$culprit_info['mac']})]";
                 } else {
-                    $loop_details = "L2 Loop Warning: High-frequency MAC thrashing ($max_pair_flaps MACs) between $top_pair";
+                    $loop_details = "L2 Loop Warning: High-frequency MAC thrashing ($max_pair_flaps MACs) between $top_pair$sample_str";
                 }
                 echo "  ⚠️ [L2 LOOP WARNING]: $loop_details\n";
             }
