@@ -110,6 +110,15 @@ foreach ($ports as $p) {
             'last_seen_on_port' => $p['last_seen_on_port'] ?? null,
             'devices'           => []
         ];
+    } else {
+        // Inherit non-null vlan_id, vlan_name, or up status from subsequent device records
+        if (empty($grouped_ports[$pname]['vlan_id']) && !empty($p['vlan_id'])) {
+            $grouped_ports[$pname]['vlan_id'] = $p['vlan_id'];
+            $grouped_ports[$pname]['vlan_name'] = $p['vlan_name'] ?? $grouped_ports[$pname]['vlan_name'];
+        }
+        if (($grouped_ports[$pname]['port_status'] ?? 'down') !== 'up' && ($p['port_status'] ?? '') === 'up') {
+            $grouped_ports[$pname]['port_status'] = 'up';
+        }
     }
     if (!$is_dummy_mac) {
         $grouped_ports[$pname]['devices'][] = [
@@ -123,6 +132,62 @@ foreach ($ports as $p) {
         ];
     }
 }
+
+// Canonical Port Consolidation:
+// If a switch has structured interfaces (e.g. "1/1/22" or "1/22"), and ALSO unmapped fallback
+// records like "Port 22" or "22", merge "Port 22" directly into the structured interface and remove "Port 22".
+$num_to_canonical = [];
+foreach ($grouped_ports as $pname => $port) {
+    if (preg_match('/(?:^|[A-Za-z\/\-\s])(\d+)$/', $pname, $m)) {
+        $num = (int)$m[1];
+        if (strpos($pname, '/') !== false && !isset($num_to_canonical[$num])) {
+            $num_to_canonical[$num] = $pname;
+        }
+    }
+}
+
+if (!empty($num_to_canonical)) {
+    foreach ($grouped_ports as $pname => $port) {
+        if (preg_match('/^(?:Port\s*)?(\d+)$/i', $pname, $m)) {
+            $num = (int)$m[1];
+            if (isset($num_to_canonical[$num]) && $num_to_canonical[$num] !== $pname) {
+                $canonical_name = $num_to_canonical[$num];
+                // Merge devices into canonical interface
+                foreach ($port['devices'] as $dev) {
+                    $grouped_ports[$canonical_name]['devices'][] = $dev;
+                }
+                // Adopt VLAN ID if canonical lacked one
+                if (empty($grouped_ports[$canonical_name]['vlan_id']) && !empty($port['vlan_id'])) {
+                    $grouped_ports[$canonical_name]['vlan_id'] = $port['vlan_id'];
+                    $grouped_ports[$canonical_name]['vlan_name'] = $port['vlan_name'];
+                }
+                if (($grouped_ports[$canonical_name]['port_status'] ?? 'down') !== 'up' && ($port['port_status'] ?? '') === 'up') {
+                    $grouped_ports[$canonical_name]['port_status'] = 'up';
+                }
+                // Remove fallback duplicate
+                unset($grouped_ports[$pname]);
+            }
+        }
+    }
+}
+
+// Ensure every physical port has a valid native VLAN ID (defaulting to VLAN 1)
+foreach ($grouped_ports as $pname => &$port) {
+    if (empty($port['vlan_id'])) {
+        foreach ($port['devices'] as $dev) {
+            if (!empty($dev['vlan_id'])) {
+                $port['vlan_id'] = $dev['vlan_id'];
+                $port['vlan_name'] = $dev['vlan_name'];
+                break;
+            }
+        }
+    }
+    if (empty($port['vlan_id'])) {
+        $port['vlan_id'] = 1;
+        $port['vlan_name'] = 'VLAN 1';
+    }
+}
+unset($port);
 
 // Natural sort ports so Port 2 comes before Port 10, GigabitEthernet0/1 comes before GigabitEthernet0/10
 uksort($grouped_ports, 'strnatcasecmp');
@@ -139,25 +204,29 @@ function is_physical_faceplate_port($port_name, $port_type = null) {
         return false;
     }
 
-    // 2. Exclude virtual interface name prefixes across Cisco, Alcatel, MikroTik, HP, Juniper, Huawei
-    // e.g. VLAN 904, Vlan 600, Loopback0, Null0, Tunnel1, CPU, mgmt, Internal, bridge1, docker, br0
-    if (preg_match('/^(?:vlan|vl|loopback|lo|null|tunnel|tun|tap|bridge|br|cpu|mgmt|management|internal|bcm|stack|docker|veth)/i', $p)) {
+    // 2. Exclude virtual/LAG/SVI interface name prefixes across vendors
+    // e.g. VLAN 904, Vlan 600, Loopback0, Null0, Tunnel1, CPU, mgmt, Internal, bridge1, LinkAgg, Trk, Po, Port-channel
+    if (preg_match('/^(?:vlan|vl|loopback|lo|null|tunnel|tun|tap|bridge|br|cpu|mgmt|management|internal|bcm|stack|docker|veth|linkagg|trk|port-channel|po\d+|lag|bond)/i', $p)) {
         return false;
     }
 
     // 3. Exclude non-physical port types if reported by SNMP
     if (!empty($port_type)) {
         $pt = strtolower((string)$port_type);
-        if (preg_match('/(?:vlan|virtual|loopback|tunnel|other|software|internal)/i', $pt)) {
+        if (preg_match('/(?:vlan|virtual|loopback|tunnel|other|software|internal|ieee8023adLag)/i', $pt)) {
             return false;
         }
     }
 
-    // 4. Exclude fallback "Port <X>" or purely numeric "<X>" where X > 64
-    // Standard switch chassis (1U/2U/modular blades) have max 48/52/64 ports per card/slot.
-    // Numbers > 64 like "Port 265", "Port 600", "Port 904", "904" are L3 SVIs / VLAN routing interfaces.
-    if (preg_match('/^Port\s*(\d+)$/i', $p, $m) || preg_match('/^(\d+)$/', $p, $m)) {
-        if ((int)$m[1] > 64) {
+    // 4. Exclude ports with numbers > 52 (e.g. LAG 54, 56, 59, 61, 62 or SVIs > 52)
+    // Hardware chassis for standard enterprise switches have max 48 copper + 4 SFP = 52 physical ports.
+    if (preg_match('/^(?:Port\s*)?(\d+)$/i', $p, $m)) {
+        if ((int)$m[1] > 52) {
+            return false;
+        }
+    }
+    if (preg_match('/[\/:](\d+)$/', $p, $m)) {
+        if ((int)$m[1] > 52) {
             return false;
         }
     }
@@ -169,18 +238,12 @@ $faceplate_copper = [];
 $faceplate_sfp = [];
 $faceplate_online_count = 0;
 $faceplate_total_count = 0;
+$seen_faceplate_labels = [];
 
 foreach ($grouped_ports as $pname => $port) {
     // Only physical front-panel interfaces belong on the hardware chassis faceplate
     if (!is_physical_faceplate_port($pname, $port['port_type'] ?? null)) {
         continue;
-    }
-
-    $faceplate_total_count++;
-    $raw_status = $port['port_status'] ?? 'down';
-    $status = (!empty($raw_status) && is_string($raw_status)) ? strtolower(trim($raw_status)) : 'down';
-    if ($status === 'up') {
-        $faceplate_online_count++;
     }
 
     // Extract clean display label across all switch vendors (Alcatel, Cisco, HP/Aruba, Juniper, Huawei, MikroTik, Extreme, Dell)
@@ -205,7 +268,24 @@ foreach ($grouped_ports as $pname => $port) {
         $label = mb_substr($label, 0, 4);
     }
 
-    $is_sfp = (!empty($port['sfp_vendor']) && $port['sfp_vendor'] !== '0') || !empty($port['sfp_rx_power']) || preg_match('/(sfp|fiber|optical|uplink|ten)/i', $pname);
+    // Never render the same physical port number twice on the faceplate
+    if (isset($seen_faceplate_labels[$label])) {
+        continue;
+    }
+    $seen_faceplate_labels[$label] = true;
+
+    $faceplate_total_count++;
+    $raw_status = $port['port_status'] ?? 'down';
+    $status = (!empty($raw_status) && is_string($raw_status)) ? strtolower(trim($raw_status)) : 'down';
+    if ($status === 'up') {
+        $faceplate_online_count++;
+    }
+
+    $port_num = is_numeric($label) ? (int)$label : 0;
+    $is_sfp = (!empty($port['sfp_vendor']) && $port['sfp_vendor'] !== '0')
+           || !empty($port['sfp_rx_power'])
+           || preg_match('/(sfp|fiber|optical|uplink|ten)/i', $pname)
+           || ($port_num >= 49 && $port_num <= 52); // Ports 49-52 on 48-port switch are SFP+ bays
     $tagged_str = $tagged_vlans_per_port[$pname] ?? '';
 
     $port_entry = [
@@ -217,8 +297,8 @@ foreach ($grouped_ports as $pname => $port) {
         'port_type'   => $port['port_type'] ?? null,
         'port_speed'  => $port['port_speed'] ?? null,
         'port_alias'  => $port['port_alias'] ?? null,
-        'vlan_id'     => $port['vlan_id'] ?? null,
-        'vlan_name'   => $port['vlan_name'] ?? null,
+        'vlan_id'     => $port['vlan_id'] ?? 1,
+        'vlan_name'   => $port['vlan_name'] ?? ('VLAN ' . ($port['vlan_id'] ?? 1)),
         'tagged_vlans'=> $tagged_str,
         'sfp_vendor'  => $port['sfp_vendor'] ?? null,
         'sfp_part'    => $port['sfp_part'] ?? null,
@@ -238,12 +318,21 @@ foreach ($grouped_ports as $pname => $port) {
     }
 }
 
-// Split into 2 physical rows (first half top, second half bottom)
+// Numerical sort for faceplate buttons so ports render in order (1..48 and 49..52)
+usort($faceplate_copper, function($a, $b) {
+    return (int)$a['label'] <=> (int)$b['label'];
+});
+usort($faceplate_sfp, function($a, $b) {
+    return (int)$a['label'] <=> (int)$b['label'];
+});
+
+// Split copper into 2 physical rows (e.g. 1..24 top, 25..48 bottom for 48-port switches)
 $copper_count = count($faceplate_copper);
-$copper_half = (int)ceil($copper_count / 2);
+$copper_half = ($copper_count === 48) ? 24 : (int)ceil($copper_count / 2);
 $copper_row1 = array_slice($faceplate_copper, 0, $copper_half);
 $copper_row2 = array_slice($faceplate_copper, $copper_half);
 
+// Split SFP transceivers into 2 physical rows (e.g. 49,50 top; 51,52 bottom for 4 SFP bays)
 $sfp_count = count($faceplate_sfp);
 $sfp_half = (int)ceil($sfp_count / 2);
 $sfp_row1 = array_slice($faceplate_sfp, 0, $sfp_half);
@@ -279,8 +368,8 @@ foreach ($grouped_ports as $pname => $port) {
         'type'        => $port['port_type'] ?? null,
         'speed'       => $port['port_speed'] ?? null,
         'alias'       => $port['port_alias'] ?? null,
-        'vlan_id'     => $port['vlan_id'] ?? null,
-        'vlan_name'   => $port['vlan_name'] ?? null,
+        'vlan_id'     => $port['vlan_id'] ?? 1,
+        'vlan_name'   => $port['vlan_name'] ?? ('VLAN ' . ($port['vlan_id'] ?? 1)),
         'tagged_vlans'=> $tagged_vlans_per_port[$pname] ?? '',
         'sfp_vendor'  => $port['sfp_vendor'] ?? null,
         'sfp_part'    => $port['sfp_part'] ?? null,

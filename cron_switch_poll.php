@@ -559,6 +559,8 @@ foreach ($switches as $switch) {
             if ($is_alcatel) {
                 // Clear any previous unmapped 'Port %' or 'Vlan%' fallback records so physical interfaces take precedence
                 $db->prepare("DELETE FROM switch_port_map WHERE switch_id = ? AND (port_name LIKE 'Port %' OR port_name LIKE 'Vlan%' OR port_name LIKE 'VLAN%')")->execute([$switch['id']]);
+                // Clear non-physical LAG/SVI port entries (> 52)
+                $db->prepare("DELETE FROM switch_port_map WHERE switch_id = ? AND port_name REGEXP '^(?:Port )?(5[3-9]|[6-9][0-9]|[1-9][0-9]{2,})$'")->execute([$switch['id']]);
             }
         } catch (Exception $e) {}
 
@@ -571,27 +573,27 @@ foreach ($switches as $switch) {
         if ($is_alcatel) {
             echo "  Alcatel OmniSwitch detected: querying enterprise Source Learning tables...\n";
             
-            $fnResolveAlcatelSl = function($p_a, $p_b) use ($name_map, $vlan_names) {
-                // In ALCATEL-IND1-MAC-ADDRESS-MIB, slMacAddressEntry index has { ifIndex, dot1qVlanIndex, mac }
-                // where one is the physical port (1..64 or 1001..1064) and the other is the VLAN ID (1..4094).
-                // If p_a > 64 and p_b is a valid physical port (1..64), p_a is clearly the VLAN ID and p_b is the port!
-                if ($p_a > 64 && $p_b >= 1 && $p_b <= 64) {
-                    $p_idx = isset($name_map[1000 + $p_b]) ? (1000 + $p_b) : (isset($name_map[$p_b]) ? $p_b : (1000 + $p_b));
-                    return [$p_idx, $p_a];
-                }
-                // If p_b > 64 and p_a is a valid physical port (1..64), p_a is the port and p_b is the VLAN ID!
-                if ($p_b > 64 && $p_a >= 1 && $p_a <= 64) {
-                    $p_idx = isset($name_map[1000 + $p_a]) ? (1000 + $p_a) : (isset($name_map[$p_a]) ? $p_a : (1000 + $p_a));
-                    return [$p_idx, $p_b];
-                }
-                // If p_a >= 1000 and < 9000 (standard Alcatel chassis bridge port e.g. 1001..1052):
+            $fnResolveAlcatelSl = function($p_a, $p_b) use ($name_map, $name_map_ifname, $vlan_names) {
+                // In ALCATEL-IND1-MAC-ADDRESS-MIB, slMacAddressEntry index is { ifIndex, dot1qVlanIndex, mac }
+                // 1. If p_a is standard Alcatel chassis slot/port index (1001..1064, 2001..2064):
                 if ($p_a >= 1000 && $p_a < 9000) {
                     return [$p_a, $p_b];
                 }
+                // 2. If p_b is standard Alcatel chassis slot/port index:
                 if ($p_b >= 1000 && $p_b < 9000) {
                     return [$p_b, $p_a];
                 }
-                // Physical port index fallback (1..64 mapped to 1000 + p_a):
+                // 3. If neither is >= 1000 (slot 1 bridge port 1..64 vs higher VLAN ID > 64):
+                if ($p_a > 64 && $p_b >= 1 && $p_b <= 64) {
+                    $p_idx = isset($name_map[1000 + $p_b]) ? (1000 + $p_b) : (1000 + $p_b);
+                    return [$p_idx, $p_a];
+                }
+                if ($p_b > 64 && $p_a >= 1 && $p_a <= 64) {
+                    $p_idx = isset($name_map[1000 + $p_a]) ? (1000 + $p_a) : (1000 + $p_a);
+                    return [$p_idx, $p_b];
+                }
+                // 4. Default: both <= 64 (e.g. port 24, VLAN 1)
+                // Standard MIB order is { ifIndex, dot1qVlanIndex }
                 $p_idx = ($p_a >= 1 && $p_a <= 64) ? (1000 + $p_a) : $p_a;
                 return [$p_idx, $p_b];
             };
@@ -767,13 +769,11 @@ foreach ($switches as $switch) {
                     continue; // RFC 1493 port 0 represents CPU/management/static table, not a physical bridge port
                 }
                 
-                // Smart VLAN Resolution using PVID for standard bridges
-                if (!$is_alcatel_sl) {
-                    // Only fallback to PVID if VLAN ID was not discovered in 802.1Q dot1qTpFdbPort table
-                    if (!$vlan_id || (int)$vlan_id <= 0) {
-                        $pvid_val = $pvid_map[$bridge_port] ?? null;
-                        $vlan_id = ($pvid_val && (int)$pvid_val > 0) ? (int)$pvid_val : 1;
-                    }
+                // Fallback to PVID or VLAN 1 if vlan_id is empty
+                if (!$vlan_id || (int)$vlan_id <= 0) {
+                    $b_num = ($ifindex > 1000) ? ($ifindex % 1000) : $bridge_port;
+                    $pvid_val = $pvid_map[$bridge_port] ?? ($pvid_map[$b_num] ?? ($pvid_map[$ifindex] ?? null));
+                    $vlan_id = ($pvid_val && (int)$pvid_val > 0) ? (int)$pvid_val : 1;
                 }
 
                 // Bridge port to ifIndex resolution
@@ -794,7 +794,7 @@ foreach ($switches as $switch) {
                 }
                 
                 // Smart port name resolution with vendor-aware fallback
-                $raw_name = $name_map[$ifindex] ?? null;
+                $raw_name = $name_map[$ifindex] ?? ($name_map_ifname[$ifindex] ?? ($name_map_ifdescr[$ifindex] ?? null));
                 $port_name = normalize_port_name($raw_name, $bridge_port, $ifindex, $system_info);
                 
                 // Track MAC Flapping on this switch (exclude dummy, multicast, broadcast, VRRP)
@@ -1210,13 +1210,14 @@ foreach ($switches as $switch) {
                 $port_stp = 'disabled';
             }
 
-            $port_pvid = $pvid_map[$bridge_port_for_if ?? $ifidx] ?? ($pvid_map[$ifidx] ?? null);
-            $port_pvid_name = ($port_pvid && isset($vlan_names[$port_pvid])) ? trim($vlan_names[$port_pvid], '" ') : null;
+            $port_bridge_num = ($ifidx > 1000) ? ($ifidx % 1000) : $ifidx;
+            $port_pvid = $pvid_map[$port_bridge_num] ?? ($pvid_map[$ifidx] ?? 1);
+            $port_pvid_name = ($port_pvid && isset($vlan_names[$port_pvid])) ? trim($vlan_names[$port_pvid], '" ') : 'VLAN ' . $port_pvid;
 
             if ($existing_port_id) {
-                // Update existing port (from FDB or previous run) with SFP, STP, status data, and fallback VLAN
-                $db->prepare("UPDATE switch_port_map SET port_status=?, stp_state=COALESCE(?, stp_state), port_type=?, port_speed=?, sfp_vendor=?, sfp_part=?, sfp_serial=?, sfp_rx_power=?, sfp_tx_power=?, vlan_id=COALESCE(vlan_id, ?), vlan_name=COALESCE(vlan_name, ?) WHERE id=?")
-                   ->execute([$status, $port_stp, $type, $speed, $sfp['vendor'] ?? null, $sfp['part'] ?? null, $sfp['serial'] ?? null, $sfp['rx_power'] ?? null, $sfp['tx_power'] ?? null, $port_pvid, $port_pvid_name, $existing_port_id]);
+                // Update all existing records for this port with SFP, STP, status data, and fallback VLAN
+                $db->prepare("UPDATE switch_port_map SET port_status=?, stp_state=COALESCE(?, stp_state), port_type=?, port_speed=?, sfp_vendor=?, sfp_part=?, sfp_serial=?, sfp_rx_power=?, sfp_tx_power=?, vlan_id=COALESCE(vlan_id, ?), vlan_name=COALESCE(vlan_name, ?) WHERE switch_id=? AND port_name=?")
+                   ->execute([$status, $port_stp, $type, $speed, $sfp['vendor'] ?? null, $sfp['part'] ?? null, $sfp['serial'] ?? null, $sfp['rx_power'] ?? null, $sfp['tx_power'] ?? null, $port_pvid, $port_pvid_name, $switch['id'], $name]);
             } else {
                 // Insert placeholder entry for the port itself (without a real MAC)
                 // Use a dummy MAC to avoid unique constraint violations on empty strings

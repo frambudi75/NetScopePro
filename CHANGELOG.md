@@ -2,6 +2,19 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.33.2] - 2026-10-09
+### Fixed & Enhanced
+- **VLAN ID Restoration & Alcatel FDB Index Inversion Fix (`cron_switch_poll.php` & `switch-details.php`)**:
+  - Root cause resolved: Fixed an edge case where Alcatel chassis `ifIndex` values ($1001 \dots 1052$) were evaluated as $> 64$ alongside VLAN IDs ($1 \dots 64$), inadvertently swapping physical interfaces with VLAN 1 and stripping untagged VLAN associations.
+  - Ensured standard physical chassis indices ($1001 \dots 1064$) are never inverted, preserving genuine Untagged PVID (e.g. `ID: 1 VLAN 1 (Untagged)`) and learned 802.1Q trunk tags across all ports.
+  - Added robust fallback to native Untagged VLAN 1 across both table rows and the Active Port Inspector.
+- **Duplicate Port Consolidation & Alias Merging (`switch-details.php`)**:
+  - Implemented automatic canonical interface merging: unmapped fallback records (`Port 22` or `22`) are merged directly into their structured physical counterpart (`1/1/22`), eliminating duplicate buttons while preserving all learned downstream host devices.
+  - Added faceplate label deduplication (`$seen_faceplate_labels`) ensuring no physical port number can ever be rendered more than once.
+- **Physical Chassis 52-Port Hardware Cap (`switch-details.php` & `cron_switch_poll.php`)**:
+  - Enforced strict 52-port limit on 48-port switches, purging and filtering out LinkAgg/LAG trunk bridge ports (`54`, `56`, `59`, `61`, `62`).
+  - Correctly routes optical uplink ports `49`..`52` to the dedicated right-side SFP+ transceivers bay, neatly arranging copper RJ45 ports 1..24 (top row) and 25..48 (bottom row).
+
 ## [2.33.1] - 2026-10-09
 ### Enhanced & Fixed
 - **Physical Front-Panel Chassis Isolation (`switch-details.php`)**:
