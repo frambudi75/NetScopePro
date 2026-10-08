@@ -3,12 +3,19 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.32.1');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.32.3');
 if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-08');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.32.3', 'date' => '2026-10-08', 'changes' => [
+        'L2 Multi-Evidence Correlation Engine (FDB Candidate-Only architecture: FDB table alone never triggers LOOP_DETECTED)',
+        'Three Orthogonal States Framework: Detection (NORMAL/SUSPECTED/CONFIRMED), Protection (NONE/STP_BLOCKING), Impact (NORMAL/MITIGATED/ACTIVE)',
+        'Automated 11-Scenario Synthetic Regression Test Suite (tests/test_loop_scenarios.php guarantees zero false alarms across all edge cases)',
+        'Evidence Scoring & Telemetry Correlation (Evaluates port role, MAC bouncing density, STP states, TCN delta, and exclusion tracking)',
+        'Background Switch Poller Integration with Persistence Verification across consecutive polling cycles'
+    ]],
     ['ver' => '2.32.1', 'date' => '2026-10-08', 'changes' => [
         'Alcatel OmniSwitch 802.1Q Tagged VLAN Discovery (vpaTable .1.3.6.1.4.1.6486.800/801.1.2.1.3 and vlanDescription support)',
         'Direct Trunk/Tagged Interface Auto-Registration into switch_port_vlans across static configuration and dynamic traffic',

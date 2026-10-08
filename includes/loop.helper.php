@@ -384,10 +384,31 @@ class LoopDetectiveHelper {
         // 5. Generate Forensic Verdict
         $verdict = self::generateVerdict($switch, $risk_score, $flapping_macs, $blocked_ports, $investigation_path);
 
+        // 6. Parse Multi-Evidence status tag & confidence if available
+        $status_tag = 'NORMAL';
+        $confidence_level = 'LOW';
+        $confidence_score = 0;
+        if (!empty($switch['loop_details'])) {
+            if (preg_match('/\[(ACTIVE|MITIGATED|SUSPECTED)\]/i', $switch['loop_details'], $stm)) {
+                $status_tag = strtoupper($stm[1]);
+            }
+            if (preg_match('/Confidence:\s*([a-zA-Z_]+)\s*(\d+)\/100/i', $switch['loop_details'], $cm)) {
+                $confidence_level = strtoupper($cm[1]);
+                $confidence_score = (int)$cm[2];
+            }
+        } elseif (!empty($blocked_ports)) {
+            $status_tag = 'MITIGATED';
+            $confidence_level = 'HIGH';
+            $confidence_score = 75;
+        }
+
         return [
             'switch'             => $switch,
             'risk_score'         => $risk_score,
             'risk_factors'       => $risk_factors,
+            'status_tag'         => $status_tag,
+            'confidence_level'   => $confidence_level,
+            'confidence_score'   => $confidence_score,
             'blocked_ports'      => $blocked_ports,
             'forwarding_ports'   => $forwarding_ports,
             'down_ports'         => $down_ports,
