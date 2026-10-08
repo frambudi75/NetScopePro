@@ -161,7 +161,7 @@ foreach ($grouped_ports as $pname => $port) {
         $label = mb_substr($label, 0, 4);
     }
 
-    $is_sfp = !empty($port['sfp_vendor']) || preg_match('/(sfp|fiber|optical|uplink|ten)/i', $pname);
+    $is_sfp = (!empty($port['sfp_vendor']) && $port['sfp_vendor'] !== '0') || !empty($port['sfp_rx_power']) || preg_match('/(sfp|fiber|optical|uplink|ten)/i', $pname);
     $tagged_str = $tagged_vlans_per_port[$pname] ?? '';
 
     $port_entry = [
@@ -238,7 +238,7 @@ foreach ($grouped_ports as $pname => $port) {
         'last_seen'   => $port['last_seen_on_port'] ?? null,
         'devices'     => $port['devices'],
         'dev_count'   => count($port['devices']),
-        'is_sfp'      => !empty($port['sfp_vendor']) || preg_match('/(sfp|fiber|optical|uplink|ten)/i', $pname)
+        'is_sfp'      => (!empty($port['sfp_vendor']) && $port['sfp_vendor'] !== '0') || !empty($port['sfp_rx_power']) || preg_match('/(sfp|fiber|optical|uplink|ten)/i', $pname)
     ];
 }
 
@@ -1658,12 +1658,16 @@ window.inspectPort = function(portName) {
     // SFP Diagnostics
     const sfpContainer = document.getElementById('insp-sfp-section');
     if (sfpContainer) {
-        if (data.sfp_vendor) {
+        const hasSfp = data.is_sfp || (data.sfp_vendor && data.sfp_vendor !== '0') || data.sfp_rx_power || data.sfp_tx_power;
+        if (hasSfp) {
             sfpContainer.style.display = 'block';
-            document.getElementById('insp-sfp-vendor').textContent = data.sfp_vendor;
-            document.getElementById('insp-sfp-part').textContent = data.sfp_part || '-';
+            const vendorClean = (data.sfp_vendor && data.sfp_vendor !== '0') ? data.sfp_vendor : (data.is_sfp ? 'SFP Optical (DDM)' : '-');
+            document.getElementById('insp-sfp-vendor').textContent = vendorClean;
+            document.getElementById('insp-sfp-part').textContent = (data.sfp_part && data.sfp_part !== '-') ? data.sfp_part : (data.is_sfp ? 'Optical Transceiver' : '-');
             document.getElementById('insp-sfp-serial').textContent = data.sfp_serial || '-';
-            document.getElementById('insp-sfp-power').textContent = `RX: ${data.sfp_rx_power || 'N/A'} | TX: ${data.sfp_tx_power || 'N/A'}`;
+            const rxP = (data.sfp_rx_power && data.sfp_rx_power !== 'N/A') ? data.sfp_rx_power : 'N/A';
+            const txP = (data.sfp_tx_power && data.sfp_tx_power !== 'N/A') ? data.sfp_tx_power : 'N/A';
+            document.getElementById('insp-sfp-power').textContent = `RX: ${rxP} | TX: ${txP}`;
         } else {
             sfpContainer.style.display = 'none';
         }

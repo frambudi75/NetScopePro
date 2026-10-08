@@ -1183,13 +1183,26 @@ foreach ($switches as $switch) {
             $speed = isset($if_speed_all[$ifidx]) ? format_speed($if_speed_all[$ifidx]) : null;
             $type = get_iftype_name($if_type_all[$ifidx]);
 
+            // Match SFP by ifidx OR exact port name OR prefix/substring (e.g. "sfp-sfpplus8" inside "sfp-sfpplus8-to-DS3")
+            $sfp_match = $sfp_data_map[$ifidx] ?? ($sfp_data_map[$name] ?? ($sfp_data_map[strtolower($name)] ?? null));
+            if ($sfp_match === null && !empty($sfp_data_map)) {
+                foreach ($sfp_data_map as $key => $sfp_info) {
+                    if (is_string($key) && strlen($key) >= 3) {
+                        if (stripos($name, $key) === 0 || stripos($name, $key) !== false) {
+                            $sfp_match = $sfp_info;
+                            break;
+                        }
+                    }
+                }
+            }
+
             $sfp = array_merge([
                 'vendor'   => null,
                 'part'     => null,
                 'serial'   => null,
                 'rx_power' => null,
                 'tx_power' => null,
-            ], $sfp_data_map[$ifidx] ?? []);
+            ], $sfp_match ?? []);
 
             $stmt_check = $db->prepare("SELECT id FROM switch_port_map WHERE switch_id = ? AND port_name = ? LIMIT 1");
             $stmt_check->execute([$switch['id'], $name]);
