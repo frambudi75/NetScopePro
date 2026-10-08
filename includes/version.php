@@ -3,12 +3,18 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.1');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.2');
 if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-09');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.33.2', 'date' => '2026-10-09', 'changes' => [
+        'VLAN ID Restoration & PVID Alignment: Fixed Alcatel Source Learning tuple inversion where chassis ifIndexes (1001-1052) were mistakenly swapped with low VLAN IDs (1-64), restoring native Untagged VLAN IDs across all interfaces',
+        'Duplicate Port Consolidation: Automatically merges fallback unmapped records (Port 22) into canonical hardware interfaces (1/1/22), preserving all learned downstream MACs with zero duplicate faceplate buttons',
+        'Physical Chassis 52-Port Cap: Strictly excludes virtual LinkAgg/LAG trunk ports (54, 56, 59, 61, 62) and non-chassis interfaces from the front-panel visualizer',
+        'Optical Bay SFP Routing: Correctly isolates uplink ports 49-52 into dedicated right-side SFP+ bays, splitting copper RJ45 cleanly into 1..24 (top) and 25..48 (bottom)'
+    ]],
     ['ver' => '2.33.1', 'date' => '2026-10-09', 'changes' => [
         'Collapsible Desktop Mini-Sidebar / Icon-Rail mode (68px) with persistent localStorage state & +192px workspace expansion',
         'Direct inline SVG collapse/expand icons guaranteeing zero-lag rendering without external font/icon delay',
