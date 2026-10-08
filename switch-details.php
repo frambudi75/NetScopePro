@@ -167,6 +167,124 @@ include 'includes/header.php';
 .drawer-chevron {
     transition: transform 0.2s ease;
 }
+.vlan-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.28);
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: default;
+    transition: all 0.15s ease;
+}
+.vlan-chip:hover {
+    background: rgba(56, 189, 248, 0.25);
+    border-color: #38bdf8;
+    color: #fff;
+}
+.btn-vlan-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 7px;
+    background: var(--surface-light, rgba(255, 255, 255, 0.05));
+    color: var(--text-muted, #94a3b8);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.btn-vlan-more:hover {
+    color: #fff;
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.15);
+}
+.vlan-popover-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 320px;
+    max-width: 90vw;
+    background: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.75), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    overflow: hidden;
+    animation: vlanPopIn 0.15s ease;
+}
+@keyframes vlanPopIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.vlan-popover-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.72rem;
+    color: #f1f5f9;
+}
+.vlan-popover-close {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+.vlan-popover-close:hover {
+    color: #fff;
+}
+.vlan-popover-body {
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.vlan-popover-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    transition: background 0.1s;
+}
+.vlan-popover-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+.vlan-id-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border-radius: 4px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    min-width: 44px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.vlan-name-text {
+    color: #cbd5e1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
 </style>
 
 <div style="margin-bottom: 2rem;">
@@ -421,22 +539,55 @@ include 'includes/header.php';
                                         <?php if ($port['vlan_id']): ?>
                                             <div style="height: 5px;"></div>
                                         <?php endif; ?>
-                                        <div style="font-size: 0.7rem; color: var(--text-muted);">
-                                            <i data-lucide="tag" style="width: 12px; vertical-align: middle; margin-right: 3px;"></i>
-                                            <span style="font-weight: 600; color: var(--text);">Tagged: </span>
-                                            <span title="Tagged VLANs">
-                                            <?php
-                                                $tagged_vlan_items = explode(',', $tagged_vlans_per_port[$port['port_name']]);
-                                                $display_tags = [];
-                                                foreach ($tagged_vlan_items as $item) {
-                                                    $t_parts = explode(':', $item, 2);
-                                                    $t_vid = $t_parts[0];
-                                                    $t_vname = $t_parts[1] ?? '';
-                                                    $display_tags[] = !empty($t_vname) ? htmlspecialchars($t_vname) : $t_vid;
+                                        <?php
+                                            $tagged_vlan_items = explode(',', $tagged_vlans_per_port[$port['port_name']]);
+                                            $parsed_tagged = [];
+                                            foreach ($tagged_vlan_items as $item) {
+                                                if (empty($item)) continue;
+                                                $t_parts = explode(':', $item, 2);
+                                                $t_vid = trim($t_parts[0] ?? '');
+                                                $t_vname = trim($t_parts[1] ?? '');
+                                                if ($t_vid !== '') {
+                                                    $parsed_tagged[] = ['id' => $t_vid, 'name' => $t_vname];
                                                 }
-                                                echo implode(', ', $display_tags);
-                                            ?>
-                                            </span>
+                                            }
+                                            $tag_count = count($parsed_tagged);
+                                            $vlan_pop_id = 'vlan-pop-' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $port['port_name']);
+                                            $preview_limit = 4;
+                                        ?>
+                                        <div class="vlan-popover-container" style="position: relative; font-size: 0.7rem; color: var(--text-muted);">
+                                            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px;">
+                                                <span style="font-weight: 600; color: var(--text-muted); display: inline-flex; align-items: center; gap: 3px;">
+                                                    <i data-lucide="tag" style="width: 11px; height: 11px;"></i> Tagged:
+                                                </span>
+                                                <?php foreach (array_slice($parsed_tagged, 0, $preview_limit) as $t): ?>
+                                                    <span class="vlan-chip" title="<?php echo htmlspecialchars($t['name'] ?: 'VLAN ' . $t['id']); ?>">
+                                                        <?php echo htmlspecialchars($t['id']); ?>
+                                                    </span>
+                                                <?php endforeach; ?>
+                                                <?php if ($tag_count > $preview_limit): ?>
+                                                    <button type="button" class="btn-vlan-more" onclick="event.stopPropagation(); toggleVlanPopover('<?php echo $vlan_pop_id; ?>')">
+                                                        +<?php echo ($tag_count - $preview_limit); ?> more <i data-lucide="chevron-down" style="width: 10px; height: 10px;"></i>
+                                                    </button>
+                                                <?php endif; ?>
+                                            </div>
+
+                                            <?php if ($tag_count > $preview_limit): ?>
+                                            <div id="<?php echo $vlan_pop_id; ?>" class="vlan-popover-menu" style="display: none;" onclick="event.stopPropagation();">
+                                                <div class="vlan-popover-header">
+                                                    <span><strong><?php echo $tag_count; ?> Tagged VLANs</strong> (Port <?php echo htmlspecialchars($port['port_name']); ?>)</span>
+                                                    <button type="button" class="vlan-popover-close" onclick="toggleVlanPopover('<?php echo $vlan_pop_id; ?>')">&times;</button>
+                                                </div>
+                                                <div class="vlan-popover-body">
+                                                    <?php foreach ($parsed_tagged as $t): ?>
+                                                        <div class="vlan-popover-row" title="<?php echo htmlspecialchars($t['name']); ?>">
+                                                            <span class="vlan-id-badge">ID: <?php echo htmlspecialchars($t['id']); ?></span>
+                                                            <span class="vlan-name-text"><?php echo htmlspecialchars($t['name'] ?: 'VLAN ' . $t['id']); ?></span>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            </div>
+                                            <?php endif; ?>
                                         </div>
                                     <?php endif; ?>
                                 </td>
@@ -704,6 +855,24 @@ window.togglePortDrawer = function(drawerId) {
     }
     if (window.lucide) lucide.createIcons();
 };
+
+// Popover toggle for tagged VLANs on trunk ports
+window.toggleVlanPopover = function(popoverId) {
+    const pop = document.getElementById(popoverId);
+    if (!pop) return;
+    const isVisible = pop.style.display === 'block';
+    // Close other open popovers
+    document.querySelectorAll('.vlan-popover-menu').forEach(el => el.style.display = 'none');
+    pop.style.display = isVisible ? 'none' : 'block';
+    if (window.lucide) lucide.createIcons();
+};
+
+// Auto-close VLAN popovers when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.vlan-popover-container')) {
+        document.querySelectorAll('.vlan-popover-menu').forEach(el => el.style.display = 'none');
+    }
+});
 
 // Filter downstream devices inside a specific port drawer
 window.filterDrawerTable = function(input, tableId) {
