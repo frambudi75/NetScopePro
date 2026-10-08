@@ -81,7 +81,10 @@ $port_mac_counts = [];
 $grouped_ports = [];
 foreach ($ports as $p) {
     $pname = $p['port_name'];
-    $port_mac_counts[$pname] = ($port_mac_counts[$pname] ?? 0) + 1;
+    $is_dummy_mac = empty($p['mac_addr']) || stripos($p['mac_addr'], 'PORT:') !== false || str_starts_with($p['mac_addr'], '00:00:00:') || $p['mac_addr'] === 'FF:FF:FF:FF:FF:FF';
+    if (!$is_dummy_mac) {
+        $port_mac_counts[$pname] = ($port_mac_counts[$pname] ?? 0) + 1;
+    }
     if (!isset($grouped_ports[$pname])) {
         $grouped_ports[$pname] = [
             'port_name'         => $pname,
@@ -101,12 +104,14 @@ foreach ($ports as $p) {
             'devices'           => []
         ];
     }
-    if (!empty($p['mac_addr']) && stripos($p['mac_addr'], 'PORT:') === false) {
+    if (!$is_dummy_mac) {
         $grouped_ports[$pname]['devices'][] = [
             'mac_addr'          => $p['mac_addr'],
             'ip_addr'           => $p['ip_addr'] ?? null,
             'hostname'          => $p['hostname'] ?? null,
             'vendor'            => $p['vendor'] ?? null,
+            'vlan_id'           => $p['vlan_id'] ?? null,
+            'vlan_name'         => $p['vlan_name'] ?? null,
             'last_seen_on_port' => $p['last_seen_on_port'] ?? null
         ];
     }
@@ -669,10 +674,10 @@ include 'includes/header.php';
                                                 </div>
                                                 <div style="display: flex; gap: 8px; align-items: center;">
                                                     <input type="text" 
-                                                           placeholder="Filter MAC / IP on this port..." 
+                                                           placeholder="Filter MAC / IP / VLAN on this port..." 
                                                            class="input-control" 
                                                            onkeyup="filterDrawerTable(this, 'table-<?php echo $drawer_id; ?>')"
-                                                           style="padding: 4px 10px; font-size: 0.75rem; width: 220px; border-radius: 4px;">
+                                                           style="padding: 4px 10px; font-size: 0.75rem; width: 240px; border-radius: 4px;">
                                                     <button type="button" 
                                                             class="btn btn-secondary btn-sm" 
                                                             onclick="togglePortDrawer('<?php echo $drawer_id; ?>')" 
@@ -688,6 +693,7 @@ include 'includes/header.php';
                                                         <tr style="background: rgba(0,0,0,0.25); position: sticky; top: 0; z-index: 2; border-bottom: 1px solid var(--border); text-align: left;">
                                                             <th style="padding: 6px 12px; color: var(--text-muted); font-size: 0.75rem;">MAC Address</th>
                                                             <th style="padding: 6px 12px; color: var(--text-muted); font-size: 0.75rem;">IP Address</th>
+                                                            <th style="padding: 6px 12px; color: var(--text-muted); font-size: 0.75rem;">VLAN</th>
                                                             <th style="padding: 6px 12px; color: var(--text-muted); font-size: 0.75rem;">Hostname</th>
                                                             <th style="padding: 6px 12px; color: var(--text-muted); font-size: 0.75rem;">Vendor</th>
                                                             <th style="padding: 6px 12px; color: var(--text-muted); font-size: 0.75rem; text-align: right;">Last Seen</th>
@@ -706,6 +712,18 @@ include 'includes/header.php';
                                                                         </a>
                                                                     <?php else: ?>
                                                                         <span style="opacity: 0.35; font-size: 0.7rem;">Not in IPAM</span>
+                                                                    <?php endif; ?>
+                                                                </td>
+                                                                <td style="padding: 6px 12px; white-space: nowrap;">
+                                                                    <?php if (!empty($dev['vlan_id'])): ?>
+                                                                        <span class="vlan-chip" style="font-size: 0.7rem;" title="<?php echo htmlspecialchars($dev['vlan_name'] ?: 'VLAN ' . $dev['vlan_id']); ?>">
+                                                                            ID: <?php echo htmlspecialchars($dev['vlan_id']); ?>
+                                                                        </span>
+                                                                        <?php if (!empty($dev['vlan_name'])): ?>
+                                                                            <span style="font-size: 0.7rem; color: var(--text-muted); margin-left: 4px;"><?php echo htmlspecialchars($dev['vlan_name']); ?></span>
+                                                                        <?php endif; ?>
+                                                                    <?php else: ?>
+                                                                        <span style="opacity: 0.35; font-size: 0.7rem;">-</span>
                                                                     <?php endif; ?>
                                                                 </td>
                                                                 <td style="padding: 6px 12px; font-size: 0.8rem; color: var(--text);">

@@ -90,7 +90,7 @@ class LoopDetectiveHelper {
         $isValidHostMac = function($mac) {
             if (empty($mac) || strlen($mac) !== 17) return false;
             $m = strtoupper($mac);
-            if (str_starts_with($m, '00:00:00:00:00')) return false;
+            if (str_starts_with($m, '00:00:00:')) return false;
             if ($m === 'FF:FF:FF:FF:FF:FF') return false;
             $firstOctet = hexdec(substr($m, 0, 2));
             if ($firstOctet & 1) return false; // Multicast
@@ -219,7 +219,7 @@ class LoopDetectiveHelper {
                         WHERE spm_local.switch_id = ?
                           AND spm_local.port_name = ?
                           AND spm_local.mac_addr NOT LIKE 'PORT:%'
-                          AND spm_local.mac_addr NOT LIKE '00:00:00:00:00%'
+                          AND spm_local.mac_addr NOT LIKE '00:00:00:%'
                         ORDER BY spm_remote.updated_at DESC
                         LIMIT 5
                     ";
@@ -267,7 +267,7 @@ class LoopDetectiveHelper {
                     JOIN switches s2 ON spm2.switch_id = s2.id
                     WHERE spm1.switch_id = ?
                       AND spm1.mac_addr NOT LIKE 'PORT:%'
-                      AND spm1.mac_addr NOT LIKE '00:00:00:00:00%'
+                      AND spm1.mac_addr NOT LIKE '00:00:00:%'
                     LIMIT 5
                 ");
                 $dupStmt->execute([$switch_id]);
