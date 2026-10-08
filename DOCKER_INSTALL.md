@@ -1,19 +1,23 @@
-# Panduan Instalasi Docker - IPManager Pro
+# Panduan Instalasi Docker - NetScope Pro
 
-Dokumentasi ini menjelaskan cara menginstal dan menjalankan **IPManager Pro** menggunakan Docker dan Docker Compose.
+Dokumentasi ini menjelaskan cara menginstal dan menjalankan **NetScope Pro (v2.32.1+)** menggunakan Docker dan Docker Compose.
+
+---
 
 ## Persyaratan Sistem
 
-Pastikan Anda sudah menginstal perangkat lunak berikut:
+Pastikan host Anda sudah terpasang:
 
 - [Docker Engine](https://docs.docker.com/get-docker/) (v20.10+)
 - [Docker Compose](https://docs.docker.com/compose/install/) (v2.0+)
 
-Proyek ini menggunakan tiga kontainer utama:
+Proyek ini berjalan di atas tiga kontainer utama:
 
-1. **app**: Apache + PHP 8.2 (dengan `php-redis` & `opcache`). Menjalankan scanner otomatis dan **Netwatch Monitor** di background via `entrypoint.sh`.
-2. **db**: MariaDB 10.11 untuk penyimpanan data persisten (diikat ke volume `db_data`).
-3. **redis**: Redis 7.0 sebagai _high-performance caching layer_ untuk session dan hasil polling SNMP.
+1. **app (`netscope_app`)**: Apache + PHP 8.2 (dilengkapi `php-redis`, `opcache`, dan `memory_limit = 512M`). Menjalankan web interface serta orchestrator background poller (`cron_netwatch.php`, `cron_switch_poll.php`, `cron_scanner.php`) secara otomatis via `entrypoint.sh`.
+2. **db (`netscope_db`)**: MariaDB 10.11 untuk penyimpanan data persisten (terikat pada volume `db_data`).
+3. **redis (`netscope_redis`)**: Redis 7.0 sebagai _high-performance caching layer_ untuk session dan akselerasi data switch/IP.
+
+---
 
 ## Langkah-langkah Instalasi
 
@@ -24,141 +28,110 @@ git clone https://github.com/frambudi75/NetScopePro.git netscopepro
 cd netscopepro
 ```
 
-### 2. Konfigurasi (Opsional)
+### 2. Konfigurasi Lingkungan (Opsional)
 
-Anda dapat mengubah port atau password di `docker-compose.yml`. Default:
+Konfigurasi standar telah disiapkan di `docker-compose.yml`:
 
-- Port Aplikasi: `2025`
-- Database User: `ipmanager` / Password: `ipmanager_pass`
+- **Port Web**: `2025` (diakses via `http://localhost:2025`)
+- **Port Database Host**: `3309` (agar tidak bentrok dengan MySQL port 3306 lokal)
+- **Database User**: `ipmanager` / **Password**: `ipmanager_pass`
+- **Database Root Password**: `root_password_secure`
 
-### 3. Jalankan Docker Compose
+Jika ingin mengubah port aplikasi atau environment lainnya, Anda dapat mengedit file `docker-compose.yml` atau menambahkan file `.env`.
+
+### 3. Build & Jalankan Kontainer
 
 ```bash
-sudo docker compose up -d --build
+docker compose up -d --build
 ```
 
-Perintah ini akan:
+Perintah ini akan secara otomatis:
+- Membangun image PHP 8.2 dengan seluruh dependensi SNMP, curl, nmap, dan memory limit 512M.
+- Menjalankan kontainer MariaDB dan mengimpor skema dari `./sql/database.sql`.
+- Menjalankan Redis cache container.
+- Menjalankan healthcheck database dan meluncurkan background task otomatis.
 
-- Membangun image PHP dengan semua dependensi.
-- Menjalankan MariaDB dan mengimpor skema dari `./sql/database.sql` secara otomatis.
-- Menjalankan kedua kontainer di background.
-
-### 4. Verifikasi
+### 4. Verifikasi Status Kontainer
 
 ```bash
-sudo docker ps
+docker compose ps
 ```
 
-Pastikan `ipmanager_app` dan `ipmanager_db` berstatus **Up / Healthy**.
+Pastikan seluruh kontainer (`netscope_app`, `netscope_db`, `netscope_redis`) berada dalam status **Up / Healthy**.
 
-### 5. Akses Aplikasi
+### 5. Akses Web Console
 
-Buka browser: `http://localhost:2025`
+Buka browser:
+```text
+http://localhost:2025
+```
 
-**Login Default:**
+**Kredensial Default:**
+- **Username**: `admin`
+- **Password**: `admin123`
 
-- Username: `admin`
-- Password: `admin123`
+*(Disarankan segera mengubah password default pada menu Settings).*
 
-## Perintah Berguna
+---
 
-### Melihat Log Aplikasi
+## Manajemen dan Operasional
 
+### Melihat Log Aplikasi & Background Worker
 ```bash
-sudo docker logs -f ipmanager_app
+docker logs -f netscope_app
 ```
 
 ### Melihat Log Database
-
 ```bash
-sudo docker logs -f ipmanager_db
+docker logs -f netscope_db
 ```
 
-### Menghentikan Aplikasi
-
+### Menghentikan Stack
 ```bash
-sudo docker compose down
+docker compose down
 ```
 
-### Reset Total (Hapus Semua Data)
-
-```bash
-sudo docker compose down -v
-```
-
-> **Perhatian:** Perintah `-v` akan menghapus semua data database!
-
-### Update Kode Terbaru
-
+### Update ke Versi Terbaru (Git Pull)
 ```bash
 git pull
-sudo docker compose down
-sudo docker compose up -d --build
+docker compose down
+docker compose up -d --build
 ```
+
+### Reset Database Total (Perhatian: Menghapus Semua Data!)
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+---
+
+## Penjelasan Background Task di Docker
+
+Pada instalasi Docker, Anda **tidak perlu** mengonfigurasi crontab di sistem host secara manual. Berkas `entrypoint.sh` secara otomatis menjalankan background scheduler loop di dalam kontainer `netscope_app`:
+
+- `cron_netwatch.php`: Memantau latensi dan status up/down host setiap 10-60 detik.
+- `cron_switch_poll.php`: Memantau port switch, tabel FDB MAC, optical telemetry, dan STP loop detection setiap ~5 menit.
+- `cron_scanner.php`: Melakukan sweep penemuan host subnet baru secara berkala.
+
+---
 
 ## Troubleshooting
 
-### Error: `entrypoint.sh: permission denied`
+### Error: `failed to bind host port 0.0.0.0:3309`
+Port 3309 sedang dipakai oleh aplikasi lain di host.
+**Solusi:** Ubah pemetaan port di `docker-compose.yml` pada bagian `db` service, misalnya `"3310:3306"`.
 
-Terjadi saat file dari Windows tidak memiliki permission execute di Linux.
-**Solusi:** Sudah diatasi secara otomatis — Dockerfile menggunakan `bash` untuk menjalankan entrypoint.
-
-### Error: `getaddrinfo for db failed`
-
-Database belum siap atau ada konflik jaringan.
-**Solusi:**
-
+### Error: `getaddrinfo for db failed` / Database Belum Siap
+Terjadi jika Apache menyala sebelum MariaDB menyelesaikan inisialisasi volume.
+**Solusi:** Restart kontainer:
 ```bash
-sudo docker compose down
-sudo docker compose up -d
+docker compose restart app
 ```
 
-### Error: `Access denied for user`
-
-Volume database lama tersisa dengan kredensial lama.
-**Solusi:**
-
-```bash
-sudo docker compose down -v
-sudo docker compose up -d
-```
-
-### Error: `failed to bind host port 0.0.0.0:3306`
-
-Port 3306 sudah digunakan oleh MySQL/XAMPP lokal.
-**Solusi:** Database sudah dipetakan ke port **3307** di host. Tidak ada yang perlu diubah.
-
-### Error: Docker tidak bisa connect (`/var/run/docker.sock`)
-
-Docker Daemon belum berjalan.
-**Solusi:**
-
-```bash
-sudo systemctl start docker
-```
-
-### Error: `404 Not Found` saat buka `/login` atau halaman lain
-
-Penyebab umum: file `.htaccess` dari XAMPP memakai `RewriteBase /ipmanage/`, sedangkan di Docker aplikasi berjalan di root `/`.
-
-**Solusi (sudah otomatis di versi terbaru):**
-
-```bash
-cd ~/ipmanage
-git pull
-sudo docker compose restart app
-```
-
-Atau manual:
-
-```bash
-sudo docker exec netscope_app cp /var/www/html/.htaccess.docker /var/www/html/.htaccess
-sudo docker compose restart app
-```
-
-**URL yang benar di Docker:**
-
+### Error: `404 Not Found` pada routing (`/login`, `/dashboard`)
+Pada Docker, aplikasi dijalankan pada root direktori `/` (bukan `/ipmanage/`).
+`entrypoint.sh` secara otomatis menerapkan konfigurasi `.htaccess.docker`. Jika Anda memperbarui berkas secara manual, pastikan `.htaccess` menggunakan `RewriteBase /`.
+Akses yang benar:
 - `http://<IP-SERVER>:2025/login`
-- atau langsung `http://<IP-SERVER>:2025/login.php`
-
-**Jangan** pakai path `/ipmanage/login` kecuali app memang di-subfolder.
+- **Bukan** `http://<IP-SERVER>:2025/ipmanage/login`
