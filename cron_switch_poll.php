@@ -361,22 +361,42 @@ foreach ($switches as $switch) {
         }
 
         // Alcatel OmniSwitch (AOS) Enterprise MIB for Tagged VLANs:
-        // alaVlanPortType (.1.3.6.1.4.1.6486.800.1.2.1.11.1.2.1.3 or 801): 1=default/untagged, 2=tagged (802.1Q)
+        // vpaType (.1.3.6.1.4.1.6486.800.1.2.1.3.1.1.2.1.1.3 or 801): 1=default/untagged, 2=tagged (802.1Q)
+        // Also fallback alaVlanPortType (.1.3.6.1.4.1.6486.800.1.2.1.11.1.2.1.3 or 801)
         $is_alcatel = (stripos($system_info, 'Alcatel') !== false || stripos($system_info, 'OmniSwitch') !== false || stripos($model, 'Alcatel') !== false);
         if ($is_alcatel || empty($tagged_vlans_per_ifindex)) {
-            $alcatel_vlan_ports = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.11.1.2.1.3");
+            $alcatel_vlan_ports = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.3.1.1.2.1.1.3");
+            if (empty($alcatel_vlan_ports)) {
+                $alcatel_vlan_ports = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.801.1.2.1.3.1.1.2.1.1.3");
+            }
+            if (empty($alcatel_vlan_ports)) {
+                $alcatel_vlan_ports = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.11.1.2.1.3");
+            }
             if (empty($alcatel_vlan_ports)) {
                 $alcatel_vlan_ports = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.801.1.2.1.11.1.2.1.3");
             }
             if ($alcatel_vlan_ports && is_array($alcatel_vlan_ports)) {
-                echo "  Alcatel alaVlanPortTable detected: parsing 802.1Q tagged ports...\n";
+                echo "  Alcatel VLAN-Port table detected: parsing 802.1Q tagged ports...\n";
                 foreach ($alcatel_vlan_ports as $oid => $val) {
                     $type_int = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
                     // 2 = tagged (802.1Q trunk)
                     if ($type_int === 2) {
                         $parts = explode('.', $oid);
-                        $if_idx = (int)end($parts);
-                        $vlan_id = (int)$parts[count($parts) - 2];
+                        $p_last = (int)end($parts);
+                        $p_prev = (int)$parts[count($parts) - 2];
+                        
+                        // Robust index resolution: either (vlan.ifindex) or (ifindex.vlan)
+                        if (isset($ifindex_map[$p_last]) || isset($name_map_ifname[$p_last]) || isset($oper_status_map[$p_last])) {
+                            $if_idx = $p_last;
+                            $vlan_id = $p_prev;
+                        } elseif (isset($ifindex_map[$p_prev]) || isset($name_map_ifname[$p_prev]) || isset($oper_status_map[$p_prev])) {
+                            $if_idx = $p_prev;
+                            $vlan_id = $p_last;
+                        } else {
+                            $if_idx = $p_last;
+                            $vlan_id = $p_prev;
+                        }
+
                         if ($if_idx && $vlan_id) {
                             $tagged_vlans_per_ifindex[$if_idx][] = $vlan_id;
                         }
@@ -401,9 +421,16 @@ foreach ($switches as $switch) {
                 // Note: The OID structure is .1.3.6.1.4.1.9.9.46.1.3.1.1.4.1.X (where X is VLAN ID)
                 $vlan_names = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.9.9.46.1.3.1.1.4.1");
             } elseif (stripos($system_info, 'Alcatel') !== false || stripos($system_info, 'OmniSwitch') !== false || stripos($model, 'Alcatel') !== false) {
-                // Alcatel alaVlanName (.1.3.6.1.4.1.6486.800.1.2.1.11.1.1.1.2 or 801)
+                // Alcatel vlanDescription (.1.3.6.1.4.1.6486.800.1.2.1.3.1.1.1.1.1.2 or 801)
+                // Fallback alaVlanName (.1.3.6.1.4.1.6486.800.1.2.1.11.1.1.1.2 or 801)
                 echo "    Trying Alcatel-specific VLAN names...\n";
-                $vlan_names = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.11.1.1.1.2");
+                $vlan_names = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.3.1.1.1.1.1.2");
+                if (empty($vlan_names)) {
+                    $vlan_names = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.6486.801.1.2.1.3.1.1.1.1.1.2");
+                }
+                if (empty($vlan_names)) {
+                    $vlan_names = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.11.1.1.1.2");
+                }
                 if (empty($vlan_names)) {
                     $vlan_names = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.6486.801.1.2.1.11.1.1.1.2");
                 }
@@ -439,6 +466,21 @@ foreach ($switches as $switch) {
                 $name_map[$ifindex] = $if_alias;
             }
             // If none found, will use normalized fallback later
+        }
+
+        // Phase 1.5: Register all discovered tagged VLANs per port into switch_port_vlans
+        if (!empty($tagged_vlans_per_ifindex)) {
+            echo "  Registering tagged VLANs to database for discovered ports...\n";
+            foreach ($tagged_vlans_per_ifindex as $t_ifindex => $t_vlans) {
+                $raw_t_name = $name_map[$t_ifindex] ?? ($name_map_ifname[$t_ifindex] ?? ($name_map_ifdescr[$t_ifindex] ?? null));
+                $t_port_name = normalize_port_name($raw_t_name, null, $t_ifindex, $system_info);
+                if (!$t_port_name) continue;
+                foreach ($t_vlans as $t_vid) {
+                    $t_vname = isset($vlan_names[$t_vid]) ? trim($vlan_names[$t_vid], '" ') : null;
+                    $db->prepare("INSERT IGNORE INTO switch_port_vlans (switch_id, port_name, vlan_id, vlan_name, is_tagged) VALUES (?, ?, ?, ?, 1)")
+                       ->execute([$switch['id'], $t_port_name, $t_vid, $t_vname]);
+                }
+            }
         }
 
         // 5.5 Poll Spanning Tree Protocol (STP) & Loop Protection Status
@@ -502,9 +544,9 @@ foreach ($switches as $switch) {
         // 6. Get FDB table (MAC to Bridge Port + VLAN)
         $is_alcatel = (stripos($system_info, 'Alcatel') !== false || stripos($model, 'Alcatel') !== false || stripos($system_info, 'OmniSwitch') !== false);
         
-        // Auto-purge corrupted fake sequential MAC records (00:00:00:00:00:xx) generated by legacy OID parsers
+        // Auto-purge corrupted fake sequential MAC records (00:00:00:00:xx:xx) generated by legacy OID parsers
         try {
-            $db->prepare("DELETE FROM switch_port_map WHERE switch_id = ? AND mac_addr LIKE '00:00:00:00:00%'")->execute([$switch['id']]);
+            $db->prepare("DELETE FROM switch_port_map WHERE switch_id = ? AND mac_addr LIKE '00:00:00:00:%'")->execute([$switch['id']]);
         } catch (Exception $e) {}
 
         echo "  Scanning FDB Tables...\n";
@@ -682,7 +724,7 @@ foreach ($switches as $switch) {
                 $mac_addr = strtoupper(implode(':', $mac_hex));
                 
                 // Validate MAC: must be 17 chars and not dummy, broadcast, or multicast
-                if ($all_zero || strlen($mac_addr) !== 17 || str_starts_with($mac_addr, '00:00:00:00:00') || $mac_addr === 'FF:FF:FF:FF:FF:FF' || $mac_addr === '00:00:00:00:00:00') {
+                if ($all_zero || strlen($mac_addr) !== 17 || str_starts_with($mac_addr, '00:00:00:00:') || $mac_addr === 'FF:FF:FF:FF:FF:FF' || $mac_addr === '00:00:00:00:00:00') {
                     continue;
                 }
                 
@@ -726,7 +768,7 @@ foreach ($switches as $switch) {
                     $mUpper = strtoupper($mac_addr);
                     $firstOctet = hexdec(substr($mUpper, 0, 2));
                     $isMulticast = ($firstOctet & 1);
-                    $isDummy = str_starts_with($mUpper, '00:00:00:00:00') || $mUpper === 'FF:FF:FF:FF:FF:FF' || str_starts_with($mUpper, '00:00:5E:') || str_starts_with($mUpper, '00:00:0C:');
+                    $isDummy = str_starts_with($mUpper, '00:00:00:00:') || $mUpper === 'FF:FF:FF:FF:FF:FF' || str_starts_with($mUpper, '00:00:5E:') || str_starts_with($mUpper, '00:00:0C:');
                     
                     if (!$isMulticast && !$isDummy && strlen($mUpper) === 17) {
                         $mac_flaps[] = [
@@ -793,6 +835,14 @@ foreach ($switches as $switch) {
                             $db->prepare("INSERT IGNORE INTO switch_port_vlans (switch_id, port_name, vlan_id, vlan_name, is_tagged) VALUES (?, ?, ?, ?, 1)")
                                ->execute([$switch['id'], $port_name, $tagged_vlan_id, $vlan_name_for_tagged]);
                         }
+                    }
+
+                    // Auto-register non-PVID VLANs learned via traffic as tagged VLANs for this port
+                    $port_pvid = $pvid_map[$bridge_port] ?? ($pvid_map[$ifindex] ?? 1);
+                    if ($vlan_id && (int)$vlan_id !== (int)$port_pvid) {
+                        $vlan_name_for_tagged = isset($vlan_names[$vlan_id]) ? trim($vlan_names[$vlan_id], '" ') : null;
+                        $db->prepare("INSERT IGNORE INTO switch_port_vlans (switch_id, port_name, vlan_id, vlan_name, is_tagged) VALUES (?, ?, ?, ?, 1)")
+                           ->execute([$switch['id'], $port_name, $vlan_id, $vlan_name_for_tagged]);
                     }
 
                 }
@@ -1027,16 +1077,19 @@ foreach ($switches as $switch) {
                 $port_stp = 'disabled';
             }
 
+            $port_pvid = $pvid_map[$bridge_port_for_if ?? $ifidx] ?? ($pvid_map[$ifidx] ?? null);
+            $port_pvid_name = ($port_pvid && isset($vlan_names[$port_pvid])) ? trim($vlan_names[$port_pvid], '" ') : null;
+
             if ($existing_port_id) {
-                // Update existing port (from FDB or previous run) with SFP, STP, and status data
-                $db->prepare("UPDATE switch_port_map SET port_status=?, stp_state=COALESCE(?, stp_state), port_type=?, port_speed=?, sfp_vendor=?, sfp_part=?, sfp_serial=?, sfp_rx_power=?, sfp_tx_power=? WHERE id=?")
-                   ->execute([$status, $port_stp, $type, $speed, $sfp['vendor'] ?? null, $sfp['part'] ?? null, $sfp['serial'] ?? null, $sfp['rx_power'] ?? null, $sfp['tx_power'] ?? null, $existing_port_id]);
+                // Update existing port (from FDB or previous run) with SFP, STP, status data, and fallback VLAN
+                $db->prepare("UPDATE switch_port_map SET port_status=?, stp_state=COALESCE(?, stp_state), port_type=?, port_speed=?, sfp_vendor=?, sfp_part=?, sfp_serial=?, sfp_rx_power=?, sfp_tx_power=?, vlan_id=COALESCE(vlan_id, ?), vlan_name=COALESCE(vlan_name, ?) WHERE id=?")
+                   ->execute([$status, $port_stp, $type, $speed, $sfp['vendor'] ?? null, $sfp['part'] ?? null, $sfp['serial'] ?? null, $sfp['rx_power'] ?? null, $sfp['tx_power'] ?? null, $port_pvid, $port_pvid_name, $existing_port_id]);
             } else {
                 // Insert placeholder entry for the port itself (without a real MAC)
                 // Use a dummy MAC to avoid unique constraint violations on empty strings
                 $dummy_mac = 'PORT:' . substr($name, 0, 12);
-                $db->prepare("INSERT IGNORE INTO switch_port_map (mac_addr, switch_id, port_name, port_status, stp_state, port_type, port_speed, sfp_vendor, sfp_part, sfp_serial, sfp_rx_power, sfp_tx_power) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                   ->execute([$dummy_mac, $switch['id'], $name, $status, $port_stp, $type, $speed, $sfp['vendor'] ?? null, $sfp['part'] ?? null, $sfp['serial'] ?? null, $sfp['rx_power'] ?? null, $sfp['tx_power'] ?? null]);
+                $db->prepare("INSERT IGNORE INTO switch_port_map (mac_addr, switch_id, port_name, vlan_id, vlan_name, port_status, stp_state, port_type, port_speed, sfp_vendor, sfp_part, sfp_serial, sfp_rx_power, sfp_tx_power) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                   ->execute([$dummy_mac, $switch['id'], $name, $port_pvid, $port_pvid_name, $status, $port_stp, $type, $speed, $sfp['vendor'] ?? null, $sfp['part'] ?? null, $sfp['serial'] ?? null, $sfp['rx_power'] ?? null, $sfp['tx_power'] ?? null]);
             }
 
             // Check for critical optical power degradation on active SFP interfaces
