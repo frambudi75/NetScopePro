@@ -385,29 +385,72 @@ foreach ($switches as $switch) {
                 $alcatel_vlan_ports = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.801.1.2.1.11.1.2.1.3");
             }
             if ($alcatel_vlan_ports && is_array($alcatel_vlan_ports)) {
-                echo "  Alcatel VLAN-Port table detected: parsing 802.1Q tagged ports...\n";
+                echo "  Alcatel VLAN-Port table detected: parsing Access (PVID) & 802.1Q tagged ports...\n";
                 foreach ($alcatel_vlan_ports as $oid => $val) {
                     $type_int = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
-                    // 2 = tagged (802.1Q trunk)
-                    if ($type_int === 2) {
-                        $parts = explode('.', $oid);
-                        $p_last = (int)end($parts);
-                        $p_prev = (int)$parts[count($parts) - 2];
-                        
-                        // Robust index resolution: either (vlan.ifindex) or (ifindex.vlan)
-                        if (isset($ifindex_map[$p_last]) || isset($name_map_ifname[$p_last]) || isset($oper_status_map[$p_last])) {
-                            $if_idx = $p_last;
+                    $parts = explode('.', $oid);
+                    $p_last = (int)end($parts);
+                    $p_prev = (int)$parts[count($parts) - 2];
+                    
+                    // Robust index resolution: either (vlan.ifindex) or (ifindex.vlan)
+                    // Physical chassis ifIndexes on Alcatel are 1001..1052
+                    if ($p_last >= 1000 && $p_last < 9000) {
+                        $if_idx = $p_last;
+                        $vlan_id = $p_prev;
+                    } elseif ($p_prev >= 1000 && $p_prev < 9000) {
+                        $if_idx = $p_prev;
+                        $vlan_id = $p_last;
+                    } elseif (isset($ifindex_map[$p_last]) || isset($name_map_ifname[$p_last]) || isset($oper_status_map[$p_last])) {
+                        $if_idx = $p_last;
+                        $vlan_id = $p_prev;
+                    } elseif (isset($ifindex_map[$p_prev]) || isset($name_map_ifname[$p_prev]) || isset($oper_status_map[$p_prev])) {
+                        $if_idx = $p_prev;
+                        $vlan_id = $p_last;
+                    } else {
+                        if ($p_last >= 1 && $p_last <= 64 && $p_prev > 64) {
+                            $if_idx = 1000 + $p_last;
                             $vlan_id = $p_prev;
-                        } elseif (isset($ifindex_map[$p_prev]) || isset($name_map_ifname[$p_prev]) || isset($oper_status_map[$p_prev])) {
-                            $if_idx = $p_prev;
+                        } elseif ($p_prev >= 1 && $p_prev <= 64 && $p_last > 64) {
+                            $if_idx = 1000 + $p_prev;
                             $vlan_id = $p_last;
                         } else {
                             $if_idx = $p_last;
                             $vlan_id = $p_prev;
                         }
+                    }
 
-                        if ($if_idx && $vlan_id) {
+                    if ($if_idx && $vlan_id && $vlan_id > 0) {
+                        // 1 = cfgDefault (Access / Untagged VLAN PVID for this physical interface!)
+                        if ($type_int === 1) {
+                            $pvid_map[$if_idx] = $vlan_id;
+                            if ($if_idx > 1000) {
+                                $pvid_map[$if_idx % 1000] = $vlan_id;
+                            }
+                        }
+                        // 2 = qTagged (802.1Q tagged trunk)
+                        elseif ($type_int === 2) {
                             $tagged_vlans_per_ifindex[$if_idx][] = $vlan_id;
+                        }
+                    }
+                }
+            }
+
+            // Also check Alcatel alaVlanPortDefaultVlan (.1.3.6.1.4.1.6486.800.1.2.1.11.1.2.1.1 or 801)
+            $ala_def_vlans = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.11.1.2.1.1");
+            if (empty($ala_def_vlans)) {
+                $ala_def_vlans = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.801.1.2.1.11.1.2.1.1");
+            }
+            if ($ala_def_vlans && is_array($ala_def_vlans)) {
+                foreach ($ala_def_vlans as $oid => $val) {
+                    $vid = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
+                    if ($vid > 0) {
+                        $parts = explode('.', $oid);
+                        $p_end = (int)end($parts);
+                        $p_prev = (int)$parts[count($parts) - 2];
+                        $target_if = ($p_end >= 1000 && $p_end < 9000) ? $p_end : (($p_prev >= 1000 && $p_prev < 9000) ? $p_prev : $p_end);
+                        $pvid_map[$target_if] = $vid;
+                        if ($target_if > 1000) {
+                            $pvid_map[$target_if % 1000] = $vid;
                         }
                     }
                 }
@@ -489,6 +532,20 @@ foreach ($switches as $switch) {
                     $db->prepare("INSERT IGNORE INTO switch_port_vlans (switch_id, port_name, vlan_id, vlan_name, is_tagged) VALUES (?, ?, ?, ?, 1)")
                        ->execute([$switch['id'], $t_port_name, $t_vid, $t_vname]);
                 }
+            }
+        }
+
+        // Phase 1.5b: Register all discovered access/untagged PVIDs per port into switch_port_vlans
+        if (!empty($pvid_map)) {
+            echo "  Registering Access/Untagged VLANs (PVID) to database for discovered ports...\n";
+            foreach ($pvid_map as $u_ifindex => $u_vid) {
+                if ($u_vid <= 0) continue;
+                $raw_u_name = $name_map[$u_ifindex] ?? ($name_map_ifname[$u_ifindex] ?? ($name_map_ifdescr[$u_ifindex] ?? null));
+                $u_port_name = normalize_port_name($raw_u_name, (int)($u_ifindex % 1000), $u_ifindex, $system_info);
+                if (!$u_port_name) continue;
+                $u_vname = isset($vlan_names[$u_vid]) ? trim($vlan_names[$u_vid], '" ') : 'VLAN ' . $u_vid;
+                $db->prepare("INSERT INTO switch_port_vlans (switch_id, port_name, vlan_id, vlan_name, is_tagged) VALUES (?, ?, ?, ?, 0) ON DUPLICATE KEY UPDATE is_tagged = 0, vlan_name = VALUES(vlan_name)")
+                   ->execute([$switch['id'], $u_port_name, $u_vid, $u_vname]);
             }
         }
 
@@ -769,13 +826,6 @@ foreach ($switches as $switch) {
                     continue; // RFC 1493 port 0 represents CPU/management/static table, not a physical bridge port
                 }
                 
-                // Fallback to PVID or VLAN 1 if vlan_id is empty
-                if (!$vlan_id || (int)$vlan_id <= 0) {
-                    $b_num = ($ifindex > 1000) ? ($ifindex % 1000) : $bridge_port;
-                    $pvid_val = $pvid_map[$bridge_port] ?? ($pvid_map[$b_num] ?? ($pvid_map[$ifindex] ?? null));
-                    $vlan_id = ($pvid_val && (int)$pvid_val > 0) ? (int)$pvid_val : 1;
-                }
-
                 // Bridge port to ifIndex resolution
                 if ($is_alcatel_sl) {
                     $ifindex = $alcatel_ifindex;
@@ -790,6 +840,15 @@ foreach ($switches as $switch) {
                     }
                     if (!$ifindex) {
                         $ifindex = $bridge_port;
+                    }
+                }
+
+                // Fallback to PVID if vlan_id is empty
+                if (!$vlan_id || (int)$vlan_id <= 0) {
+                    $b_num = ($ifindex > 1000) ? ($ifindex % 1000) : $bridge_port;
+                    $pvid_val = $pvid_map[$ifindex] ?? ($pvid_map[$b_num] ?? ($pvid_map[$bridge_port] ?? null));
+                    if ($pvid_val && (int)$pvid_val > 0) {
+                        $vlan_id = (int)$pvid_val;
                     }
                 }
                 
@@ -1211,8 +1270,8 @@ foreach ($switches as $switch) {
             }
 
             $port_bridge_num = ($ifidx > 1000) ? ($ifidx % 1000) : $ifidx;
-            $port_pvid = $pvid_map[$port_bridge_num] ?? ($pvid_map[$ifidx] ?? 1);
-            $port_pvid_name = ($port_pvid && isset($vlan_names[$port_pvid])) ? trim($vlan_names[$port_pvid], '" ') : 'VLAN ' . $port_pvid;
+            $port_pvid = $pvid_map[$ifidx] ?? ($pvid_map[$port_bridge_num] ?? null);
+            $port_pvid_name = ($port_pvid && isset($vlan_names[$port_pvid])) ? trim($vlan_names[$port_pvid], '" ') : ($port_pvid ? 'VLAN ' . $port_pvid : null);
 
             if ($existing_port_id) {
                 // Update all existing records for this port with SFP, STP, status data, and fallback VLAN

@@ -2,6 +2,14 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.33.3] - 2026-10-09
+### Fixed & Enhanced
+- **Alcatel-Lucent Native Access VLAN Resolution (`cron_switch_poll.php` & `switch-details.php`)**:
+  - Implemented full support for Alcatel `vpaTable` (`.1.3.6.1.4.1.6486.800/801.1.2.1.3.1.1.2.1.1.3`): captures `vpaType = 1` (`cfgDefault`), extracting each physical port's genuine configured access/untagged VLAN ID directly into `$pvid_map`.
+  - Added enterprise polling of `alaVlanPortDefaultVlan` (`.1.3.6.1.4.1.6486.800/801.1.2.1.11.1.2.1.1`) to ensure access VLANs are accurately mapped even for idle ports with no active host traffic.
+  - Automatically commits discovered native access VLANs into `switch_port_vlans` with `is_tagged = 0`.
+  - Completely removed hardcoded fallback to VLAN 1 from `switch-details.php`: interfaces strictly display their authentic hardware-configured VLAN IDs instead of arbitrary defaults.
+
 ## [2.33.2] - 2026-10-09
 ### Fixed & Enhanced
 - **VLAN ID Restoration & Alcatel FDB Index Inversion Fix (`cron_switch_poll.php` & `switch-details.php`)**:

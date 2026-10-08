@@ -3,12 +3,17 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.2');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.3');
 if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-09');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.33.3', 'date' => '2026-10-09', 'changes' => [
+        'Alcatel Native Access VLAN Resolution: Parses vpaType (cfgDefault = 1) from ALCATEL-IND1-VLAN-MGR-MIB to extract each port\'s exact configured access VLAN ID, eliminating hardcoded fallback to VLAN 1',
+        'alaVlanPortDefaultVlan Polling: Integrated Alcatel enterprise default VLAN tables to accurately populate PVIDs across all ports without active traffic',
+        'Database & UI Zero-Slop Alignment: Removed arbitrary fallback to VLAN 1 across table and inspector, ensuring strictly authentic VLAN IDs reported by hardware are displayed'
+    ]],
     ['ver' => '2.33.2', 'date' => '2026-10-09', 'changes' => [
         'VLAN ID Restoration & PVID Alignment: Fixed Alcatel Source Learning tuple inversion where chassis ifIndexes (1001-1052) were mistakenly swapped with low VLAN IDs (1-64), restoring native Untagged VLAN IDs across all interfaces',
         'Duplicate Port Consolidation: Automatically merges fallback unmapped records (Port 22) into canonical hardware interfaces (1/1/22), preserving all learned downstream MACs with zero duplicate faceplate buttons',

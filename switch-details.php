@@ -63,24 +63,35 @@ $stmt = $db->prepare($query);
 $stmt->execute([$id]);
 $ports = $stmt->fetchAll();
 
-// Fetch all tagged VLANs for this switch, grouped by port_name
+// Fetch all VLAN assignments (tagged & untagged) for this switch, grouped by port_name
 $tagged_vlans_per_port = [];
+$untagged_vlans_per_port = [];
 try {
-    $tagged_vlans_query = "
-        SELECT
-            port_name,
-            GROUP_CONCAT(CONCAT(vlan_id, ':', IFNULL(vlan_name, '')) ORDER BY vlan_id ASC SEPARATOR ',') AS tagged_vlans_str
+    $vl_query = "
+        SELECT port_name, vlan_id, vlan_name, is_tagged
         FROM switch_port_vlans
         WHERE switch_id = ?
-        GROUP BY port_name
+        ORDER BY vlan_id ASC
     ";
-    $stmt_tagged_vlans = $db->prepare($tagged_vlans_query);
-    $stmt_tagged_vlans->execute([$id]);
-    foreach ($stmt_tagged_vlans->fetchAll() as $row) {
-        $tagged_vlans_per_port[$row['port_name']] = $row['tagged_vlans_str'];
+    $stmt_vl = $db->prepare($vl_query);
+    $stmt_vl->execute([$id]);
+    foreach ($stmt_vl->fetchAll() as $row) {
+        $pn = $row['port_name'];
+        if ((int)$row['is_tagged'] === 0) {
+            $untagged_vlans_per_port[$pn] = [
+                'id' => (int)$row['vlan_id'],
+                'name' => $row['vlan_name']
+            ];
+        } else {
+            $tagged_vlans_per_port[$pn][] = $row['vlan_id'] . ':' . ($row['vlan_name'] ?? '');
+        }
+    }
+    foreach ($tagged_vlans_per_port as $pn => $arr) {
+        $tagged_vlans_per_port[$pn] = implode(',', $arr);
     }
 } catch (\Exception $e) {
     $tagged_vlans_per_port = [];
+    $untagged_vlans_per_port = [];
 }
 
 // Pre-calculate MAC count and group ports by physical interface name
@@ -171,20 +182,21 @@ if (!empty($num_to_canonical)) {
     }
 }
 
-// Ensure every physical port has a valid native VLAN ID (defaulting to VLAN 1)
+// Check for untagged access VLAN from switch_port_vlans or connected devices
 foreach ($grouped_ports as $pname => &$port) {
     if (empty($port['vlan_id'])) {
-        foreach ($port['devices'] as $dev) {
-            if (!empty($dev['vlan_id'])) {
-                $port['vlan_id'] = $dev['vlan_id'];
-                $port['vlan_name'] = $dev['vlan_name'];
-                break;
+        if (isset($untagged_vlans_per_port[$pname])) {
+            $port['vlan_id'] = $untagged_vlans_per_port[$pname]['id'];
+            $port['vlan_name'] = $untagged_vlans_per_port[$pname]['name'] ?: ('VLAN ' . $port['vlan_id']);
+        } else {
+            foreach ($port['devices'] as $dev) {
+                if (!empty($dev['vlan_id'])) {
+                    $port['vlan_id'] = $dev['vlan_id'];
+                    $port['vlan_name'] = $dev['vlan_name'] ?: ('VLAN ' . $dev['vlan_id']);
+                    break;
+                }
             }
         }
-    }
-    if (empty($port['vlan_id'])) {
-        $port['vlan_id'] = 1;
-        $port['vlan_name'] = 'VLAN 1';
     }
 }
 unset($port);
@@ -297,8 +309,8 @@ foreach ($grouped_ports as $pname => $port) {
         'port_type'   => $port['port_type'] ?? null,
         'port_speed'  => $port['port_speed'] ?? null,
         'port_alias'  => $port['port_alias'] ?? null,
-        'vlan_id'     => $port['vlan_id'] ?? 1,
-        'vlan_name'   => $port['vlan_name'] ?? ('VLAN ' . ($port['vlan_id'] ?? 1)),
+        'vlan_id'     => $port['vlan_id'] ?? null,
+        'vlan_name'   => $port['vlan_name'] ?? null,
         'tagged_vlans'=> $tagged_str,
         'sfp_vendor'  => $port['sfp_vendor'] ?? null,
         'sfp_part'    => $port['sfp_part'] ?? null,
@@ -368,8 +380,8 @@ foreach ($grouped_ports as $pname => $port) {
         'type'        => $port['port_type'] ?? null,
         'speed'       => $port['port_speed'] ?? null,
         'alias'       => $port['port_alias'] ?? null,
-        'vlan_id'     => $port['vlan_id'] ?? 1,
-        'vlan_name'   => $port['vlan_name'] ?? ('VLAN ' . ($port['vlan_id'] ?? 1)),
+        'vlan_id'     => $port['vlan_id'] ?? null,
+        'vlan_name'   => $port['vlan_name'] ?? null,
         'tagged_vlans'=> $tagged_vlans_per_port[$pname] ?? '',
         'sfp_vendor'  => $port['sfp_vendor'] ?? null,
         'sfp_part'    => $port['sfp_part'] ?? null,
