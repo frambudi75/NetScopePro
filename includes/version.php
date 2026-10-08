@@ -11,8 +11,12 @@ if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_
 $versions = [
     ['ver' => '2.32.1', 'date' => '2026-10-08', 'changes' => [
         'Alcatel OmniSwitch 802.1Q Tagged VLAN Discovery (vpaTable .1.3.6.1.4.1.6486.800/801.1.2.1.3 and vlanDescription support)',
-        'Direct Trunk/Tagged Interface Auto-Registration into switch_port_vlans across both static configuration and dynamic traffic',
-        'Auto-Purge & Filter for Sequential Dummy MACs (00:00:00:00:xx:xx from legacy bridge MIB index walks on trunk ports)'
+        'Direct Trunk/Tagged Interface Auto-Registration into switch_port_vlans across static configuration and dynamic traffic',
+        'Compact Tagged VLAN Chips & Interactive Popover for Trunk Interfaces (+N more modal table with ID & names)',
+        'Downstream Devices Drawer VLAN Column with Real-time Search Filter (IP, MAC, Vendor, VLAN)',
+        'Smart Alcatel Port vs VLAN Disambiguation (Resolves inverted slMacAddressTable tuples & false Port 100 entries)',
+        'Physical Port Normalization for Alcatel OmniSwitch (Maps 1..64 to 1/X and purges stale unmapped ports)',
+        'Comprehensive Dummy Sequential MAC Purge & Filter (00:00:00:% eliminated across DB, Cron, and UI)'
     ]],
     ['ver' => '2.32.0', 'date' => '2026-10-07', 'changes' => [
         'L2 Loop Detective & Downstream Root-Cause Investigator (Visual forensic trace: Core ➔ Switch ➔ Access Link ➔ Culprit Device)',

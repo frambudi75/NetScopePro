@@ -7,11 +7,24 @@ All major functional changes, enhancements, and critical fixes are documented he
 - **Alcatel OmniSwitch 802.1Q Tagged Trunk VLAN Resolution (`cron_switch_poll.php`)**:
   - Integrated native Alcatel Enterprise VLAN Manager MIB `vpaTable` (`.1.3.6.1.4.1.6486.800.1.2.1.3.1.1.2.1.1.3` and `.801...`) to discover trunk tagged VLANs alongside fallback tables.
   - Added support for Alcatel `vlanDescription` (`.1.3.6.1.4.1.6486.800/801.1.2.1.3.1.1.1.1.1.2`) to fetch descriptive VLAN labels.
-  - Implemented Phase 1.5 direct registration: all discovered tagged VLANs per interface are committed into `switch_port_vlans` immediately, even if no active host MACs are currently attached to the trunk.
+  - Implemented Phase 1.5 direct registration: all discovered tagged VLANs per interface are committed into `switch_port_vlans` immediately, even if no active host MACs are currently transmitting across the trunk.
   - Added dynamic traffic tag learning: packets arriving on non-PVID VLANs on trunk interfaces automatically register that VLAN into `switch_port_vlans`.
-- **Sequential Dummy MAC Auto-Purge & Filter (`cron_switch_poll.php` & `includes/db.php`)**:
-  - Corrected dummy MAC prefix matching from `00:00:00:00:00%` to `00:00:00:00:%`.
-  - Automatically clears existing legacy fake sequential MAC records (e.g. `00:00:00:00:01:00`, `00:00:00:00:E6:78`) generated from RFC 1493 Bridge MIB index walks on trunk/uplink ports.
+- **Compact Tagged VLAN Chips & Interactive Popover (`switch-details.php`)**:
+  - Replaced bulky paragraphs of stacked VLAN names on trunk interfaces with neat, compact numeric VLAN ID badges (e.g. `10`, `20`, `231`).
+  - Added an interactive `+N more ▾` toggle button with a sleek glassmorphic popover showing the complete table of VLAN IDs alongside descriptive VLAN names.
+  - Included outside-click event listeners to dismiss open popovers seamlessly.
+- **Downstream Devices Drawer VLAN Column & Live Filter (`switch-details.php`)**:
+  - Added a dedicated **VLAN** badge column to the multi-device expandable drawer accordion on trunk/uplink ports.
+  - Enhanced drawer search filtering to evaluate IP, MAC address, hardware vendor, and **VLAN ID/Name** in real-time.
+- **Alcatel Source Learning Disambiguation & Port Normalization (`cron_switch_poll.php`)**:
+  - Resolved `slMacAddressTable` index tuple inversion where VLAN IDs (e.g. VLAN 100) were incorrectly mapped as physical port numbers, generating ghost `"Port 100"` entries.
+  - Implemented `$fnResolveAlcatelSl` heuristic validator to accurately differentiate between `VLAN.ifIndex.MAC` and `ifIndex.VLAN.MAC` formats across AOS versions.
+  - Extended `normalize_port_name()` to map slot 1 physical bridge ports (`1..64`) directly to Alcatel's standard format (`1/X`) instead of unmapped fallback (`Port X`).
+  - Automatically purges stale unmapped `"Port %"` records on Alcatel switches to maintain clean interface inventories.
+- **Sequential Dummy MAC Auto-Purge & Filter (`includes/db.php`, `cron_switch_poll.php`, `switch-details.php`, `includes/loop.helper.php`)**:
+  - Expanded fake sequential MAC pattern filter from `00:00:00:00:%` to `00:00:00:%`.
+  - Automatically cleans up over 16,000 legacy dummy bridge sequence counters (e.g. `00:00:00:01:00:00`, `00:00:00:02:00:00`) created by standard bridge MIB index walks on multi-VLAN trunk switches.
+  - Excluded fake MAC entries from downstream device drawer device counts, table rows, and Loop Detective telemetry.
 
 ## [2.32.0] - 2026-10-07
 ### Added & Enhanced
