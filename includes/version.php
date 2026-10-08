@@ -3,19 +3,23 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.0');
-if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-08');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.1');
+if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-09');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.33.1', 'date' => '2026-10-09', 'changes' => [
+        'Collapsible Desktop Mini-Sidebar / Icon-Rail mode (68px) with persistent localStorage state & +192px workspace expansion',
+        'Direct inline SVG collapse/expand icons guaranteeing zero-lag rendering without external font/icon delay',
+        'Cache-busting stylesheet release ensuring immediate browser hydration across all clients'
+    ]],
     ['ver' => '2.33.0', 'date' => '2026-10-08', 'changes' => [
         'Interactive Switch Physical Faceplate Visualizer in switch-details.php (Dual-row RJ45 matrix & dedicated SFP optical bays with status LEDs)',
         'Click-to-Inspect Architecture: Active Port Inspector Card showing speed, duplex, PVID untagged, tagged VLAN chips, and connected hosts',
         'Hardware Temperature Polling Engine across Cisco, Alcatel, MikroTik, Huawei, Juniper, HP/Aruba, Extreme, Dell, and Fortinet',
         'Dynamic Temperature Gauge widget with real-time SSE stream telemetry in api/switch-health-stream.php',
-        'Clean numbered port faceplate labels & Apache DirectorySlash fix in .htaccess',
-        'Collapsible Desktop Mini-Sidebar / Icon-Rail mode (68px) with persistent localStorage state & +192px workspace expansion'
+        'Clean numbered port faceplate labels & Apache DirectorySlash fix in .htaccess'
     ]],
     ['ver' => '2.32.6', 'date' => '2026-10-08', 'changes' => [
         'Evidence Reasoning & Transparency Matrix in loop-detective.php (Correlated Evidence Checklist & Anti-Noise Disqualification Panel)',
