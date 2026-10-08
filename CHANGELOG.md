@@ -2,6 +2,21 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.33.0] - 2026-10-08
+### Added & Enhanced
+- **Interactive Switch Physical Faceplate Visualizer (`switch-details.php`)**:
+  - Implemented real-world front-panel chassis faceplate rendering 2 physical rows of RJ45 ports (1..N) and dedicated SFP/optical transceiver bays.
+  - Port status visual styling: Online (vibrant emerald green `#059669`), Offline/Idle (dark slate `#1e293b`), Selected (glowing amber `#d97706`), and STP Blocked (crimson `#991b1b`) with miniature LED indicator dots.
+  - **Click-to-Inspect Architecture**: Clicking any port on the faceplate instantaneously opens the **Active Port Inspector Card** showing complete interface properties (speed, duplex, PVID, tagged VLAN chips, SFP optical DOM diagnostics, and connected host devices).
+  - High-performance, zero-latency client-side interaction: port data is pre-compiled into lightweight JSON for instant response.
+  - Integrated View Mode Toggle: seamless switching between `[🎛️ Faceplate Inspector]` mode and `[📋 Full Table View]`, with preference saved in `localStorage`.
+  - Added "Find in Full Table" and "View Traffic Graph" one-click action bridges directly from the inspector card.
+- **Hardware Temperature Polling Engine (`includes/vendor.helper.php`, `cron_switch_poll.php`, `api/switch-health-stream.php`)**:
+  - Added `VendorDetector::pollTemperature()` supporting Cisco (CISCO-ENVMON-MIB & ENTITY-SENSOR-MIB), Alcatel OmniSwitch (`chasHardwareBoardTemp`), MikroTik (`mtxrHlTemperature` with deci-Celsius normalization), Huawei (`hwEntityTemperature`), Juniper (`jnxOperatingTemp`), HP/Aruba/H3C (`hh3cEntityExtTemperature` & ProCurve), Extreme, Dell, and Fortinet.
+  - Added `switches.temperature` column with automated schema migration in `includes/db.php`, `includes/db_upgrade.php`, and `sql/database.sql`.
+  - Added dynamic Temperature Gauge widget and status badge to the Hardware Health sidebar with color-coded safety thresholds (< 50°C Green, 50-65°C Amber, > 65°C Red, or Unsupported/NA fallback).
+  - Extended live SSE stream (`api/switch-health-stream.php`) to push real-time temperature updates to the browser.
+
 ## [2.32.6] - 2026-10-08
 ### Added & Enhanced
 - **Evidence Reasoning & Transparency Matrix (`loop-detective.php`)**:

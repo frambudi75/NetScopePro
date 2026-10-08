@@ -481,6 +481,7 @@ CREATE TABLE IF NOT EXISTS `switches` (
   `uptime` varchar(100) DEFAULT NULL,
   `cpu_usage` int(11) DEFAULT 0,
   `memory_usage` int(11) DEFAULT 0,
+  `temperature` int(11) DEFAULT NULL,
   `system_info` text DEFAULT NULL,
   `total_ports` int(11) DEFAULT 0,
   `active_ports` int(11) DEFAULT 0,

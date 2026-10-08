@@ -383,6 +383,7 @@ function run_auto_migrations($db) {
         $db->exec("ALTER TABLE switches ADD COLUMN IF NOT EXISTS uptime VARCHAR(100)");
         $db->exec("ALTER TABLE switches ADD COLUMN IF NOT EXISTS cpu_usage INT DEFAULT 0");
         $db->exec("ALTER TABLE switches ADD COLUMN IF NOT EXISTS memory_usage INT DEFAULT 0");
+        $db->exec("ALTER TABLE switches ADD COLUMN IF NOT EXISTS temperature INT DEFAULT NULL");
         $db->exec("ALTER TABLE switches ADD COLUMN IF NOT EXISTS system_info TEXT");
         $db->exec("ALTER TABLE switches ADD COLUMN IF NOT EXISTS parent_switch_id INT DEFAULT NULL");
     } catch(Exception $e) { /* Already exists or not supported */ }

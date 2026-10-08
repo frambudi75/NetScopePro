@@ -170,6 +170,13 @@ try {
         echo "switches loop detection columns added.\n";
     }
 
+    // --- Switch Hardware Temperature Column ---
+    $swColsTemp = $db->query("SHOW COLUMNS FROM `switches` LIKE 'temperature'")->rowCount();
+    if ($swColsTemp === 0) {
+        $db->exec("ALTER TABLE `switches` ADD COLUMN `temperature` INT DEFAULT NULL AFTER `memory_usage`");
+        echo "switches temperature column added.\n";
+    }
+
     $spmColsStp = $db->query("SHOW COLUMNS FROM `switch_port_map` LIKE 'stp_state'")->rowCount();
     if ($spmColsStp === 0) {
         echo "Adding stp_state column to switch_port_map...\n";

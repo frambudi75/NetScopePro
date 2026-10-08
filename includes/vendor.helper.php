@@ -178,6 +178,7 @@ class VendorDetector {
         if ($exact_alcatel_model) {
             $result = self::pollAlcatel($ip, $community);
             $result['model'] = $exact_alcatel_model;
+            $result['temp'] = self::pollTemperature($ip, $community, $result['model'], $sys_descr);
             return $result;
         }
 
@@ -186,6 +187,7 @@ class VendorDetector {
                 if (strpos($info, $keyword) !== false) {
                     $result = self::{$v['handler']}($ip, $community);
                     $result['model'] = ($model === 'Alcatel-Lucent' && $exact_alcatel_model) ? $exact_alcatel_model : $model;
+                    $result['temp'] = self::pollTemperature($ip, $community, $result['model'], $sys_descr);
                     return $result;
                 }
             }
@@ -195,12 +197,14 @@ class VendorDetector {
         if ($sysobj && strpos($sysobj, '.1.3.6.1.4.1.6486.') !== false) {
             $result = self::pollAlcatel($ip, $community);
             $result['model'] = 'Alcatel OmniSwitch';
+            $result['temp'] = self::pollTemperature($ip, $community, $result['model'], $sys_descr);
             return $result;
         }
 
         // Ultimate fallback
         $result = self::pollGenericHR($ip, $community);
         $result['model'] = 'Generic';
+        $result['temp'] = self::pollTemperature($ip, $community, $result['model'], $sys_descr);
         return $result;
     }
 
@@ -567,6 +571,175 @@ class VendorDetector {
         // For simplicity in generic fallback, we'll return empty as full ENTITY-MIB correlation to ifIndex is complex.
         
         return $sfp_data;
+    }
+
+    /**
+     * Poll Switch Hardware Temperature (°C) via SNMP.
+     * Supports Cisco, Alcatel OmniSwitch, MikroTik, Huawei, Juniper, HP/Aruba, Extreme, Dell, Fortinet.
+     * Returns integer temperature in Celsius, or null if unsupported/unavailable.
+     */
+    public static function pollTemperature($ip, $community, $model, $sys_descr = '') {
+        $info = strtolower($model . ' ' . $sys_descr);
+        $temp = null;
+
+        // 1. Cisco (CISCO-ENVMON-MIB ciscoEnvMonTemperatureStatusValue)
+        if (stripos($info, 'cisco') !== false) {
+            $walk = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.9.9.13.1.3.1.3", 400000, 1);
+            if ($walk && is_array($walk)) {
+                foreach ($walk as $val) {
+                    $val = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
+                    if ($val >= 15 && $val <= 110) {
+                        $temp = $val;
+                        break;
+                    }
+                }
+            }
+            // Cisco Entity Sensor MIB fallback (.1.3.6.1.4.1.9.9.91.1.1.1.1.4)
+            if ($temp === null) {
+                $e_walk = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.9.9.91.1.1.1.1.4", 400000, 1);
+                if ($e_walk && is_array($e_walk)) {
+                    foreach ($e_walk as $val) {
+                        $val = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
+                        if ($val >= 20 && $val <= 100) {
+                            $temp = $val;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Alcatel OmniSwitch (chasHardwareBoardTemp)
+        if ($temp === null && (stripos($info, 'alcatel') !== false || stripos($info, 'omniswitch') !== false || stripos($info, 'aos') !== false)) {
+            $alcatel_oids = [
+                ".1.3.6.1.4.1.6486.800.1.1.1.3.1.1.3.1",
+                ".1.3.6.1.4.1.6486.800.1.1.1.3.1.1.3",
+                ".1.3.6.1.4.1.6486.801.1.1.1.3.1.1.3.1",
+                ".1.3.6.1.4.1.6486.801.1.1.1.3.1.1.3",
+                ".1.3.6.1.4.1.6486.800.1.1.1.2.1.1.3.1"
+            ];
+            foreach ($alcatel_oids as $oid) {
+                $val = @snmp2_get($ip, $community, $oid, 400000, 1);
+                if ($val !== false && $val !== '') {
+                    $num = (int)trim(str_replace(['INTEGER: ', 'Gauge32: ', '"'], '', $val));
+                    if ($num >= 15 && $num <= 110) {
+                        $temp = $num;
+                        break;
+                    }
+                }
+                $walk = @snmp2_real_walk($ip, $community, $oid, 400000, 1);
+                if ($walk && is_array($walk)) {
+                    foreach ($walk as $wval) {
+                        $num = (int)trim(str_replace(['INTEGER: ', 'Gauge32: ', '"'], '', $wval));
+                        if ($num >= 15 && $num <= 110) {
+                            $temp = $num;
+                            break 2;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. MikroTik (RouterOS mtxrHlTemperature / mtxrHlCpuTemperature)
+        if ($temp === null && (stripos($info, 'mikrotik') !== false || stripos($info, 'routeros') !== false)) {
+            $mt_oids = [
+                ".1.3.6.1.4.1.14988.1.1.3.10.0", // mtxrHlTemperature
+                ".1.3.6.1.4.1.14988.1.1.3.11.0", // mtxrHlCpuTemperature
+                ".1.3.6.1.4.1.14988.1.1.3.14.0", // mtxrHlBoardTemperature
+            ];
+            foreach ($mt_oids as $oid) {
+                $raw = @snmp2_get($ip, $community, $oid, 400000, 1);
+                if ($raw !== false && $raw !== '') {
+                    $val = (int)trim(str_replace(['INTEGER: ', 'Gauge32: ', '"'], '', $raw));
+                    if ($val > 150) $val = (int)round($val / 10);
+                    if ($val >= 15 && $val <= 115) {
+                        $temp = $val;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 4. Huawei (hwEntityTemperature)
+        if ($temp === null && stripos($info, 'huawei') !== false) {
+            $walk = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.2011.5.25.31.1.1.1.1.11", 400000, 1);
+            if ($walk && is_array($walk)) {
+                foreach ($walk as $wval) {
+                    $num = (int)trim(str_replace(['INTEGER: ', '"'], '', $wval));
+                    if ($num >= 15 && $num <= 110) {
+                        $temp = $num;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 5. Juniper (jnxOperatingTemp)
+        if ($temp === null && stripos($info, 'juniper') !== false) {
+            $walk = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.2636.3.1.13.1.7", 400000, 1);
+            if ($walk && is_array($walk)) {
+                foreach ($walk as $wval) {
+                    $num = (int)trim(str_replace(['INTEGER: ', '"'], '', $wval));
+                    if ($num >= 15 && $num <= 110) {
+                        $temp = $num;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 6. HP / Aruba / H3C
+        if ($temp === null && (stripos($info, 'aruba') !== false || stripos($info, 'procurve') !== false || stripos($info, 'h3c') !== false || stripos($info, 'hpe') !== false)) {
+            $hp_walk = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.25506.2.6.1.1.1.1.12", 400000, 1);
+            if ($hp_walk && is_array($hp_walk)) {
+                foreach ($hp_walk as $wval) {
+                    $num = (int)trim(str_replace(['INTEGER: ', '"'], '', $wval));
+                    if ($num >= 15 && $num <= 110) { $temp = $num; break; }
+                }
+            }
+            if ($temp === null) {
+                $hp_procurve = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.11.2.14.11.1.2.6.1.4", 400000, 1);
+                if ($hp_procurve && is_array($hp_procurve)) {
+                    foreach ($hp_procurve as $wval) {
+                        $num = (int)trim(str_replace(['INTEGER: ', '"'], '', $wval));
+                        if ($num >= 15 && $num <= 110) { $temp = $num; break; }
+                    }
+                }
+            }
+        }
+
+        // 7. Extreme Networks
+        if ($temp === null && stripos($info, 'extreme') !== false) {
+            $val = @snmp2_get($ip, $community, ".1.3.6.1.4.1.1916.1.1.1.8.0", 400000, 1);
+            if ($val !== false && $val !== '') {
+                $num = (int)trim(str_replace(['INTEGER: ', '"'], '', $val));
+                if ($num >= 15 && $num <= 110) $temp = $num;
+            }
+        }
+
+        // 8. Dell
+        if ($temp === null && stripos($info, 'dell') !== false) {
+            $walk = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.674.10895.5000.2.6132.1.1.43.1.8.1.4", 400000, 1);
+            if ($walk && is_array($walk)) {
+                foreach ($walk as $wval) {
+                    $num = (int)trim(str_replace(['INTEGER: ', '"'], '', $wval));
+                    if ($num >= 15 && $num <= 110) { $temp = $num; break; }
+                }
+            }
+        }
+
+        // 9. Fortinet
+        if ($temp === null && stripos($info, 'fortinet') !== false) {
+            $walk = @snmp2_real_walk($ip, $community, ".1.3.6.1.4.1.12356.101.4.3.2.1.3", 400000, 1);
+            if ($walk && is_array($walk)) {
+                foreach ($walk as $wval) {
+                    $num = (int)trim(str_replace(['INTEGER: ', '"'], '', $wval));
+                    if ($num >= 15 && $num <= 110) { $temp = $num; break; }
+                }
+            }
+        }
+
+        return ($temp !== null && $temp >= 10 && $temp <= 120) ? (int)$temp : null;
     }
 }
 
