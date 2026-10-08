@@ -313,6 +313,9 @@ foreach ($switches as $switch) {
         $pvid_map = snmp_walk_indexed($ip, $community, ".1.3.6.1.2.1.17.7.1.4.5.1.1");
         if (empty($pvid_map) && (stripos($system_info, 'Alcatel') !== false || stripos($model, 'Alcatel') !== false)) {
             $pvid_map = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.11.1.1.1.2");
+            if (empty($pvid_map)) {
+                $pvid_map = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.6486.801.1.2.1.11.1.1.1.2");
+            }
         }
 
         // 4.2 Get Tagged VLANs per port
@@ -358,10 +361,13 @@ foreach ($switches as $switch) {
         }
 
         // Alcatel OmniSwitch (AOS) Enterprise MIB for Tagged VLANs:
-        // alaVlanPortType (.1.3.6.1.4.1.6486.800.1.2.1.11.1.2.1.3): 1=default/untagged, 2=tagged (802.1Q)
+        // alaVlanPortType (.1.3.6.1.4.1.6486.800.1.2.1.11.1.2.1.3 or 801): 1=default/untagged, 2=tagged (802.1Q)
         $is_alcatel = (stripos($system_info, 'Alcatel') !== false || stripos($system_info, 'OmniSwitch') !== false || stripos($model, 'Alcatel') !== false);
         if ($is_alcatel || empty($tagged_vlans_per_ifindex)) {
             $alcatel_vlan_ports = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.11.1.2.1.3");
+            if (empty($alcatel_vlan_ports)) {
+                $alcatel_vlan_ports = @snmprealwalk($ip, $community, ".1.3.6.1.4.1.6486.801.1.2.1.11.1.2.1.3");
+            }
             if ($alcatel_vlan_ports && is_array($alcatel_vlan_ports)) {
                 echo "  Alcatel alaVlanPortTable detected: parsing 802.1Q tagged ports...\n";
                 foreach ($alcatel_vlan_ports as $oid => $val) {
@@ -395,9 +401,12 @@ foreach ($switches as $switch) {
                 // Note: The OID structure is .1.3.6.1.4.1.9.9.46.1.3.1.1.4.1.X (where X is VLAN ID)
                 $vlan_names = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.9.9.46.1.3.1.1.4.1");
             } elseif (stripos($system_info, 'Alcatel') !== false || stripos($system_info, 'OmniSwitch') !== false || stripos($model, 'Alcatel') !== false) {
-                // Alcatel alaVlanName (.1.3.6.1.4.1.6486.800.1.2.1.11.1.1.1.2)
+                // Alcatel alaVlanName (.1.3.6.1.4.1.6486.800.1.2.1.11.1.1.1.2 or 801)
                 echo "    Trying Alcatel-specific VLAN names...\n";
                 $vlan_names = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.6486.800.1.2.1.11.1.1.1.2");
+                if (empty($vlan_names)) {
+                    $vlan_names = snmp_walk_indexed($ip, $community, ".1.3.6.1.4.1.6486.801.1.2.1.11.1.1.1.2");
+                }
             }
         }
         
