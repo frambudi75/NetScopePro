@@ -2,6 +2,13 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.33.1] - 2026-10-09
+### Enhanced & Fixed
+- **Collapsible Desktop Mini-Sidebar Reliability & Hotfix**:
+  - Direct inline SVG `<svg id="collapse-icon-close">` and `<svg id="collapse-icon-open">` replacing dynamic icon injection to eliminate missing glyphs or unrendered buttons.
+  - Hardened CSS selectors (`html.sidebar-collapsed` and `body.sidebar-collapsed`) applying explicit `width: 68px !important;` and `margin-left: 68px !important;`.
+  - Bumped `APP_VERSION` to `2.33.1` to force immediate stylesheet cache invalidation on Docker and browser clients.
+
 ## [2.33.0] - 2026-10-08
 ### Added & Enhanced
 - **Interactive Switch Physical Faceplate Visualizer (`switch-details.php`)**:

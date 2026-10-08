@@ -409,16 +409,43 @@ ul {
 /* ==========================================================================
    Desktop Collapsed Sidebar Mode (Mini Icon-Rail)
    ========================================================================== */
-html.sidebar-collapsed {
-    --sidebar-width: var(--sidebar-collapsed-width);
+html.sidebar-collapsed,
+body.sidebar-collapsed {
+    --sidebar-width: 68px;
 }
 
-html.sidebar-collapsed .sidebar {
-    padding: 1.25rem 0.4rem;
-    overflow-x: hidden;
+html.sidebar-collapsed .sidebar,
+body.sidebar-collapsed .sidebar {
+    width: 68px !important;
+    padding: 1.25rem 0.4rem !important;
+    overflow-x: hidden !important;
 }
 
-html.sidebar-collapsed .sidebar-header {
+html.sidebar-collapsed .main-content,
+body.sidebar-collapsed .main-content {
+    margin-left: 68px !important;
+}
+
+#collapse-icon-close {
+    display: block;
+}
+
+#collapse-icon-open {
+    display: none;
+}
+
+html.sidebar-collapsed #collapse-icon-close,
+body.sidebar-collapsed #collapse-icon-close {
+    display: none !important;
+}
+
+html.sidebar-collapsed #collapse-icon-open,
+body.sidebar-collapsed #collapse-icon-open {
+    display: block !important;
+}
+
+html.sidebar-collapsed .sidebar-header,
+body.sidebar-collapsed .sidebar-header {
     flex-direction: column;
     gap: 10px;
     align-items: center;
@@ -426,16 +453,19 @@ html.sidebar-collapsed .sidebar-header {
     margin-bottom: 1.25rem;
 }
 
-html.sidebar-collapsed .sidebar-brand {
+html.sidebar-collapsed .sidebar-brand,
+body.sidebar-collapsed .sidebar-brand {
     justify-content: center;
     padding: 2px;
 }
 
-html.sidebar-collapsed .logo-text {
+html.sidebar-collapsed .logo-text,
+body.sidebar-collapsed .logo-text {
     display: none !important;
 }
 
-html.sidebar-collapsed .sidebar .btn {
+html.sidebar-collapsed .sidebar .btn,
+body.sidebar-collapsed .sidebar .btn {
     justify-content: center !important;
     padding: 0.65rem 0 !important;
     padding-left: 0 !important;
@@ -445,26 +475,31 @@ html.sidebar-collapsed .sidebar .btn {
     position: relative;
 }
 
-html.sidebar-collapsed .sidebar .btn.active {
+html.sidebar-collapsed .sidebar .btn.active,
+body.sidebar-collapsed .sidebar .btn.active {
     border-left-color: var(--primary) !important;
     background: var(--surface-light) !important;
 }
 
-html.sidebar-collapsed .sidebar .btn:hover {
+html.sidebar-collapsed .sidebar .btn:hover,
+body.sidebar-collapsed .sidebar .btn:hover {
     padding-left: 0 !important;
     background: var(--surface-light) !important;
     border-left-color: var(--text-muted) !important;
 }
 
-html.sidebar-collapsed .sidebar .btn.active:hover {
+html.sidebar-collapsed .sidebar .btn.active:hover,
+body.sidebar-collapsed .sidebar .btn.active:hover {
     border-left-color: var(--primary) !important;
 }
 
-html.sidebar-collapsed .sidebar .btn .nav-text {
+html.sidebar-collapsed .sidebar .btn .nav-text,
+body.sidebar-collapsed .sidebar .btn .nav-text {
     display: none !important;
 }
 
-html.sidebar-collapsed .section-label {
+html.sidebar-collapsed .section-label,
+body.sidebar-collapsed .section-label {
     font-size: 0 !important;
     height: 1px !important;
     background: var(--border) !important;
@@ -474,7 +509,8 @@ html.sidebar-collapsed .section-label {
     opacity: 0.7;
 }
 
-html.sidebar-collapsed .sidebar-badge {
+html.sidebar-collapsed .sidebar-badge,
+body.sidebar-collapsed .sidebar-badge {
     position: absolute;
     top: 4px;
     right: 7px;

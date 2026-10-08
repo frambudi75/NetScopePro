@@ -95,44 +95,35 @@
         const collapseBtn = document.getElementById('sidebar-collapse-btn');
         const sidebar = document.querySelector('.sidebar');
 
-        function updateCollapseIcon(isCollapsed) {
-            if (collapseBtn) {
-                const icon = collapseBtn.querySelector('i') || collapseBtn.querySelector('svg');
-                if (icon) {
-                    icon.setAttribute('data-lucide', isCollapsed ? 'panel-left-open' : 'panel-left-close');
-                    lucide.createIcons();
-                }
-            }
+        function toggleDesktopCollapse() {
+            const isCollapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+            if (document.body) document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+            try {
+                localStorage.setItem('netscope_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+            } catch(e) {}
         }
 
-        function toggleSidebarNavigation() {
+        function toggleMenuButton() {
             if (window.innerWidth <= 1024) {
                 if (sidebar) sidebar.classList.toggle('active');
             } else {
-                const isCollapsed = document.documentElement.classList.toggle('sidebar-collapsed');
-                try {
-                    localStorage.setItem('netscope_sidebar_collapsed', isCollapsed ? 'true' : 'false');
-                } catch(e) {}
-                updateCollapseIcon(isCollapsed);
+                toggleDesktopCollapse();
             }
-        }
-
-        // Initialize collapse button icon state
-        if (document.documentElement.classList.contains('sidebar-collapsed')) {
-            updateCollapseIcon(true);
         }
 
         if (menuBtn) {
             menuBtn.addEventListener('click', (e) => {
+                e.preventDefault();
                 e.stopPropagation();
-                toggleSidebarNavigation();
+                toggleMenuButton();
             });
         }
 
         if (collapseBtn) {
             collapseBtn.addEventListener('click', (e) => {
+                e.preventDefault();
                 e.stopPropagation();
-                toggleSidebarNavigation();
+                toggleDesktopCollapse();
             });
         }
 

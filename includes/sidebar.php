@@ -5,7 +5,16 @@
             <h2 class="logo-text" style="font-size: 1.05rem; font-weight: 700; color: var(--text); letter-spacing: -0.01em; margin: 0; white-space: nowrap;">NetScope <span style="color: var(--text-muted); font-weight: 400;">Pro</span></h2>
         </a>
         <button id="sidebar-collapse-btn" class="sidebar-collapse-btn" type="button" title="Minimize / Expand Sidebar" aria-label="Toggle Sidebar">
-            <i data-lucide="panel-left-close" style="width: 16px; height: 16px;"></i>
+            <svg id="collapse-icon-close" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+                <path d="M9 3v18"></path>
+                <path d="m16 15-3-3 3-3"></path>
+            </svg>
+            <svg id="collapse-icon-open" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+                <path d="M9 3v18"></path>
+                <path d="m14 9 3 3-3 3"></path>
+            </svg>
         </button>
     </div>
 
