@@ -2,7 +2,7 @@
 
 > **IPAM as the Core, Network Intelligence as the Edge.**
 
-[![Release](https://img.shields.io/badge/release-v2.32.3-blue.svg)](https://github.com/frambudi75/NetScopePro/releases)
+[![Release](https://img.shields.io/badge/release-v2.32.6-blue.svg)](https://github.com/frambudi75/NetScopePro/releases)
 [![PHP](https://img.shields.io/badge/php-8.1%20%7C%208.2-777bb4.svg)](https://www.php.net/)
 [![Database](https://img.shields.io/badge/database-MariaDB%20%7C%20MySQL-orange.svg)](https://mariadb.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)

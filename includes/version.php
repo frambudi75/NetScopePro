@@ -3,13 +3,14 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.32.3');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.32.6');
 if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-08');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
-    ['ver' => '2.32.3', 'date' => '2026-10-08', 'changes' => [
+    ['ver' => '2.32.6', 'date' => '2026-10-08', 'changes' => [
+        'Evidence Reasoning & Transparency Matrix in loop-detective.php (Correlated Evidence Checklist & Anti-Noise Disqualification Panel)',
         'L2 Multi-Evidence Correlation Engine (FDB Candidate-Only architecture: FDB table alone never triggers LOOP_DETECTED)',
         'Three Orthogonal States Framework: Detection (NORMAL/SUSPECTED/CONFIRMED), Protection (NONE/STP_BLOCKING), Impact (NORMAL/MITIGATED/ACTIVE)',
         'Automated 11-Scenario Synthetic Regression Test Suite (tests/test_loop_scenarios.php guarantees zero false alarms across all edge cases)',
