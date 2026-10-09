@@ -20,6 +20,8 @@ docker/nginx/ssl/*
 !docker/nginx/ssl/.gitkeep
 sql/*.sql
 !sql/database.sql
+uploads/*
+!uploads/.gitkeep
 
 # IPManager Debug/Scratch
 scratch/

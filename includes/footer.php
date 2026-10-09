@@ -21,19 +21,36 @@
             <h2 style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 10px;">
                 <i data-lucide="bug" style="color: var(--warning);"></i> Lapor Masalah
             </h2>
-            <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Laporan anda akan dikirimkan langsung ke pengembang untuk ditindaklanjuti.</p>
+            <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Laporan anda akan dikirimkan langsung ke Discord Developer untuk ditindaklanjuti.</p>
             
             <form id="bugReportForm" onsubmit="submitBugReport(event)">
+                <div class="input-group">
+                    <label>Email Pelapor</label>
+                    <input type="email" id="bugEmail" class="input-control" placeholder="nama@email.com" value="<?php echo htmlspecialchars($_SESSION['email'] ?? ''); ?>" required>
+                </div>
                 <div class="input-group">
                     <label>Judul Masalah</label>
                     <input type="text" id="bugTitle" class="input-control" placeholder="Apa yang salah?" required>
                 </div>
                 <div class="input-group">
                     <label>Detail Kejadian</label>
-                    <textarea id="bugDescription" class="input-control" style="height: 120px;" placeholder="Tolong jelaskan langkah-langkah sebelum terjadi error..." required></textarea>
+                    <textarea id="bugDescription" class="input-control" style="height: 110px;" placeholder="Tolong jelaskan langkah-langkah sebelum terjadi error..." required></textarea>
                 </div>
-                <button type="submit" id="btnSubmitBug" class="btn btn-primary" style="width: 100%; margin-top: 1rem; padding: 1rem;">
-                    Kirim Laporan
+                <div class="input-group">
+                    <label style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Bukti Screenshot <span style="color: var(--text-muted); font-size: 0.75rem;">(Opsional)</span></span>
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">PNG, JPG, WEBP (Maks 5MB)</span>
+                    </label>
+                    <input type="file" id="bugScreenshot" class="input-control" accept="image/png, image/jpeg, image/webp, image/gif" style="padding: 6px;">
+                </div>
+                <div class="input-group" style="margin-top: -0.25rem;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; cursor: pointer; color: var(--text-muted); user-select: none;">
+                        <input type="checkbox" id="bugAttachAudit" checked style="accent-color: var(--primary); width: 15px; height: 15px; cursor: pointer;">
+                        <span>Lampirkan otomatis berkas audit log & diagnostik sistem (<code style="color: var(--primary);">audit_diagnostic_log.txt</code>)</span>
+                    </label>
+                </div>
+                <button type="submit" id="btnSubmitBug" class="btn btn-primary" style="width: 100%; margin-top: 0.75rem; padding: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <i data-lucide="send" style="width: 16px;"></i> Kirim Laporan ke Discord
                 </button>
             </form>
         </div>
@@ -55,14 +72,21 @@
         async function submitBugReport(e) {
             e.preventDefault();
             const btn = document.getElementById('btnSubmitBug');
-            const originalText = btn.innerText;
+            const originalText = btn.innerHTML;
             
             btn.disabled = true;
-            btn.innerText = 'Sending...';
+            btn.innerHTML = '<i data-lucide="loader-2" class="spin" style="width: 16px;"></i> Mengirim ke Discord...';
 
             const formData = new FormData();
+            formData.append('email', document.getElementById('bugEmail').value);
             formData.append('title', document.getElementById('bugTitle').value);
             formData.append('description', document.getElementById('bugDescription').value);
+            const screenshotInput = document.getElementById('bugScreenshot');
+            if (screenshotInput && screenshotInput.files && screenshotInput.files[0]) {
+                formData.append('screenshot', screenshotInput.files[0]);
+            }
+            const attachAuditCheck = document.getElementById('bugAttachAudit');
+            formData.append('attach_audit', (attachAuditCheck && attachAuditCheck.checked) ? '1' : '0');
 
             try {
                 const response = await fetch('api/report-bug', {
@@ -72,17 +96,18 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert('Terima kasih! Laporan bug berhasil dikirim.');
+                    alert('Terima kasih! Laporan masalah berhasil dikirim langsung ke Discord Developer.');
                     closeBugReportModal();
                     document.getElementById('bugReportForm').reset();
                 } else {
-                    alert('Error: ' + result.error || 'Terjadi kesalahan.');
+                    alert('Error: ' + (result.error || 'Terjadi kesalahan.'));
                 }
             } catch (error) {
-                alert('Terjadi kesalahan koneksi saat mengirim laporan.');
+                alert('Terjadi kesalahan koneksi saat mengirim laporan ke Discord.');
             } finally {
                 btn.disabled = false;
-                btn.innerText = originalText;
+                btn.innerHTML = originalText;
+                if (window.lucide) lucide.createIcons();
             }
         }
     </script>

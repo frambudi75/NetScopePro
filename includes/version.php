@@ -3,12 +3,16 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.4');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.5');
 if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-09');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.33.5', 'date' => '2026-10-09', 'changes' => [
+        'Discord Webhook Bug Reporting: Integrated automated issue reporting directly to Discord via webhook with AES-256-CBC encrypted webhook endpoint',
+        'Screenshot & Email Attachment Support: Added reporter email and optional screenshot upload with automatic embed into rich Discord cards and local database records'
+    ]],
     ['ver' => '2.33.4', 'date' => '2026-10-09', 'changes' => [
         'Asset Resolution & Base URI Resilience: Added dynamic APP_BASE_PATH detection and base href tag to header.php and login.php, guaranteeing CSS, Lucide icons, and Chart.js load cleanly regardless of trailing slashes (/tools/), reverse proxies, or subpaths',
         'Trailing Slash Rewrite Normalization: Reordered .htaccess and .htaccess.docker rules so non-directory URLs with trailing slashes (/tools/) 301 redirect to canonical extensionless paths (/tools) instead of loading relative asset 404s'

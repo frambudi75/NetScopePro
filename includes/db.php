@@ -459,12 +459,22 @@ function run_auto_migrations($db) {
         $db->exec("CREATE TABLE IF NOT EXISTS bug_reports (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT DEFAULT NULL,
+            email VARCHAR(255) DEFAULT NULL,
             title VARCHAR(255) NOT NULL,
             description TEXT NOT NULL,
+            screenshot_path VARCHAR(255) DEFAULT NULL,
             system_info TEXT DEFAULT NULL,
             status ENUM('pending', 'resolved') DEFAULT 'pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8;");
+
+        // Auto-migration for existing installations
+        try {
+            $db->exec("ALTER TABLE bug_reports ADD COLUMN email VARCHAR(255) DEFAULT NULL AFTER user_id");
+        } catch (Exception $e) {}
+        try {
+            $db->exec("ALTER TABLE bug_reports ADD COLUMN screenshot_path VARCHAR(255) DEFAULT NULL AFTER description");
+        } catch (Exception $e) {}
     } catch (Exception $e) {}
 
     // 15. Netwatch & Netwatch History Tables

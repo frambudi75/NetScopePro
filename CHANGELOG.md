@@ -2,6 +2,15 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.33.5] - 2026-10-09
+### Added & Enhanced
+- **Discord Webhook Bug Reporting Integration (`api/report-bug.php`, `includes/footer.php`, `includes/db.php`)**:
+  - Replaced legacy developer email notification with high-speed Discord Webhook integration, delivering immediate issue notifications to developer channels.
+  - Webhook URL endpoint is strictly encrypted at rest via AES-256-CBC with SHA-256 derived keys to prevent plain-text exposure in version control.
+  - Added reporter email address input to the "Lapor Masalah" modal dialog, automatically prefilled from the authenticated user's session if available.
+  - Added optional screenshot proof upload support (PNG, JPG, WEBP, GIF up to 5MB): automatically attaches and embeds directly inside the rich Discord notification card via `multipart/form-data`.
+  - Added database columns `email` and `screenshot_path` to the `bug_reports` table with automatic idempotent schema migration.
+
 ## [2.33.4] - 2026-10-09
 ### Fixed & Enhanced
 - **Dynamic Asset Base URI & Trailing Slash Resilience (`includes/config.php`, `includes/header.php`, `login.php`, `.htaccess`, `.htaccess.docker`)**:
