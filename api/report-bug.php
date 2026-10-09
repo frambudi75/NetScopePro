@@ -30,12 +30,19 @@ $saved_file_full_path = null;
 $relative_screenshot_path = null;
 $screenshot_mime = null;
 
-if (isset($_FILES['screenshot']) && $_FILES['screenshot']['error'] === UPLOAD_ERR_OK) {
+if (isset($_FILES['screenshot']) && $_FILES['screenshot']['error'] !== UPLOAD_ERR_NO_FILE) {
+    if ($_FILES['screenshot']['error'] === UPLOAD_ERR_INI_SIZE || $_FILES['screenshot']['error'] === UPLOAD_ERR_FORM_SIZE) {
+        json_response(['error' => 'Ukuran file screenshot melebihi batas upload server (' . ini_get('upload_max_filesize') . ').'], 400);
+    }
+    if ($_FILES['screenshot']['error'] !== UPLOAD_ERR_OK) {
+        json_response(['error' => 'Gagal mengupload screenshot (Error code: ' . $_FILES['screenshot']['error'] . ').'], 400);
+    }
+
     $file = $_FILES['screenshot'];
-    $max_size = 5 * 1024 * 1024; // 5 MB
+    $max_size = 10 * 1024 * 1024; // 10 MB
     
     if ($file['size'] > $max_size) {
-        json_response(['error' => 'Ukuran file screenshot melebihi batas maksimal 5MB.'], 400);
+        json_response(['error' => 'Ukuran file screenshot melebihi batas maksimal 10MB.'], 400);
     }
 
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
@@ -55,18 +62,25 @@ if (isset($_FILES['screenshot']) && $_FILES['screenshot']['error'] === UPLOAD_ER
     }
 
     $ext = $allowed_mimes[$mime];
-    $upload_dir = dirname(__DIR__) . '/uploads/bug_reports';
-    if (!is_dir($upload_dir)) {
-        @mkdir($upload_dir, 0755, true);
-    }
+    $clean_name = 'bug_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
 
-    $filename = 'bug_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-    $target_path = $upload_dir . '/' . $filename;
-
-    if (move_uploaded_file($file['tmp_name'], $target_path)) {
-        $saved_file_full_path = $target_path;
-        $relative_screenshot_path = 'uploads/bug_reports/' . $filename;
+    // 1. Always save to system temp dir first (always 100% writable by www-data in Linux/Docker)
+    $temp_path = sys_get_temp_dir() . '/' . $clean_name;
+    if (move_uploaded_file($file['tmp_name'], $temp_path)) {
+        $saved_file_full_path = $temp_path;
         $screenshot_mime = $mime;
+
+        // 2. Optionally copy to permanent uploads/bug_reports if possible
+        $upload_dir = dirname(__DIR__) . '/uploads/bug_reports';
+        if (!is_dir($upload_dir)) {
+            @mkdir($upload_dir, 0777, true);
+        }
+        $perm_target = $upload_dir . '/' . $clean_name;
+        if (@copy($temp_path, $perm_target)) {
+            $relative_screenshot_path = 'uploads/bug_reports/' . $clean_name;
+        }
+    } else {
+        json_response(['error' => 'Server gagal memindahkan file temporary screenshot.'], 500);
     }
 }
 

@@ -69,6 +69,40 @@
             document.getElementById('bugReportModal').style.display = 'none';
         }
 
+        async function prepareScreenshotFile(file) {
+            if (!file || !file.type.startsWith('image/')) return file;
+            if (file.size <= 1.5 * 1024 * 1024) return file; // Under 1.5MB send raw
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const maxDim = 1920;
+                        let w = img.width, h = img.height;
+                        if (w > maxDim || h > maxDim) {
+                            if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+                            else { w = Math.round((w * maxDim) / h); h = maxDim; }
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w; canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+                            } else {
+                                resolve(file);
+                            }
+                        }, 'image/jpeg', 0.88);
+                    };
+                    img.onerror = () => resolve(file);
+                    img.src = e.target.result;
+                };
+                reader.onerror = () => resolve(file);
+                reader.readAsDataURL(file);
+            });
+        }
+
         async function submitBugReport(e) {
             e.preventDefault();
             const btn = document.getElementById('btnSubmitBug');
@@ -81,9 +115,11 @@
             formData.append('email', document.getElementById('bugEmail').value);
             formData.append('title', document.getElementById('bugTitle').value);
             formData.append('description', document.getElementById('bugDescription').value);
+            
             const screenshotInput = document.getElementById('bugScreenshot');
             if (screenshotInput && screenshotInput.files && screenshotInput.files[0]) {
-                formData.append('screenshot', screenshotInput.files[0]);
+                const optimizedFile = await prepareScreenshotFile(screenshotInput.files[0]);
+                formData.append('screenshot', optimizedFile);
             }
             const attachAuditCheck = document.getElementById('bugAttachAudit');
             formData.append('attach_audit', (attachAuditCheck && attachAuditCheck.checked) ? '1' : '0');
