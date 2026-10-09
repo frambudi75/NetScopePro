@@ -6,13 +6,12 @@ Options -Indexes
 # Default document
 DirectoryIndex index.php index.html
 
+<IfModule mod_dir.c>
+    DirectorySlash Off
+</IfModule>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
-
-    # Strip trailing slash for non-directories (e.g. /switches/ -> /switches, /tools/ -> /tools)
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{THE_REQUEST} \s/+(.+?)/+[?\s]
-    RewriteRule ^(.*)/$ %1 [R=301,L]
 
     # Direct route for tools (handles both /tools and /tools/)
     RewriteRule ^tools/?$ tools.php [L]
