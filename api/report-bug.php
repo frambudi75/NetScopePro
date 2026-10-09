@@ -25,6 +25,16 @@ if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     json_response(['error' => 'Format email pelapor tidak valid.'], 400);
 }
 
+// Anti-Spam Cooldown Protection (Maksimal 1 pengiriman per 30 detik per sesi admin)
+$now = time();
+$cooldown = 30;
+if (isset($_SESSION['last_bug_report_time']) && ($now - $_SESSION['last_bug_report_time']) < $cooldown) {
+    $remaining = $cooldown - ($now - $_SESSION['last_bug_report_time']);
+    json_response([
+        'error' => "Harap tunggu {$remaining} detik sebelum mengirim laporan berikutnya (Anti-Spam Protection)."
+    ], 429);
+}
+
 // 1. Handle Screenshot File Upload (Optional)
 $saved_file_full_path = null;
 $relative_screenshot_path = null;
@@ -372,6 +382,8 @@ if ($webhook_url) {
         $discord_sent = true;
     }
 }
+
+$_SESSION['last_bug_report_time'] = time();
 
 json_response([
     'success'      => true,
