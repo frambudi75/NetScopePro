@@ -174,6 +174,36 @@ function generate_diagnostic_audit_text($db, $title, $description, $email, $syst
     $out .= "\n";
 
     $out .= "----------------------------------------------------------------------\n";
+    $out .= "[APPLICATION PAGES & MENUS INTEGRITY CHECK]\n";
+    $out .= "----------------------------------------------------------------------\n";
+    $pages = [
+        'Dashboard'         => 'index.php',
+        'Switch Management' => 'switches.php',
+        'Subnet Management' => 'subnets.php',
+        'Devices Inventory' => 'devices.php',
+        'Network Tools'     => 'tools.php',
+        'Topology Map'      => 'topology.php',
+        'Loop Detective'    => 'loop-detective.php',
+        'NetWatch Ping'     => 'netwatch.php',
+        'Server Assets'     => 'server-assets.php',
+        'VLAN Management'   => 'vlans.php',
+        'IP Conflicts'      => 'conflicts.php',
+        'Activity Logs'     => 'logs.php',
+        'System Settings'   => 'settings.php',
+        'User Management'   => 'users.php'
+    ];
+    $base_dir = dirname(__DIR__);
+    foreach ($pages as $label => $file) {
+        $full = $base_dir . '/' . $file;
+        $status = 'MISSING';
+        if (file_exists($full)) {
+            $status = is_readable($full) ? 'OK (Accessible)' : 'ERROR (Unreadable)';
+        }
+        $out .= sprintf("%-20s (%-18s) : %s\n", $label, $file, $status);
+    }
+    $out .= "\n";
+
+    $out .= "----------------------------------------------------------------------\n";
     $out .= "[DATABASE INVENTORY QUICK STATS]\n";
     $out .= "----------------------------------------------------------------------\n";
     if ($db) {
