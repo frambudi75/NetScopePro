@@ -39,14 +39,18 @@
                 <div class="input-group">
                     <label style="display: flex; justify-content: space-between; align-items: center;">
                         <span>Bukti Screenshot <span style="color: var(--text-muted); font-size: 0.75rem;">(Opsional)</span></span>
-                        <span style="font-size: 0.7rem; color: var(--text-muted);">PNG, JPG, WEBP (Maks 5MB)</span>
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">PNG, JPG, WEBP</span>
                     </label>
                     <input type="file" id="bugScreenshot" class="input-control" accept="image/png, image/jpeg, image/webp, image/gif" style="padding: 6px;">
+                    <div id="bugScreenshotPreview" style="display: none; margin-top: 6px; align-items: center; gap: 8px;">
+                        <img id="bugScreenshotPreviewImg" style="width: 44px; height: 44px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border-color);">
+                        <span id="bugScreenshotPreviewName" style="font-size: 0.75rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px;"></span>
+                    </div>
                 </div>
                 <div class="input-group" style="margin-top: -0.25rem;">
                     <label style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; cursor: pointer; color: var(--text-muted); user-select: none;">
                         <input type="checkbox" id="bugAttachAudit" checked style="accent-color: var(--primary); width: 15px; height: 15px; cursor: pointer;">
-                        <span>Lampirkan otomatis berkas audit log & diagnostik sistem (<code style="color: var(--primary);">audit_diagnostic_log.txt</code>)</span>
+                        <span>Lampirkan berkas diagnostik sistem & error log (<code style="color: var(--primary);">system_diagnostic_log.txt</code>)</span>
                     </label>
                 </div>
                 <button type="submit" id="btnSubmitBug" class="btn btn-primary" style="width: 100%; margin-top: 0.75rem; padding: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -67,17 +71,43 @@
 
         function closeBugReportModal() {
             document.getElementById('bugReportModal').style.display = 'none';
+            const previewWrap = document.getElementById('bugScreenshotPreview');
+            if (previewWrap) previewWrap.style.display = 'none';
+        }
+
+        const bugScreenshotInput = document.getElementById('bugScreenshot');
+        if (bugScreenshotInput) {
+            bugScreenshotInput.addEventListener('change', function() {
+                const previewWrap = document.getElementById('bugScreenshotPreview');
+                const previewImg = document.getElementById('bugScreenshotPreviewImg');
+                const previewName = document.getElementById('bugScreenshotPreviewName');
+                if (this.files && this.files[0]) {
+                    const f = this.files[0];
+                    if (f.type.startsWith('image/')) {
+                        const r = new FileReader();
+                        r.onload = (e) => {
+                            previewImg.src = e.target.result;
+                            previewName.textContent = f.name + ' (' + (f.size / 1024).toFixed(0) + ' KB)';
+                            previewWrap.style.display = 'flex';
+                        };
+                        r.readAsDataURL(f);
+                        return;
+                    }
+                }
+                if (previewWrap) previewWrap.style.display = 'none';
+            });
         }
 
         async function prepareScreenshotFile(file) {
             if (!file || !file.type.startsWith('image/')) return file;
-            if (file.size <= 1.5 * 1024 * 1024) return file; // Under 1.5MB send raw
+            // Always compress images over 300KB to ensure fast upload and safely bypass PHP limits
+            if (file.size <= 300 * 1024) return file;
             return new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const img = new Image();
                     img.onload = function() {
-                        const maxDim = 1920;
+                        const maxDim = 1600;
                         let w = img.width, h = img.height;
                         if (w > maxDim || h > maxDim) {
                             if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
@@ -93,7 +123,7 @@
                             } else {
                                 resolve(file);
                             }
-                        }, 'image/jpeg', 0.88);
+                        }, 'image/jpeg', 0.85);
                     };
                     img.onerror = () => resolve(file);
                     img.src = e.target.result;
@@ -135,6 +165,8 @@
                     alert('Terima kasih! Laporan masalah berhasil dikirim langsung ke Discord Developer.');
                     closeBugReportModal();
                     document.getElementById('bugReportForm').reset();
+                    const previewWrap = document.getElementById('bugScreenshotPreview');
+                    if (previewWrap) previewWrap.style.display = 'none';
                 } else {
                     alert('Error: ' + (result.error || 'Terjadi kesalahan.'));
                 }

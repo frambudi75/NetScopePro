@@ -143,7 +143,7 @@ function get_decrypted_discord_webhook() {
 // 5. Generate System Diagnostic & Audit Log File
 function generate_diagnostic_audit_text($db, $title, $description, $email, $system_info) {
     $out = "======================================================================\n";
-    $out .= "       NETSCOPE PRO - SYSTEM DIAGNOSTIC & AUDIT TRACE LOG\n";
+    $out .= "       NETSCOPE PRO - SYSTEM & ERROR DIAGNOSTIC LOG\n";
     $out .= "======================================================================\n";
     $out .= "Generated At     : " . date('Y-m-d H:i:s T') . "\n";
     $out .= "Application      : " . APP_NAME . " v" . APP_VERSION . "\n";
@@ -182,7 +182,6 @@ function generate_diagnostic_audit_text($db, $title, $description, $email, $syst
             $sub_count = $db->query("SELECT COUNT(*) FROM subnets")->fetchColumn();
             $ip_count = $db->query("SELECT COUNT(*) FROM ip_addresses")->fetchColumn();
             $dev_count = $db->query("SELECT COUNT(*) FROM ip_addresses WHERE state IN ('active', 'reserved', 'dhcp')")->fetchColumn();
-            $audit_count = $db->query("SELECT COUNT(*) FROM audit_logs")->fetchColumn();
             $asset_count = 0;
             try { $asset_count = $db->query("SELECT COUNT(*) FROM server_assets")->fetchColumn(); } catch(Exception $e) {}
             
@@ -191,37 +190,11 @@ function generate_diagnostic_audit_text($db, $title, $description, $email, $syst
             $out .= "IP Addresses     : " . $ip_count . "\n";
             $out .= "Active Devices   : " . $dev_count . "\n";
             $out .= "Server Assets    : " . $asset_count . "\n";
-            $out .= "Audit Log Rows   : " . $audit_count . "\n";
         } catch (Exception $e) {
             $out .= "DB Stats Error   : " . $e->getMessage() . "\n";
         }
     } else {
         $out .= "Database connection unavailable\n";
-    }
-    $out .= "\n";
-
-    $out .= "----------------------------------------------------------------------\n";
-    $out .= "[RECENT AUDIT LOGS (Last 30 Administrative & Poller Actions)]\n";
-    $out .= "----------------------------------------------------------------------\n";
-    if ($db) {
-        try {
-            $stmt = $db->query("SELECT a.id, a.created_at, a.action, a.target_type, a.target_id, a.details, COALESCE(u.username, 'system') AS user_name 
-                                FROM audit_logs a 
-                                LEFT JOIN users u ON a.user_id = u.id 
-                                ORDER BY a.created_at DESC, a.id DESC 
-                                LIMIT 30");
-            $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (empty($logs)) {
-                $out .= "Tidak ada data riwayat audit di database.\n";
-            } else {
-                foreach ($logs as $l) {
-                    $tgt = $l['target_type'] ? " [{$l['target_type']}:{$l['target_id']}]" : '';
-                    $out .= sprintf("[%s] %-10s | %-16s%s | %s\n", $l['created_at'], $l['user_name'], $l['action'], $tgt, $l['details']);
-                }
-            }
-        } catch (Exception $e) {
-            $out .= "Audit logs read error: " . $e->getMessage() . "\n";
-        }
     }
     $out .= "\n";
 
@@ -243,7 +216,7 @@ function generate_diagnostic_audit_text($db, $title, $description, $email, $syst
     }
 
     $out .= "======================================================================\n";
-    $out .= "END OF DIAGNOSTIC AUDIT LOG\n";
+    $out .= "END OF SYSTEM & ERROR DIAGNOSTIC LOG\n";
     $out .= "======================================================================\n";
     return $out;
 }
@@ -301,7 +274,7 @@ if ($webhook_url) {
     if ($attach_audit) {
         $embed['fields'][] = [
             'name'   => '📄 Lampiran Log',
-            'value'  => '`audit_diagnostic_log.txt` terlampir',
+            'value'  => '`system_diagnostic_log.txt` terlampir',
             'inline' => true
         ];
     }
@@ -309,7 +282,7 @@ if ($webhook_url) {
     // Generate temporary diagnostic text file if enabled
     $temp_log_file = null;
     if ($attach_audit) {
-        $temp_log_file = sys_get_temp_dir() . '/audit_diagnostic_' . date('Ymd_His') . '_' . bin2hex(random_bytes(3)) . '.txt';
+        $temp_log_file = sys_get_temp_dir() . '/system_diagnostic_' . date('Ymd_His') . '_' . bin2hex(random_bytes(3)) . '.txt';
         $log_content = generate_diagnostic_audit_text($db, $title, $description, $email, $system_info);
         file_put_contents($temp_log_file, $log_content);
     }
@@ -341,7 +314,7 @@ if ($webhook_url) {
         }
 
         if ($has_log_file) {
-            $post_fields['files[' . $file_idx . ']'] = new CURLFile($temp_log_file, 'text/plain', 'audit_diagnostic_log.txt');
+            $post_fields['files[' . $file_idx . ']'] = new CURLFile($temp_log_file, 'text/plain', 'system_diagnostic_log.txt');
             $file_idx++;
         }
 
