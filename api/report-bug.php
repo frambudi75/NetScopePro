@@ -165,14 +165,18 @@ function generate_diagnostic_audit_text($db, $title, $description, $email, $syst
     if ($db) {
         try {
             $sw_count = $db->query("SELECT COUNT(*) FROM switches")->fetchColumn();
-            $dev_count = $db->query("SELECT COUNT(*) FROM devices")->fetchColumn();
-            $ip_count = $db->query("SELECT COUNT(*) FROM ip_addresses")->fetchColumn();
             $sub_count = $db->query("SELECT COUNT(*) FROM subnets")->fetchColumn();
+            $ip_count = $db->query("SELECT COUNT(*) FROM ip_addresses")->fetchColumn();
+            $dev_count = $db->query("SELECT COUNT(*) FROM ip_addresses WHERE state IN ('active', 'reserved', 'dhcp')")->fetchColumn();
             $audit_count = $db->query("SELECT COUNT(*) FROM audit_logs")->fetchColumn();
+            $asset_count = 0;
+            try { $asset_count = $db->query("SELECT COUNT(*) FROM server_assets")->fetchColumn(); } catch(Exception $e) {}
+            
             $out .= "Switches Total   : " . $sw_count . "\n";
             $out .= "Subnets Total    : " . $sub_count . "\n";
             $out .= "IP Addresses     : " . $ip_count . "\n";
-            $out .= "Devices Tracked  : " . $dev_count . "\n";
+            $out .= "Active Devices   : " . $dev_count . "\n";
+            $out .= "Server Assets    : " . $asset_count . "\n";
             $out .= "Audit Log Rows   : " . $audit_count . "\n";
         } catch (Exception $e) {
             $out .= "DB Stats Error   : " . $e->getMessage() . "\n";
