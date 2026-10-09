@@ -9,13 +9,13 @@ DirectoryIndex index.php index.html
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Direct route for tools (handles /tools or /tools/)
-    RewriteRule ^tools/?$ tools.php [L]
-
-    # Strip trailing slash for non-directories (e.g. /switches/ -> /switches)
+    # Strip trailing slash for non-directories (e.g. /switches/ -> /switches, /tools/ -> /tools)
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{THE_REQUEST} \s/+(.+?)/+[?\s]
     RewriteRule ^(.*)/$ %1 [R=301,L]
+
+    # Direct route for tools
+    RewriteRule ^tools$ tools.php [L]
 
     # Externally redirect /file.php to /file (using %{THE_REQUEST} to preserve subfolder path and prevent Windows path disclosure)
     RewriteCond %{REQUEST_URI} !/api/ [NC]

@@ -2,6 +2,14 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.33.4] - 2026-10-09
+### Fixed & Enhanced
+- **Dynamic Asset Base URI & Trailing Slash Resilience (`includes/config.php`, `includes/header.php`, `login.php`, `.htaccess`, `.htaccess.docker`)**:
+  - Root cause resolved: When accessing URLs with a trailing slash (e.g. `https://domain/tools/` or through reverse proxies/Cloudflare), browsers evaluated relative asset links (`assets/css/style.css`, `assets/js/...`) against `/tools/`, resulting in 404 resource errors and completely unstyled rendering.
+  - Implemented dynamic `APP_BASE_PATH` calculation in `includes/config.php` supporting domain roots (`/` in Docker), subfolder deployments (`/ipmanage/` in XAMPP), and reverse proxy configurations.
+  - Added HTML `<base href="...">` and root-relative asset prefixes in `includes/header.php` and `login.php`: guarantees CSS, Lucide icon definitions, and Chart.js load properly regardless of trailing slashes or routing depth.
+  - Reordered `.htaccess` and `.htaccess.docker` rewrite rules so non-directory trailing slashes (e.g. `/tools/` -> `/tools`) cleanly 301 redirect to canonical extensionless URLs instead of matching rewrite rules that retain the trailing slash.
+
 ## [2.33.3] - 2026-10-09
 ### Fixed & Enhanced
 - **Alcatel-Lucent Native Access VLAN Resolution (`cron_switch_poll.php` & `switch-details.php`)**:

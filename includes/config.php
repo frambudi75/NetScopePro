@@ -36,6 +36,21 @@ define('ENABLE_NMAP_FALLBACK', Settings::enabled('nmap_enabled'));
 define('ENABLE_MASSCAN', Settings::enabled('masscan_enabled'));
 define('MASSCAN_RATE', max(100, (int)Settings::get('masscan_rate', 1000)));
 
+// Dynamic App Base Path Detection (supports root, subfolders, and reverse proxies)
+if (!defined('APP_BASE_PATH')) {
+    $doc_root = !empty($_SERVER['DOCUMENT_ROOT']) ? str_replace('\\', '/', realpath($_SERVER['DOCUMENT_ROOT']) ?: $_SERVER['DOCUMENT_ROOT']) : '';
+    $app_dir = str_replace('\\', '/', realpath(__DIR__ . '/..') ?: '');
+    if ($doc_root && $app_dir && strpos($app_dir, $doc_root) === 0) {
+        $sub = substr($app_dir, strlen($doc_root));
+        $base = '/' . trim(str_replace('\\', '/', $sub), '/');
+        $base = ($base === '/') ? '/' : $base . '/';
+    } else {
+        $script_dir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
+        $base = ($script_dir === '/' || $script_dir === '.' || $script_dir === '') ? '/' : rtrim($script_dir, '/') . '/';
+    }
+    define('APP_BASE_PATH', $base);
+}
+
 // Application Configuration
 if (!defined('APP_NAME')) define('APP_NAME', 'NetScope Pro');
 if (!defined('APP_URL')) define('APP_URL', getenv('APP_URL') ?: 'http://localhost/netscopepro');

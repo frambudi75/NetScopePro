@@ -9,12 +9,12 @@ SetEnv MIBDIRS "/usr/share/snmp/mibs"
     RewriteEngine On
     RewriteBase /
 
-    # Direct route for tools (handles both /tools and /tools/)
-    RewriteRule ^tools/?$ /tools.php [L]
-
-    # Strip trailing slash for non-directories
+    # Strip trailing slash for non-directories (e.g. /tools/ -> /tools)
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)/$ /$1 [R=301,L]
+
+    # Direct route for tools
+    RewriteRule ^tools$ /tools.php [L]
 
     # Strip .php from visible URLs (skip API scripts)
     RewriteCond %{REQUEST_URI} !^/api/

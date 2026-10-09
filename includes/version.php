@@ -3,12 +3,16 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.3');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.4');
 if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-09');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.33.4', 'date' => '2026-10-09', 'changes' => [
+        'Asset Resolution & Base URI Resilience: Added dynamic APP_BASE_PATH detection and base href tag to header.php and login.php, guaranteeing CSS, Lucide icons, and Chart.js load cleanly regardless of trailing slashes (/tools/), reverse proxies, or subpaths',
+        'Trailing Slash Rewrite Normalization: Reordered .htaccess and .htaccess.docker rules so non-directory URLs with trailing slashes (/tools/) 301 redirect to canonical extensionless paths (/tools) instead of loading relative asset 404s'
+    ]],
     ['ver' => '2.33.3', 'date' => '2026-10-09', 'changes' => [
         'Alcatel Native Access VLAN Resolution: Parses vpaType (cfgDefault = 1) from ALCATEL-IND1-VLAN-MGR-MIB to extract each port\'s exact configured access VLAN ID, eliminating hardcoded fallback to VLAN 1',
         'alaVlanPortDefaultVlan Polling: Integrated Alcatel enterprise default VLAN tables to accurately populate PVIDs across all ports without active traffic',
