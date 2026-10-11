@@ -5,7 +5,7 @@
 [![Release](https://img.shields.io/badge/release-v2.32.6-blue.svg)](https://github.com/frambudi75/NetScopePro/releases)
 [![PHP](https://img.shields.io/badge/php-8.1%20%7C%208.2-777bb4.svg)](https://www.php.net/)
 [![Database](https://img.shields.io/badge/database-MariaDB%20%7C%20MySQL-orange.svg)](https://mariadb.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Source--Available-red.svg)](LICENSE)
 
 **NetScope Pro** is an IP Address Management (IPAM) system built for speed, clarity, and root-cause visibility. Where conventional IPAM tools function as passive spreadsheets, NetScope Pro correlates your subnet allocations with live Layer-2 physical switch ports, automated IP conflict forensics, and Spanning Tree loop diagnostics.
 
@@ -136,4 +136,4 @@ NetScope Pro does not just alert you when an anomaly occurs; it correlates L2/L3
 - GitHub: [@frambudi75](https://github.com/frambudi75)
 - Support: [saweria.co/Habibframbudi](https://saweria.co/Habibframbudi) | PayPal: `habibframbudi@gmail.com`
 
-Distributed under the [MIT License](LICENSE).
+Distributed under a [Proprietary / Source-Available License](LICENSE). Free for internal and personal network operations. Modification, redistribution, or commercial use is strictly prohibited.

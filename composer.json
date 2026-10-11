@@ -1,4 +1,7 @@
 {
+    "name": "frambudi75/netscope-pro",
+    "description": "Network Telemetry, IP Address Management (IPAM) & L2 Switching Diagnostics Appliance",
+    "license": "proprietary",
     "require": {
         "phpseclib/phpseclib": "^3.0"
     }

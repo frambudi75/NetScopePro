@@ -1,24 +1,42 @@
-This is free and unencumbered software released into the public domain.
+Copyright (c) 2026 Habib Frambudi. All rights reserved.
 
-Anyone is free to copy, modify, publish, use, compile, sell, or
-distribute this software, either in source code form or as a compiled
-binary, for any purpose, commercial or non-commercial, and by any
-means.
+PERJANJIAN PENGGUNAAN PERANGKAT LUNAK (SOFTWARE LICENSE AGREEMENT)
+==================================================================
 
-In jurisdictions that recognize copyright laws, the author or authors
-of this software dedicate any and all copyright interest in the
-software to the public domain. We make this dedication for the benefit
-of the public at large and to the detriment of our heirs and
-successors. We intend this dedication to be an overt act of
-relinquishment in perpetuity of all present and future rights to this
-software under copyright law.
+[BAHASA INDONESIA]
+1. Akses Kode & Penggunaan Internal:
+   Kode sumber ini disediakan secara terbuka hanya untuk tujuan evaluasi, pembelajaran, dan penggunaan operasional internal/pribadi. Pengguna diperbolehkan menjalankan perangkat lunak ini di lingkungan kantor atau laboratorium pribadi untuk kebutuhan monitoring jaringan mandiri.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
+2. Larangan Keras Modifikasi:
+   Dilarang keras mengubah, memodifikasi, mem-patch, membongkar (reverse-engineer), atau membuat karya turunan dari kode sumber maupun struktur aplikasi ini tanpa izin tertulis dari pemilik hak cipta.
 
-For more information, please refer to <https://unlicense.org>
+3. Larangan Komersialisasi & Distribusi Ulang:
+   Dilarang keras memperjualbelikan, menyewakan, memaketkan ulang (re-packaging), memasang merek ulang (re-branding), atau mendistribusikan ulang perangkat lunak ini baik sebagian maupun seluruhnya, dalam bentuk kode sumber maupun biner, untuk kepentingan komersial maupun non-komersial pihak ketiga.
+
+4. Hak Cipta & Kepemilikan Eksklusif:
+   Seluruh hak kekayaan intelektual, kepemilikan kode, hak cipta, dan hak penjualan lisensi komersial tetap sepenuhnya berada di tangan pemilik hak cipta (Habib Frambudi).
+
+------------------------------------------------------------------
+
+[ENGLISH]
+1. Source Access & Internal Use:
+   This source code is made available solely for evaluation, learning, and internal/personal operational use. You are permitted to deploy and run this software within your private office, enterprise, or personal lab environment for independent network monitoring purposes.
+
+2. Modification Strictly Prohibited:
+   You may NOT modify, alter, patch, reverse-engineer, decompile, adapt, or create derivative works from this source code or application structure without prior written authorization from the copyright holder.
+
+3. Non-Commercial & No Redistribution:
+   Selling, reselling, sublicensing, renting, re-branding, white-labeling, packaging, or redistributing this software in whole or in part, in source or binary form, for commercial gain or third-party distribution is strictly prohibited.
+
+4. Exclusive Intellectual Property Rights:
+   All titles, ownership, copyrights, trademarks, and commercial distribution rights in and to this software remain exclusively with the copyright holder (Habib Frambudi).
+
+------------------------------------------------------------------
+DISCLAIMER OF WARRANTY:
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

@@ -377,7 +377,7 @@ include 'includes/header.php';
             <div class="sys-meta-tags">
                 <span class="sys-tag">Release: <?php echo APP_RELEASE_DATE; ?></span>
                 <span class="sys-tag">Branch: main</span>
-                <span class="sys-tag">License: MIT Open Source</span>
+                <span class="sys-tag">License: Proprietary / Source-Available</span>
                 <span class="sys-tag">Timezone: <?php echo htmlspecialchars($server_tz); ?></span>
             </div>
         </div>
@@ -583,7 +583,7 @@ include 'includes/header.php';
         </div>
 
         <div style="font-size: 0.8125rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1.25rem; padding: 0.75rem; background: var(--surface-light); border: 1px solid var(--border); border-radius: var(--radius-sm);">
-            NetScope Pro is open-source software under the MIT License. If it assists your network operations, community contributions directly support hardware lab testing and continued development.
+            NetScope Pro is licensed under a Proprietary / Source-Available agreement for internal & personal network operations. Modification, redistribution, or commercial use is strictly prohibited. If it assists your network operations, community contributions directly support hardware lab testing and continued development.
         </div>
 
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
