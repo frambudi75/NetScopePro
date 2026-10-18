@@ -139,6 +139,9 @@ function get_iftype_name($type_id) {
         6 => 'ethernet',       // ethernetCsmacd
         24 => 'loopback',
         53 => 'propVirtual',   // Virtual/VLAN interface
+        62 => 'fastEther',
+        69 => 'fastEtherFX',
+        117 => 'gigabitEthernet',
         131 => 'tunnel',
         135 => 'l2vlan',       // Layer 2 VLAN (802.1Q)
         136 => 'l3ipvlan',
@@ -1212,11 +1215,32 @@ foreach ($switches as $switch) {
         }
     }
 
-    // Count total physical interfaces (ethernet type=6)
+    // Helper to determine if an interface is physical ethernet / sfp
+    $fnIsPhysicalPort = function($ifidx, $type_val, $raw_name) {
+        $t = (int)$type_val;
+        // Standard physical ethernet/optical ifTypes: 6 (ethernetCsmacd), 26 (ethernet-3Mbit), 62 (fastEther), 69 (fastEtherFX), 117 (gigabitEthernet)
+        if (in_array($t, [6, 26, 62, 69, 117], true)) {
+            return true;
+        }
+        // If type is other (1) or unmapped, check if name matches physical interfaces across vendors
+        if ($t === 1 || $t === 0) {
+            $n = trim(str_replace('"', '', (string)$raw_name));
+            if (preg_match('/^(?:vlan|vl|loopback|lo|null|tunnel|tun|tap|bridge|br|cpu|mgmt|management|internal|bcm|stack|docker|veth|linkagg|trk|port-channel|po\d+|lag|bond)/i', $n)) {
+                return false;
+            }
+            if (preg_match('/(?:ether|ge|fe|fa|gi|te|xe|et|eth|sfp|sfpplus|qsfp|combo|optic|fiber|lan)/i', $n)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    // Count total physical interfaces
     $phys_interfaces = 0;
     $up_interfaces = 0;
     foreach ($if_type_all as $ifidx => $type_val) {
-        if ((int)$type_val === 6) { // ethernetCsmacd
+        $if_name_val = $if_names_all[$ifidx] ?? '';
+        if ($fnIsPhysicalPort($ifidx, $type_val, $if_name_val)) {
             $phys_interfaces++;
             if (isset($if_oper_all[$ifidx]) && (int)$if_oper_all[$ifidx] === 1) {
                 $up_interfaces++;
@@ -1230,7 +1254,8 @@ foreach ($switches as $switch) {
 
     // Ensure all physical interfaces are in the port map for visibility
     foreach ($if_names_all as $ifidx => $name) {
-        if (isset($if_type_all[$ifidx]) && (int)$if_type_all[$ifidx] === 6) { // ethernetCsmacd
+        $type_val = $if_type_all[$ifidx] ?? 0;
+        if ($fnIsPhysicalPort($ifidx, $type_val, $name)) {
             $name = trim(str_replace('"', '', $name));
             $status = 'unknown';
             if (isset($if_oper_all[$ifidx])) {

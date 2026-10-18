@@ -225,7 +225,12 @@ function is_physical_faceplate_port($port_name, $port_type = null) {
     // 3. Exclude non-physical port types if reported by SNMP
     if (!empty($port_type)) {
         $pt = strtolower((string)$port_type);
-        if (preg_match('/(?:vlan|virtual|loopback|tunnel|other|software|internal|ieee8023adLag)/i', $pt)) {
+        // Do NOT drop if interface name is a known physical port type (sfp, ether, ge, etc.)
+        $is_named_physical = (bool)preg_match('/(?:ether|ge|fe|fa|gi|te|xe|et|eth|sfp|sfpplus|qsfp|combo|optic|fiber|lan)/i', $p);
+        if (!$is_named_physical && preg_match('/(?:vlan|virtual|loopback|tunnel|other|software|internal|ieee8023adLag)/i', $pt)) {
+            return false;
+        }
+        if ($is_named_physical && preg_match('/(?:vlan|virtual|loopback|tunnel|software|internal|ieee8023adLag)/i', $pt)) {
             return false;
         }
     }
@@ -250,7 +255,8 @@ $faceplate_copper = [];
 $faceplate_sfp = [];
 $faceplate_online_count = 0;
 $faceplate_total_count = 0;
-$seen_faceplate_labels = [];
+$seen_copper_labels = [];
+$seen_sfp_labels = [];
 
 foreach ($grouped_ports as $pname => $port) {
     // Only physical front-panel interfaces belong on the hardware chassis faceplate
@@ -266,8 +272,8 @@ foreach ($grouped_ports as $pname => $port) {
     } elseif (preg_match('/[\/:](\d+)(?:[^\d]*)$/', $pname, $m)) {
         // Multi-tier slash or colon notation (Alcatel 1/24, Cisco Gi1/0/24, Aruba 1/1/48, Juniper ge-0/0/1, Extreme 1:24)
         $label = $m[1];
-    } elseif (preg_match('/(?:ether|ge|fe|fa|gi|te|xe|et|po|trk|port|eth|sfp|combo|ae)[\s\/\-\.]*(\d+)/i', $pname, $m)) {
-        // Named interfaces (MikroTik ether3-to-Sw, Cisco Po1, Juniper ae0, Aruba Trk1, sfp1)
+    } elseif (preg_match('/(?:sfp[\-_]?sfpplus|sfpplus|sfp\+|qsfp[\-_]?plus|qsfp\+|qsfp|ether|ge|fe|fa|gi|te|xe|et|po|trk|port|eth|sfp|combo|ae)[\s\/\-\.]*(\d+)/i', $pname, $m)) {
+        // Named interfaces (MikroTik sfp-sfpplus1, ether3-to-Sw, Cisco Po1, Juniper ae0, Aruba Trk1, sfp1)
         $label = $m[1];
     } elseif (preg_match('/(\d+)(?:[^\d]*)$/', $pname, $m)) {
         // Trailing digits (LAN 5, Port10, eth12)
@@ -280,29 +286,39 @@ foreach ($grouped_ports as $pname => $port) {
         $label = mb_substr($label, 0, 4);
     }
 
-    // Never render the same physical port number twice on the faceplate
-    if (isset($seen_faceplate_labels[$label])) {
-        continue;
+    $port_num = is_numeric($label) ? (int)$label : 0;
+    $is_sfp = (!empty($port['sfp_vendor']) && $port['sfp_vendor'] !== '0')
+           || !empty($port['sfp_rx_power'])
+           || preg_match('/(?:sfp|sfpplus|qsfp|fiber|optical|optic|uplink|ten|te\d|xe\d)/i', $pname)
+           || ($port_num >= 49 && $port_num <= 52); // Ports 49-52 on 48-port switch are SFP+ bays
+
+    // Separate deduplication for copper vs SFP bays so SFP ports are never suppressed by copper port numbers
+    if ($is_sfp) {
+        if (isset($seen_sfp_labels[$label])) {
+            continue;
+        }
+        $seen_sfp_labels[$label] = true;
+    } else {
+        if (isset($seen_copper_labels[$label])) {
+            continue;
+        }
+        $seen_copper_labels[$label] = true;
     }
-    $seen_faceplate_labels[$label] = true;
 
     $faceplate_total_count++;
-    $raw_status = $port['port_status'] ?? 'down';
-    $status = (!empty($raw_status) && is_string($raw_status)) ? strtolower(trim($raw_status)) : 'down';
+    $raw_status = (string)($port['port_status'] ?? 'down');
+    $status_clean = strtolower(trim($raw_status));
+    $status = in_array($status_clean, ['up', '1', 'testing'], true) ? 'up' : ($status_clean === 'dormant' ? 'dormant' : 'down');
     if ($status === 'up') {
         $faceplate_online_count++;
     }
 
-    $port_num = is_numeric($label) ? (int)$label : 0;
-    $is_sfp = (!empty($port['sfp_vendor']) && $port['sfp_vendor'] !== '0')
-           || !empty($port['sfp_rx_power'])
-           || preg_match('/(sfp|fiber|optical|uplink|ten)/i', $pname)
-           || ($port_num >= 49 && $port_num <= 52); // Ports 49-52 on 48-port switch are SFP+ bays
     $tagged_str = $tagged_vlans_per_port[$pname] ?? '';
 
     $port_entry = [
         'id'          => $pname,
         'label'       => $label,
+        'display_label'=> $label,
         'name'        => $pname,
         'status'      => $status,
         'stp_state'   => $port['stp_state'] ?? null,
@@ -330,12 +346,37 @@ foreach ($grouped_ports as $pname => $port) {
     }
 }
 
-// Numerical sort for faceplate buttons so ports render in order (1..48 and 49..52)
+// Ensure clear SFP labels when copper and SFP coexist with low port numbers
+if (!empty($faceplate_copper) && !empty($faceplate_sfp)) {
+    $sfp_has_low_numbers = false;
+    foreach ($faceplate_sfp as $sp) {
+        if (is_numeric($sp['label']) && (int)$sp['label'] <= 24) {
+            $sfp_has_low_numbers = true;
+            break;
+        }
+    }
+    if ($sfp_has_low_numbers) {
+        foreach ($faceplate_sfp as &$sp) {
+            if (is_numeric($sp['label'])) {
+                $sp['display_label'] = 'S' . $sp['label'];
+            }
+        }
+        unset($sp);
+    }
+}
+
+// Numerical & natural sort for faceplate buttons so ports render in order (1..48 and 49..52 or S1..S8)
 usort($faceplate_copper, function($a, $b) {
-    return (int)$a['label'] <=> (int)$b['label'];
+    if (is_numeric($a['label']) && is_numeric($b['label'])) {
+        return (int)$a['label'] <=> (int)$b['label'];
+    }
+    return strnatcasecmp($a['label'], $b['label']);
 });
 usort($faceplate_sfp, function($a, $b) {
-    return (int)$a['label'] <=> (int)$b['label'];
+    if (is_numeric($a['label']) && is_numeric($b['label'])) {
+        return (int)$a['label'] <=> (int)$b['label'];
+    }
+    return strnatcasecmp($a['label'], $b['label']);
 });
 
 // Split copper into 2 physical rows (e.g. 1..24 top, 25..48 bottom for 48-port switches)
@@ -1089,7 +1130,9 @@ include 'includes/header.php';
 
                         <!-- Uplink / SFP Optical Bay -->
                         <?php if (!empty($faceplate_sfp)): ?>
-                            <div class="faceplate-divider" title="Optical / SFP Transceiver Bay"></div>
+                            <?php if (!empty($faceplate_copper)): ?>
+                                <div class="faceplate-divider" title="Optical / SFP Transceiver Bay"></div>
+                            <?php endif; ?>
                             <div class="faceplate-bay">
                                 <!-- SFP Row 1 -->
                                 <div class="faceplate-row">
@@ -1109,7 +1152,7 @@ include 'includes/header.php';
                                                 onclick="inspectPort('<?php echo htmlspecialchars((string)$p['id'], ENT_QUOTES, 'UTF-8'); ?>')"
                                                 title="<?php echo htmlspecialchars($p_title, ENT_QUOTES, 'UTF-8'); ?>">
                                             <span class="fp-port-led"></span>
-                                            <span class="fp-port-num"><?php echo htmlspecialchars((string)$p['label'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <span class="fp-port-num"><?php echo htmlspecialchars((string)($p['display_label'] ?? $p['label']), ENT_QUOTES, 'UTF-8'); ?></span>
                                         </button>
                                     <?php endforeach; ?>
                                 </div>
@@ -1131,7 +1174,7 @@ include 'includes/header.php';
                                                 onclick="inspectPort('<?php echo htmlspecialchars((string)$p['id'], ENT_QUOTES, 'UTF-8'); ?>')"
                                                 title="<?php echo htmlspecialchars($p_title, ENT_QUOTES, 'UTF-8'); ?>">
                                             <span class="fp-port-led"></span>
-                                            <span class="fp-port-num"><?php echo htmlspecialchars((string)$p['label'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <span class="fp-port-num"><?php echo htmlspecialchars((string)($p['display_label'] ?? $p['label']), ENT_QUOTES, 'UTF-8'); ?></span>
                                         </button>
                                     <?php endforeach; ?>
                                 </div>
