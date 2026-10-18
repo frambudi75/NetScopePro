@@ -2,6 +2,18 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.33.6] - 2026-10-18
+### Fixed & Enhanced
+- **MikroTik SFP Faceplate Port Display & Status Accuracy (`switch-details.php`)**:
+  - Root cause resolved: Global deduplication array previously caused active SFP ports (`sfp1`..`sfp7` / `sfp-sfpplus1`..) to be discarded as duplicate numbers when idle copper ports (`ether1`..`ether7`) were present, resulting in 0 of 7 ports online and false DOWN appearance.
+  - Separated copper and SFP seen tracking (`$seen_copper_labels` and `$seen_sfp_labels`), ensuring both copper and SFP bays render all physical ports with 100% fidelity.
+  - Relaxed `is_physical_faceplate_port()` to preserve physical interfaces named `sfp*`, `ether*`, `ge*`, etc., even when SNMP MIB reports `port_type` as `other` (1) or unmapped IDs.
+  - Implemented smart display labeling: assigns `S1`, `S2`.. for SFP ports when coexisting with numbered copper ports, while retaining native `1`..`N` labels on all-SFP switches and `49`..`52` uplinks on 48-port Cisco/Alcatel switches.
+  - Cleaned up faceplate chassis layout: optical bay divider is conditionally hidden on all-SFP switches, rendering a clean, seamless single-matrix bezel.
+- **SNMP Poller Physical Interface Accounting (`cron_switch_poll.php`)**:
+  - Added support for IANA ifTypes 62 (`fastEther`), 69 (`fastEtherFX`), and 117 (`gigabitEthernet`) in `get_iftype_name()`.
+  - Added physical interface detection helper ensuring `total_ports` and `active_ports` on switches with optical or non-type-6 interfaces are counted accurately without omissions.
+
 ## [2.33.5] - 2026-10-09
 ### Added & Enhanced
 - **Discord Webhook Bug Reporting Integration (`api/report-bug.php`, `includes/footer.php`, `includes/db.php`)**:

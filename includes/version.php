@@ -3,12 +3,18 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.5');
-if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-09');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.6');
+if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-18');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.33.6', 'date' => '2026-10-18', 'changes' => [
+        'MikroTik SFP Faceplate Inspector Accuracy: Separated copper and SFP deduplication scopes, preventing SFP ports from being dropped by idle copper port number collisions',
+        'Physical SFP Port Filter Resilience: Prevented physical optical interfaces from being discarded when SNMP reports ifType as other (1) or unmapped IDs',
+        'All-SFP & Hybrid Chassis Optimization: Added smart labeling (S1..SN when coexisting with copper, 1..N for all-SFP) and removed stray dividers on all-SFP switches',
+        'Interface Poller Discovery Upgrade: Added native support for IANA ifTypes 62 (fastEther), 69 (fastEtherFX), and 117 (gigabitEthernet) for accurate total and active interface counts'
+    ]],
     ['ver' => '2.33.5', 'date' => '2026-10-09', 'changes' => [
         'Discord Webhook Bug Reporting: Integrated automated issue reporting directly to Discord via webhook with AES-256-CBC encrypted webhook endpoint',
         'Screenshot & Email Attachment Support: Added reporter email and optional screenshot upload with automatic embed into rich Discord cards and local database records'
