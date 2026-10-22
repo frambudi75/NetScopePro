@@ -10,6 +10,7 @@ echo "[$(date)] Checking for Database Upgrades...\n";
 
 try {
     $db = get_db_connection(15, 2);
+    run_auto_migrations($db, true);
     echo "Database connected and core schema verified/auto-healed.\n";
     
     // Check if netwatch table exists

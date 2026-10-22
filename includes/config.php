@@ -62,12 +62,14 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 // Standard success/error responses
+if (!function_exists('json_response')) {
 function json_response($data, $status = 200) {
     if (ob_get_length()) ob_clean(); // Clear any warnings/garbage before JSON
     header('Content-Type: application/json');
     http_response_code($status);
     echo json_encode($data);
     exit;
+}
 }
 
 /**

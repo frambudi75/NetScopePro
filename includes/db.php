@@ -5,6 +5,11 @@
 
 if (!function_exists('get_db_connection')) {
 function get_db_connection($maxRetries = 1, $retryDelaySeconds = 2) {
+    static $pdo_instance = null;
+    if ($pdo_instance !== null) {
+        return $pdo_instance;
+    }
+
     require_once __DIR__ . '/config.php';
     $port = defined('DB_PORT') ? DB_PORT : '3306';
     $dsn = "mysql:host=" . DB_HOST . ";port=" . $port . ";dbname=" . DB_NAME . ";charset=utf8mb4";
@@ -21,7 +26,8 @@ function get_db_connection($maxRetries = 1, $retryDelaySeconds = 2) {
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
             $pdo->exec("SET time_zone = '+07:00'");
             run_auto_migrations($pdo);
-            return $pdo;
+            $pdo_instance = $pdo;
+            return $pdo_instance;
         } catch (\PDOException $e) {
             // Check if error is 1049 (Unknown database)
             $isUnknownDb = ($e->getCode() == 1049) || (stripos($e->getMessage(), 'Unknown database') !== false);
@@ -35,7 +41,8 @@ function get_db_connection($maxRetries = 1, $retryDelaySeconds = 2) {
                     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
                     $pdo->exec("SET time_zone = '+07:00'");
                     run_auto_migrations($pdo);
-                    return $pdo;
+                    $pdo_instance = $pdo;
+                    return $pdo_instance;
                 } catch (\Exception $createEx) {
                     error_log("[db_auto_heal] Auto-create DB failed: " . $createEx->getMessage());
                 }
@@ -87,10 +94,23 @@ function get_redis_connection() {
  * Ensures database structure is up to date
  */
 if (!function_exists('run_auto_migrations')) {
-function run_auto_migrations($db) {
+function run_auto_migrations($db, $force = false) {
     static $migrations_done = false;
-    if ($migrations_done) return;
-    $migrations_done = true;
+    if ($migrations_done && !$force) return;
+
+    // Fast-path: Skip heavy DDL checks if schema is already up to date with APP_VERSION
+    if (!$force) {
+        try {
+            $stmt = $db->query("SELECT `value` FROM `settings` WHERE `key` = 'db_schema_version' LIMIT 1");
+            $installedVersion = $stmt ? $stmt->fetchColumn() : null;
+            if ($installedVersion && defined('APP_VERSION') && $installedVersion === APP_VERSION) {
+                $migrations_done = true;
+                return;
+            }
+        } catch (\Exception $e) {
+            // Table `settings` might not exist yet (brand new install), proceed with full auto-heal
+        }
+    }
 
     // 0. Base Tables Auto-Healing & Data Protection Guard
     // CRITICAL: Only import full database.sql if the database is 100% EMPTY (brand new install).
@@ -718,5 +738,14 @@ function run_auto_migrations($db) {
             WHERE event_type = 'flapping' AND status = 'active' AND flap_count <= 1
         ");
     } catch (Exception $e) {}
+
+    // 28. Record schema version to skip future DDL runs for this version
+    try {
+        $ver = defined('APP_VERSION') ? APP_VERSION : '2.26.0';
+        $db->exec("INSERT INTO `settings` (`key`, `value`) VALUES ('db_schema_version', '$ver') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)");
+    } catch (\Exception $e) {}
+
+    $migrations_done = true;
 }
 }
+
