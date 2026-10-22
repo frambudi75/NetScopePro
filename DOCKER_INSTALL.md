@@ -13,7 +13,7 @@ Pastikan host Anda sudah terpasang:
 
 Proyek ini berjalan di atas tiga kontainer utama:
 
-1. **app (`netscope_app`)**: Apache + PHP 8.2 (dilengkapi `php-redis`, `opcache`, dan `memory_limit = 512M`). Menjalankan web interface serta orchestrator background poller (`cron_netwatch.php`, `cron_switch_poll.php`, `cron_scanner.php`) secara otomatis via `entrypoint.sh`.
+1. **app (`netscope_app`)**: Apache + PHP 8.5 (dilengkapi `php-redis`, `opcache`, dan `memory_limit = 512M`). Menjalankan web interface serta orchestrator background poller (`cron_netwatch.php`, `cron_switch_poll.php`, `cron_scanner.php`) secara otomatis via `entrypoint.sh`.
 2. **db (`netscope_db`)**: MariaDB 10.11 untuk penyimpanan data persisten (terikat pada volume `db_data`).
 3. **redis (`netscope_redis`)**: Redis 7.0 sebagai _high-performance caching layer_ untuk session dan akselerasi data switch/IP.
 
@@ -46,7 +46,7 @@ docker compose up -d --build
 ```
 
 Perintah ini akan secara otomatis:
-- Membangun image PHP 8.2 dengan seluruh dependensi SNMP, curl, nmap, dan memory limit 512M.
+- Membangun image PHP 8.5 dengan seluruh dependensi SNMP, curl, nmap, dan memory limit 512M.
 - Menjalankan kontainer MariaDB dan mengimpor skema dari `./sql/database.sql`.
 - Menjalankan Redis cache container.
 - Menjalankan healthcheck database dan meluncurkan background task otomatis.
