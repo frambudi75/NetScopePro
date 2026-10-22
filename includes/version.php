@@ -10,8 +10,10 @@ if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_
 
 $versions = [
     ['ver' => '2.33.7', 'date' => '2026-10-22', 'changes' => [
-        'Instant Menu Navigation & Schema Version Caching: Eliminated 3-5s page load lag by caching auto-migrations with db_schema_version guard and reusing singleton PDO connections across requests',
-        'Topology Manager PHP 8.1+ Resilience: Fixed htmlspecialchars null deprecation on deleted/missing subnets, safely handled orphaned topology links, and auto-cleaned detached infrastructure records',
+        'PHP 8.5 Container Stack & Modernization: Upgraded Docker environment to php:8.5-apache with OPcache and JIT support, enabled full extensions (pdo_mysql, mysqli, snmp, redis, gettext, mod_rewrite)',
+        'Container Auto-Boot & Data Protection: Configured restart: unless-stopped across containers for auto-recovery after host reboot, backed by persistent db_data volume with non-destructive schema guards',
+        'Instant Menu Navigation & Schema Version Caching: Eliminated 3-5s page load lag by caching auto-migrations with db_schema_version guard and reusing singleton PDO connections across requests (9ms - 190ms response times)',
+        'Topology Manager PHP 8.1 - 8.5 Resilience: Fixed htmlspecialchars null deprecation on deleted/missing subnets, safely handled orphaned topology links, and auto-cleaned detached infrastructure records',
         'Deprecation Notice Hygiene: Excluded E_DEPRECATED from default error reporting so modern PHP runtimes never inject warning text into rendered table components'
     ]],
     ['ver' => '2.33.6', 'date' => '2026-10-18', 'changes' => [
