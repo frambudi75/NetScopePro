@@ -68,6 +68,9 @@ if (isset($_GET['delete']) && is_admin()) {
         // Delete associated IPs first
         $stmt = $db->prepare("DELETE FROM ip_addresses WHERE subnet_id = ?");
         $stmt->execute([$sid]);
+        // Clean up topology links associated with this subnet
+        $stmt = $db->prepare("DELETE FROM topology_links WHERE target_type = 'subnet' AND target_id = ?");
+        $stmt->execute([$sid]);
         // Delete subnet
         $stmt = $db->prepare("DELETE FROM subnets WHERE id = ?");
         $stmt->execute([$sid]);

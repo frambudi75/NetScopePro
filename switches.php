@@ -28,7 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && is_admin()) {
     }
     
     if (isset($_POST['delete_switch'])) {
-        $id = $_POST['id'];
+        $id = (int)$_POST['id'];
+        $db->prepare("DELETE FROM topology_links WHERE parent_switch_id = ? OR (target_type = 'switch' AND target_id = ?)")->execute([$id, $id]);
         $db->prepare("DELETE FROM switches WHERE id = ?")->execute([$id]);
         AuditLogHelper::log("delete_switch", "switch", $id, "Deleted switch ID $id");
         $message = "Switch removed.";

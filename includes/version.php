@@ -3,12 +3,17 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.6');
-if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-18');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.7');
+if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-22');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.33.7', 'date' => '2026-10-22', 'changes' => [
+        'Instant Menu Navigation & Schema Version Caching: Eliminated 3-5s page load lag by caching auto-migrations with db_schema_version guard and reusing singleton PDO connections across requests',
+        'Topology Manager PHP 8.1+ Resilience: Fixed htmlspecialchars null deprecation on deleted/missing subnets, safely handled orphaned topology links, and auto-cleaned detached infrastructure records',
+        'Deprecation Notice Hygiene: Excluded E_DEPRECATED from default error reporting so modern PHP runtimes never inject warning text into rendered table components'
+    ]],
     ['ver' => '2.33.6', 'date' => '2026-10-18', 'changes' => [
         'MikroTik SFP Faceplate Inspector Accuracy: Separated copper and SFP deduplication scopes, preventing SFP ports from being dropped by idle copper port number collisions',
         'Physical SFP Port Filter Resilience: Prevented physical optical interfaces from being discarded when SNMP reports ifType as other (1) or unmapped IDs',

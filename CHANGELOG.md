@@ -2,6 +2,18 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.33.7] - 2026-10-22
+### Fixed & Enhanced
+- **High-Speed Menu Navigation & Auto-Migration Caching (`includes/db.php`, `includes/config.php`)**:
+  - Root cause resolved: `run_auto_migrations()` was executing ~80 heavy DDL queries (`CREATE TABLE`, `SHOW TABLES`, `SHOW COLUMNS`, `ALTER TABLE`, table scans, and cleanup queries) on *every single HTTP request*, incurring 3 to 5 seconds of latency on every menu navigation.
+  - Added `db_schema_version` guard comparing installed schema version against `APP_VERSION`, allowing subsequent requests to bypass DDL in ~0.2ms.
+  - Implemented singleton `$pdo_instance` in `get_db_connection()`, avoiding redundant TCP handshakes and memory overhead within the same request lifecycle.
+- **Topology Manager PHP 8.1+ Deprecation & Orphan Resilience (`topology-manager.php`, `topology.php`, `subnets.php`, `switches.php`, `includes/db.php`)**:
+  - Root cause resolved: Passing null values to `htmlspecialchars()` in `topology-manager.php` (when targets or subnet descriptions were deleted/null) triggered PHP 8.1+ `E_DEPRECATED` warning output directly into rendered table cells.
+  - Safely cast strings and handled missing/orphaned targets with clear UI tags (`[Missing / Deleted Subnet #ID]`).
+  - Added cascade deletion of `topology_links` when subnets or switches are deleted, plus automatic cleanup of detached links during migrations.
+  - Excluded `E_DEPRECATED` notices from default `error_reporting` in `includes/config.php` for clean rendering on PHP 8.1+ environments.
+
 ## [2.33.6] - 2026-10-18
 ### Fixed & Enhanced
 - **MikroTik SFP Faceplate Port Display & Status Accuracy (`switch-details.php`)**:

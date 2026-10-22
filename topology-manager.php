@@ -173,8 +173,8 @@ include 'includes/header.php';
                     <?php foreach ($links as $link): ?>
                         <tr style="border-bottom: 1px solid var(--border);">
                             <td style="padding: 1rem;">
-                                <div style="font-weight: 700; color: var(--primary);"><?php echo htmlspecialchars($link['parent_name']); ?></div>
-                                <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;"><?php echo $link['parent_ip']; ?></div>
+                                <div style="font-weight: 700; color: var(--primary);"><?php echo htmlspecialchars((string)($link['parent_name'] ?? 'Unknown Switch')); ?></div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;"><?php echo htmlspecialchars((string)($link['parent_ip'] ?? '')); ?></div>
                             </td>
                             <td style="padding: 1rem; text-align: center;">
                                 <i data-lucide="arrow-right-circle" style="width: 18px; color: var(--text-muted); opacity: 0.4;"></i>
@@ -186,14 +186,26 @@ include 'includes/header.php';
                                     <?php else: ?>
                                         <span style="background: rgba(16, 185, 129, 0.1); color: var(--success); padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 800;">NET</span>
                                     <?php endif; ?>
-                                    <div style="font-weight: 700;"><?php echo htmlspecialchars($link['target_name']); ?></div>
+                                    <div style="font-weight: 700;">
+                                        <?php if (!empty($link['target_name'])): ?>
+                                            <?php echo htmlspecialchars((string)$link['target_name']); ?>
+                                        <?php else: ?>
+                                            <span style="color: var(--danger); font-style: italic;">[Missing / Deleted <?php echo ucfirst((string)($link['target_type'] ?? 'Target')); ?> #<?php echo (int)($link['target_id'] ?? 0); ?>]</span>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
-                                <div style="font-size: 0.75rem; color: var(--text-muted);"><?php echo htmlspecialchars($link['target_info']); ?></div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                    <?php if (!empty($link['target_info'])): ?>
+                                        <?php echo htmlspecialchars((string)$link['target_info']); ?>
+                                    <?php elseif (empty($link['target_name'])): ?>
+                                        <span style="color: var(--text-muted); opacity: 0.8;">Target was removed from system. You can remove this link.</span>
+                                    <?php endif; ?>
+                                </div>
                             </td>
                             <td style="padding: 1rem; text-align: right;">
                                 <form action="" method="POST" onsubmit="return confirm('Remove this link?');">
                                     <input type="hidden" name="id" value="<?php echo $link['id']; ?>">
-                                    <button type="submit" name="delete_link" class="btn" style="padding: 6px; color: var(--danger); background: rgba(239,68,68,0.1);">
+                                    <button type="submit" name="delete_link" class="btn" style="padding: 6px; color: var(--danger); background: rgba(239,68,68,0.1);" title="Remove Link">
                                         <i data-lucide="trash-2" style="width: 14px;"></i>
                                     </button>
                                 </form>

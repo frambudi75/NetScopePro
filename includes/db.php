@@ -739,9 +739,16 @@ function run_auto_migrations($db, $force = false) {
         ");
     } catch (Exception $e) {}
 
-    // 28. Record schema version to skip future DDL runs for this version
+    // 28. Auto-clean orphaned topology links where target or parent no longer exists
     try {
-        $ver = defined('APP_VERSION') ? APP_VERSION : '2.26.0';
+        $db->exec("DELETE FROM topology_links WHERE target_type = 'subnet' AND target_id NOT IN (SELECT id FROM subnets)");
+        $db->exec("DELETE FROM topology_links WHERE target_type = 'switch' AND target_id NOT IN (SELECT id FROM switches)");
+        $db->exec("DELETE FROM topology_links WHERE parent_switch_id NOT IN (SELECT id FROM switches)");
+    } catch (Exception $e) {}
+
+    // 29. Record schema version to skip future DDL runs for this version
+    try {
+        $ver = defined('APP_VERSION') ? APP_VERSION : '2.33.7';
         $db->exec("INSERT INTO `settings` (`key`, `value`) VALUES ('db_schema_version', '$ver') ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)");
     } catch (\Exception $e) {}
 

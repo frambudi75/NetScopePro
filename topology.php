@@ -72,22 +72,30 @@ foreach ($manual_links as $link) {
     
     if ($link['target_type'] == 'switch') {
         // Draw as a dotted line to indicate it's a manual override/redundant link
-        $mermaid_logic .= "    " . $source . " -.-> SW_" . $link['target_id'] . "\n";
+        $target_sw_exists = false;
+        foreach ($switches as $sw) {
+            if ($sw['id'] == $link['target_id']) { $target_sw_exists = true; break; }
+        }
+        if ($target_sw_exists) {
+            $mermaid_logic .= "    " . $source . " -.-> SW_" . $link['target_id'] . "\n";
+        }
     } else {
         $sub_id = $link['target_id'];
         $target_sub = null;
         foreach ($subnets as $s) if ($s['id'] == $sub_id) { $target_sub = $s; break; }
 
-        if ($target_sub && $target_sub['vlan_id']) {
-            $v_id = $target_sub['vlan_id'];
-            if (!isset($rendered_sw_vlan_links[$source . "_" . $v_id])) {
-                $mermaid_logic .= "    " . $source . " --- VLAN_" . $v_id . "\n";
-                $rendered_sw_vlan_links[$source . "_" . $v_id] = true;
+        if ($target_sub) {
+            if (!empty($target_sub['vlan_id'])) {
+                $v_id = $target_sub['vlan_id'];
+                if (!isset($rendered_sw_vlan_links[$source . "_" . $v_id])) {
+                    $mermaid_logic .= "    " . $source . " --- VLAN_" . $v_id . "\n";
+                    $rendered_sw_vlan_links[$source . "_" . $v_id] = true;
+                }
+                $mermaid_logic .= "    VLAN_" . $v_id . " --- SUB_" . $sub_id . "\n";
+                $rendered_vlan_sub_links[$v_id . "_" . $sub_id] = true;
+            } else {
+                $mermaid_logic .= "    " . $source . " --- SUB_" . $sub_id . "\n";
             }
-            $mermaid_logic .= "    VLAN_" . $v_id . " --- SUB_" . $sub_id . "\n";
-            $rendered_vlan_sub_links[$v_id . "_" . $sub_id] = true;
-        } else {
-            $mermaid_logic .= "    " . $source . " --- SUB_" . $sub_id . "\n";
         }
     }
 }

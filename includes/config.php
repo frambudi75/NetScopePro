@@ -57,8 +57,8 @@ if (!defined('APP_URL')) define('APP_URL', getenv('APP_URL') ?: 'http://localhos
 if (!defined('ENCRYPTION_KEY')) define('ENCRYPTION_KEY', getenv('ENCRYPTION_KEY') ?: '');
 if (!defined('DEVELOPER_EMAIL')) define('DEVELOPER_EMAIL', 'frambudihabib@gmail.com');
 
-// Error reporting (disable in production)
-error_reporting(E_ALL);
+// Error reporting (exclude deprecation notices for PHP 8.1+ compatibility)
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
 ini_set('display_errors', 1);
 
 // Standard success/error responses
