@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     openssh-client \
     git \
     unzip \
-    && docker-php-ext-install mysqli pdo pdo_mysql gettext snmp curl opcache \
+    && docker-php-ext-install mysqli pdo_mysql gettext snmp \
     && pecl install redis && docker-php-ext-enable redis \
     && a2enmod rewrite
 
