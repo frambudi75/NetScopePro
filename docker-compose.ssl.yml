@@ -2,6 +2,7 @@ services:
   app:
     build: .
     container_name: netscope_app
+    restart: unless-stopped
     # No longer expose port to host directly — Nginx handles it
     expose:
       - "80"
@@ -26,6 +27,7 @@ services:
   nginx:
     image: nginx:alpine
     container_name: netscope_nginx
+    restart: unless-stopped
     ports:
       - "2025:443"
       - "2080:80"
@@ -40,6 +42,7 @@ services:
   db:
     image: mariadb:10.11
     container_name: netscope_db
+    restart: unless-stopped
     ports:
       - "3309:3306"
     environment:
@@ -62,6 +65,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: netscope_redis
+    restart: unless-stopped
     networks:
       - netscope_net
     healthcheck:

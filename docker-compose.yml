@@ -2,6 +2,7 @@ services:
   app:
     build: .
     container_name: netscope_app
+    restart: unless-stopped
     ports:
       - "2025:80"
     environment:
@@ -25,6 +26,7 @@ services:
   db:
     image: mariadb:10.11
     container_name: netscope_db
+    restart: unless-stopped
     ports:
       - "3309:3306"
     environment:
@@ -47,6 +49,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: netscope_redis
+    restart: unless-stopped
     networks:
       - netscope_net
     healthcheck:
