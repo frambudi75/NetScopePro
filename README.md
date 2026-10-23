@@ -2,8 +2,8 @@
 
 > **IPAM as the Core, Network Intelligence as the Edge.**
 
-[![Release](https://img.shields.io/badge/release-v2.32.6-blue.svg)](https://github.com/frambudi75/NetScopePro/releases)
-[![PHP](https://img.shields.io/badge/php-8.1%20%7C%208.2-777bb4.svg)](https://www.php.net/)
+[![Release](https://img.shields.io/badge/release-v2.33.7-blue.svg)](https://github.com/frambudi75/NetScopePro/releases)
+[![PHP](https://img.shields.io/badge/php-8.1%20%7C%208.5-777bb4.svg)](https://www.php.net/)
 [![Database](https://img.shields.io/badge/database-MariaDB%20%7C%20MySQL-orange.svg)](https://mariadb.org/)
 [![License](https://img.shields.io/badge/license-Source--Available-red.svg)](LICENSE)
 
@@ -124,7 +124,7 @@ NetScope Pro does not just alert you when an anomaly occurs; it correlates L2/L3
 - **Network**: 100 Mbps minimum | 1 Gbps recommended for low-latency SNMP sweeps
 
 ### Software
-- **PHP**: 8.1 or 8.2+
+- **PHP**: 8.5
 - **Database**: MariaDB 10.6+ or MySQL 8.0+
 - **Dependencies**: `nmap`, `fping` / `iputils-ping`, `net-snmp`
 
