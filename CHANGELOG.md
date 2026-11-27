@@ -2,6 +2,14 @@
 
 All major functional changes, enhancements, and critical fixes are documented here.
 
+## [2.33.8] - 2026-11-27
+### Fixed & Enhanced
+- **Telegram Notification Test Reliability (`settings.php`, `includes/notifications.php`)**:
+  - Root cause resolved: the Test Telegram button read the Bot Token and Chat ID from the database, so testing before pressing Save always failed with empty credentials (Discord already saved from the form first).
+  - `testTelegram()` and `sendTelegram()` now accept the token and chat ID from the submitted form, so the test works without saving first.
+  - Failed tests now show the real reason returned by Telegram (e.g. `Unauthorized`, `chat not found`) or the network error, via `NotificationHelper::$telegram_last_error`, instead of the generic "Check your Token and Chat ID" message.
+  - Bot Token and Chat ID are trimmed to avoid failures caused by copy-paste whitespace.
+
 ## [2.33.7] - 2026-10-22
 ### Added & Upgraded
 - **PHP 8.5 Base Image & Modernized Docker Stack (`Dockerfile`, `docker-compose.yml`)**:

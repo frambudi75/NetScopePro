@@ -3,12 +3,17 @@
  * NetScope Pro Version Information
  */
 
-if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.7');
-if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-10-22');
+if (!defined('APP_VERSION')) define('APP_VERSION', '2.33.8');
+if (!defined('APP_RELEASE_DATE')) define('APP_RELEASE_DATE', '2026-11-27');
 if (!defined('GITHUB_REPO')) define('GITHUB_REPO', 'frambudi75/NetScopePro');
 if (!defined('GITHUB_URL')) define('GITHUB_URL', 'https://github.com/' . GITHUB_REPO);
 
 $versions = [
+    ['ver' => '2.33.8', 'date' => '2026-11-27', 'changes' => [
+        'Telegram Test Uses Live Form Values: The Test button now sends with the Bot Token and Chat ID currently typed in the form, no longer requiring Save first',
+        'Telegram Real Error Reporting: Failed tests now show the actual reason from Telegram or the network (Unauthorized, chat not found, connection error) instead of a generic message',
+        'Telegram Input Sanitizing: Bot Token and Chat ID are trimmed to prevent failures from copy-paste whitespace'
+    ]],
     ['ver' => '2.33.7', 'date' => '2026-10-22', 'changes' => [
         'PHP 8.5 Container Stack & Modernization: Upgraded Docker environment to php:8.5-apache with OPcache and JIT support, enabled full extensions (pdo_mysql, mysqli, snmp, redis, gettext, mod_rewrite)',
         'Container Auto-Boot & Data Protection: Configured restart: unless-stopped across containers for auto-recovery after host reboot, backed by persistent db_data volume with non-destructive schema guards',
