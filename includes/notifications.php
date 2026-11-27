@@ -682,7 +682,9 @@ class NotificationHelper {
         return $success || (!$telegram_enabled && !$email_enabled && !$discord_enabled && !$slack_enabled);
     }
 
-    public static function testTelegram() {
+    public static $telegram_last_error = null;
+
+    public static function testTelegram($token = null, $chat_id = null) {
         $server_host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'Localhost');
         $message = "🔹 <b>" . APP_NAME . " • Test Notification</b> 🔹\n\n";
         $message .= "✅ <b>Integration Status: CONNECTED</b>\n";
@@ -696,7 +698,7 @@ class NotificationHelper {
         $message .= "  • 📉 SFP Optical Fiber DDM\n";
         $message .= "  • ⚡ New Device Discovery\n\n";
         $message .= "🕒 <b>Timestamp:</b> " . date('Y-m-d H:i:s');
-        return self::sendTelegram($message);
+        return self::sendTelegram($message, $token, $chat_id);
     }
 
     public static function testDiscord() {
@@ -741,11 +743,15 @@ class NotificationHelper {
     /**
      * Send message via Telegram Bot API
      */
-    public static function sendTelegram($text) {
-        $token = Settings::get('telegram_bot_token');
-        $chat_id = Settings::get('telegram_chat_id');
+    public static function sendTelegram($text, $token = null, $chat_id = null) {
+        self::$telegram_last_error = null;
+        $token = trim((string)($token ?? Settings::get('telegram_bot_token')));
+        $chat_id = trim((string)($chat_id ?? Settings::get('telegram_chat_id')));
 
-        if (!$token || !$chat_id) return false;
+        if (!$token || !$chat_id) {
+            self::$telegram_last_error = 'Bot Token atau Chat ID kosong.';
+            return false;
+        }
 
         // Auto-convert common markdown bold/code to HTML if text lacks HTML tags
         if (strpos($text, '<') === false) {
@@ -779,6 +785,8 @@ class NotificationHelper {
             curl_close($ch);
 
             if ($res === false || $http_code >= 400) {
+                $desc = is_string($res) ? (json_decode($res, true)['description'] ?? null) : null;
+                self::$telegram_last_error = $desc ?: ($err ?: "HTTP {$http_code}");
                 error_log("Telegram Send Error: HTTP {$http_code} | " . ($err ?: $res));
                 return false;
             }
@@ -805,6 +813,7 @@ class NotificationHelper {
             $error = error_get_last();
             $response_headers = $http_response_header ?? [];
             $status_line = $response_headers[0] ?? 'Unknown Status';
+            self::$telegram_last_error = ($error['message'] ?? 'Unknown error') . " | " . $status_line;
             error_log("Telegram Send Error: " . ($error['message'] ?? 'Unknown error') . " | Status: " . $status_line);
             return false;
         }

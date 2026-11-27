@@ -73,10 +73,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
 
 // Handle Test Telegram
 if (isset($_POST['test_telegram'])) {
-    if (NotificationHelper::testTelegram()) {
+    if (NotificationHelper::testTelegram($_POST['telegram_bot_token'] ?? null, $_POST['telegram_chat_id'] ?? null)) {
         $message = 'Test Telegram message sent!';
     } else {
-        $message = '❌ Failed to send Telegram message. Check your Token and Chat ID.';
+        $message = '❌ Failed to send Telegram message: ' . (NotificationHelper::$telegram_last_error ?: 'Check your Token and Chat ID.');
     }
 }
 
